@@ -32,7 +32,7 @@ async function awardXP(amount,type,lessonId){
     const body={amount,type};
     if(lessonId) body.lesson_id=lessonId;
     try{
-      const r=await fetch('/auth/add-xp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      const r=await fetch('/auth/add-xp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),credentials:'include'});
       const d=await r.json();
       if(d.xp!==undefined) setXP(d.xp);
       if(type==='lesson'&&lessonId&&!State.completedLessons.includes(lessonId)){
@@ -67,7 +67,7 @@ document.getElementById('login-btn').addEventListener('click',async()=>{
   err.textContent='';
   if(!u||!p){err.textContent='Please enter username and password.';return;}
   try{
-    const r=await fetch('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
+    const r=await fetch('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p}),credentials:'include'});
     const d=await r.json();
     if(d.error){err.textContent=d.error;return;}
     applySession(d); hideAuthModal();
@@ -82,7 +82,7 @@ document.getElementById('register-btn').addEventListener('click',async()=>{
   err.textContent='';
   if(!u||!p){err.textContent='Please enter username and password.';return;}
   try{
-    const r=await fetch('/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,email:em,password:p})});
+    const r=await fetch('/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,email:em,password:p}),credentials:'include'});
     const d=await r.json();
     if(d.error){err.textContent=d.error;return;}
     applySession(d); hideAuthModal();
@@ -92,7 +92,7 @@ document.getElementById('register-btn').addEventListener('click',async()=>{
 document.getElementById('skip-auth').addEventListener('click',hideAuthModal);
 
 document.getElementById('logout-btn').addEventListener('click',async()=>{
-  await fetch('/auth/logout',{method:'POST'});
+  await fetch('/auth/logout',{method:'POST',credentials:'include'});
   State.loggedIn=false; State.user=null;
   document.getElementById('user-name').textContent='Guest';
   document.getElementById('user-avatar').textContent='?';
@@ -116,11 +116,13 @@ function applySession(d){
   hideEl('progress-guest');
   showEl('progress-content');
   document.getElementById('save-game-btn').style.display='inline-flex';
+  document.getElementById('go-replay-btn').style.display=State.replayMoves.length?'inline-flex':'none';
+  document.getElementById('go-lessons-btn').style.display=State.lessonOrder.length?'inline-flex':'none';
 }
 
 async function checkSession(){
   try{
-    const r=await fetch('/auth/me');
+    const r=await fetch('/auth/me',{credentials:'include'});
     const d=await r.json();
     if(d.loggedIn){applySession(d);}
     else{showAuthModal();}
@@ -225,7 +227,7 @@ document.getElementById('parse-btn').addEventListener('click', async()=>{
   btn.disabled=true; spinner.classList.add('on'); btnText.textContent='Reading game…';
 
   try{
-    const r=await fetch('/parse-pgn',{method:'POST',body:fd});
+    const r=await fetch('/parse-pgn',{method:'POST',body:fd,credentials:'include'});
     const d=await r.json();
     if(!r.ok||d.error){showParseError(d.error||'Could not read the PGN.');return;}
     showPlayerSelection(d);
@@ -331,11 +333,17 @@ async function runAnalysis(playerColor){
 
 /* ── Save game ─────────────────────────────────────────────────────────────── */
 document.getElementById('save-game-btn').addEventListener('click',async()=>{
-  if(!State.loggedIn||!State.lastPGN) return;
+  if(!State.loggedIn){showAuthModal();return;}
+  if(!State.lastPGN){
+    const b=document.getElementById('save-game-btn');
+    b.textContent='⚠ Analyse a game first!';
+    setTimeout(()=>b.textContent='💾 Save Game',2000);
+    return;
+  }
   const metas=State.analysisData?.game_metas||[];
   const label=metas.length?`${metas[0].white} vs ${metas[0].black} (${metas[0].date})`:'Game';
   try{
-    const r=await fetch('/auth/save-game',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pgn:State.lastPGN,label})});
+    const r=await fetch('/auth/save-game',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pgn:State.lastPGN,label}),credentials:'include'});
     const d=await r.json();
     if(d.ok){const b=document.getElementById('save-game-btn');b.textContent='✅ Saved!';setTimeout(()=>b.textContent='💾 Save Game',2000);}
   }catch(e){}

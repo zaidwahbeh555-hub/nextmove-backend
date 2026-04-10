@@ -857,8 +857,26 @@ def opening_trainer():
 # ── CORS headers (needed when Replit frontend calls Railway backend) ───────────
 @app.after_request
 def add_cors_headers(response):
-    allowed_origins = os.environ.get("ALLOWED_ORIGINS", "*")
-    response.headers["Access-Control-Allow-Origin"]  = allowed_origins
+    origin = request.headers.get("Origin", "")
+    allowed = os.environ.get("ALLOWED_ORIGINS", "*")
+    # For credentials to work, we must echo back the exact origin (not *)
+    if origin:
+        response.headers["Access-Control-Allow-Origin"] = origin
+    else:
+        response.headers["Access-Control-Allow-Origin"] = allowed
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    return response
+
+@app.route("/auth/<path:path>", methods=["OPTIONS"])
+@app.route("/analyse", methods=["OPTIONS"])
+@app.route("/parse-pgn", methods=["OPTIONS"])
+def handle_options(path=""):
+    response = jsonify({"ok": True})
+    origin = request.headers.get("Origin", "")
+    if origin:
+        response.headers["Access-Control-Allow-Origin"] = origin
     response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
     response.headers["Access-Control-Allow-Credentials"] = "true"
