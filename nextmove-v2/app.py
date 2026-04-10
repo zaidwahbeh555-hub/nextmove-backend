@@ -79,6 +79,12 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated
 
+# ── Plan limits ────────────────────────────────────────────────────────────────
+FREE_DAILY_LIMIT = 1   # games per day on free plan
+STRIPE_SECRET    = os.environ.get("STRIPE_SECRET_KEY", "")
+STRIPE_WEBHOOK   = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+STRIPE_PRO_PRICE = os.environ.get("STRIPE_PRICE_ID", "")
+
 def empty_progress():
     return {
         "games_analysed":    0,
@@ -88,13 +94,30 @@ def empty_progress():
         "challenge_solved":  [],
     }
 
+def is_pro(user: dict) -> bool:
+    """Check if user has an active pro subscription."""
+    return user.get("plan") == "pro"
+
+def games_today(user: dict) -> int:
+    """Count how many games the user has analysed today."""
+    today = time.strftime("%Y-%m-%d")
+    return user.get("daily_counts", {}).get(today, 0)
+
+def increment_game_count(user: dict):
+    """Increment today's game count."""
+    today = time.strftime("%Y-%m-%d")
+    if "daily_counts" not in user:
+        user["daily_counts"] = {}
+    # Reset old days to save space
+    user["daily_counts"] = {today: user["daily_counts"].get(today, 0) + 1}
+
 # ── Chess helpers ──────────────────────────────────────────────────────────────
 def get_phase(move_number: int) -> str:
     if move_number <= 10: return "opening"
     if move_number <= 30: return "middlegame"
     return "endgame"
 
-def classify_severity(drop_cp: float) -> object:
+def classify_severity(drop_cp: float) -> str | None:
     if drop_cp >= BLUNDER_CP:    return "blunder"
     if drop_cp >= MISTAKE_CP:    return "mistake"
     if drop_cp >= INACCURACY_CP: return "inaccuracy"
@@ -164,7 +187,7 @@ def extract_players_from_pgn(pgn_text: str) -> dict:
         "site":  game.headers.get("Site", ""),
     }
 
-def analyse_game(pgn_text: str, engine, player_color: object) -> object:
+def analyse_game(pgn_text: str, engine, player_color: str | None) -> dict | None:
     """
     Analyse a single game.
     player_color: "white", "black", or None (analyse both sides)
@@ -472,12 +495,15 @@ def register():
         return jsonify({"error": "An account with that email already exists."}), 400
 
     db[username] = {
-        "password": hash_password(password),
-        "email":    email,
-        "created":  int(time.time()),
-        "xp":       0,
-        "games":    [],
-        "progress": empty_progress(),
+        "password":     hash_password(password),
+        "email":        email,
+        "created":      int(time.time()),
+        "xp":           0,
+        "plan":         "free",
+        "plan_expires": None,
+        "daily_counts": {},
+        "games":        [],
+        "progress":     empty_progress(),
     }
     save_db(db)
     session["username"] = username
@@ -507,6 +533,7 @@ def login():
         "ok":       True,
         "username": username,
         "xp":       user.get("xp", 0),
+        "plan":     user.get("plan", "free"),
         "progress": user.get("progress", empty_progress()),
         "games":    user.get("games", []),
     })
@@ -532,6 +559,7 @@ def me():
         "loggedIn": True,
         "username": u,
         "xp":       user.get("xp", 0),
+        "plan":     user.get("plan", "free"),
         "progress": user.get("progress", empty_progress()),
         "games":    user.get("games", []),
     })
@@ -644,6 +672,23 @@ def analyse():
     if not pgn_text:
         return jsonify({"error": "No PGN provided."}), 400
 
+    # ── Plan enforcement ───────────────────────────────────────────────────────
+    u = current_user()
+    if u:
+        db   = load_db()
+        user = db.get(u, {})
+        if not is_pro(user):
+            count = games_today(user)
+            if count >= FREE_DAILY_LIMIT:
+                return jsonify({
+                    "error":    "free_limit_reached",
+                    "message":  f"Free plan allows {FREE_DAILY_LIMIT} game analysis per day. Upgrade to Grandmaster for unlimited analysis.",
+                    "upgrade":  True,
+                    "limit":    FREE_DAILY_LIMIT,
+                    "used":     count,
+                }), 403
+    # ── End plan enforcement ───────────────────────────────────────────────────
+
     sf = find_stockfish()
     if not sf:
         return jsonify({"error": "Stockfish engine not found on this server."}), 500
@@ -691,8 +736,12 @@ def analyse():
             prog["blunders_found"]  = prog.get("blunders_found", 0)  + data["severity_counts"].get("blunder", 0)
             user["progress"] = prog
             user["xp"] = user.get("xp", 0) + 100
+            increment_game_count(user)
             save_db(db)
             data["xp"] = user["xp"]
+            data["plan"] = user.get("plan", "free")
+            data["games_today"] = games_today(user)
+            data["daily_limit"] = FREE_DAILY_LIMIT
 
     return jsonify(data)
 
@@ -716,6 +765,97 @@ def add_cors_headers(response):
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
     response.headers["Access-Control-Allow-Credentials"] = "true"
     return response
+
+
+@app.route("/auth/upgrade", methods=["POST"])
+@login_required
+def upgrade():
+    """Manually upgrade a user to pro (for testing or manual upgrades)."""
+    u    = current_user()
+    data = request.get_json(silent=True) or {}
+    key  = data.get("admin_key","")
+    # Simple admin key check — set ADMIN_KEY env var in Railway
+    if key != os.environ.get("ADMIN_KEY",""):
+        return jsonify({"error":"Unauthorized"}), 403
+    db   = load_db()
+    user = db.get(u)
+    if not user:
+        return jsonify({"error":"User not found"}), 404
+    user["plan"] = "pro"
+    save_db(db)
+    return jsonify({"ok":True,"plan":"pro"})
+
+
+@app.route("/stripe/webhook", methods=["POST"])
+def stripe_webhook():
+    """
+    Stripe sends payment events here.
+    When someone pays, we upgrade their account to pro automatically.
+    Set up in Stripe Dashboard → Webhooks → Add endpoint.
+    """
+    import hmac as _hmac
+    payload    = request.get_data()
+    sig_header = request.headers.get("Stripe-Signature","")
+    secret     = STRIPE_WEBHOOK
+
+    # Verify webhook signature
+    if secret:
+        try:
+            parts     = {p.split("=")[0]: p.split("=")[1] for p in sig_header.split(",")}
+            timestamp = parts.get("t","")
+            signature = parts.get("v1","")
+            signed    = f"{timestamp}.{payload.decode()}"
+            expected  = _hmac.new(secret.encode(), signed.encode(), "sha256").hexdigest()
+            if not _hmac.compare_digest(expected, signature):
+                return jsonify({"error":"Invalid signature"}), 400
+        except Exception:
+            return jsonify({"error":"Webhook error"}), 400
+
+    event = request.get_json(silent=True) or {}
+    etype = event.get("type","")
+
+    # Payment succeeded — upgrade to pro
+    if etype in ("checkout.session.completed", "invoice.payment_succeeded"):
+        obj      = event.get("data",{}).get("object",{})
+        email    = obj.get("customer_email") or obj.get("customer_details",{}).get("email","")
+        if email:
+            db = load_db()
+            for uname, user in db.items():
+                if user.get("email","").lower() == email.lower():
+                    user["plan"] = "pro"
+                    user["plan_started"] = int(time.time())
+                    break
+            save_db(db)
+
+    # Subscription cancelled — downgrade to free
+    if etype == "customer.subscription.deleted":
+        obj   = event.get("data",{}).get("object",{})
+        email = obj.get("customer_email","")
+        if email:
+            db = load_db()
+            for uname, user in db.items():
+                if user.get("email","").lower() == email.lower():
+                    user["plan"] = "free"
+                    break
+            save_db(db)
+
+    return jsonify({"ok": True})
+
+
+@app.route("/plan/status")
+@login_required
+def plan_status():
+    """Return current user plan status and usage."""
+    u    = current_user()
+    db   = load_db()
+    user = db.get(u, {})
+    return jsonify({
+        "plan":        user.get("plan","free"),
+        "is_pro":      is_pro(user),
+        "games_today": games_today(user),
+        "daily_limit": FREE_DAILY_LIMIT,
+        "can_analyse": is_pro(user) or games_today(user) < FREE_DAILY_LIMIT,
+    })
 
 
 @app.route("/health")
