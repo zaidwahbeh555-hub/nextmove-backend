@@ -37,19 +37,111 @@ MISTAKE_CP       = 100
 INACCURACY_CP    = 50
 MAX_GAMES        = 5
 
-# ── Database ───────────────────────────────────────────────────────────────────
-DB_FILE = os.path.join(os.path.dirname(__file__), "users.json")
+# ── Database — PostgreSQL (production) with JSON fallback (local) ──────────────
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
+
+def get_pg_conn():
+    if not DATABASE_URL:
+        return None
+    try:
+        import psycopg2
+        conn = psycopg2.connect(DATABASE_URL, sslmode="require")
+        return conn
+    except Exception:
+        return None
+
+def init_db():
+    conn = get_pg_conn()
+    if not conn: return
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                username   TEXT PRIMARY KEY,
+                data       JSONB NOT NULL,
+                updated_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        conn.commit()
+    except Exception as e:
+        print(f"DB init error: {e}")
+    finally:
+        conn.close()
 
 def load_db():
+    conn = get_pg_conn()
+    if conn:
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT username, data FROM users")
+            return {row[0]: row[1] for row in cur.fetchall()}
+        except Exception:
+            return {}
+        finally:
+            conn.close()
+    DB_FILE = os.path.join(os.path.dirname(__file__), "users.json")
     if os.path.exists(DB_FILE):
         try:
-            with open(DB_FILE) as f:
-                return json.load(f)
+            with open(DB_FILE) as f: return json.load(f)
         except Exception:
             return {}
     return {}
 
 def save_db(db):
+    conn = get_pg_conn()
+    if conn:
+        try:
+            cur = conn.cursor()
+            for username, data in db.items():
+                cur.execute("""
+                    INSERT INTO users (username, data, updated_at)
+                    VALUES (%s, %s, NOW())
+                    ON CONFLICT (username) DO UPDATE
+                    SET data = EXCLUDED.data, updated_at = NOW()
+                """, (username, json.dumps(data)))
+            conn.commit()
+            return
+        except Exception as e:
+            print(f"DB save error: {e}")
+        finally:
+            conn.close()
+    DB_FILE = os.path.join(os.path.dirname(__file__), "users.json")
+    with open(DB_FILE, "w") as f:
+        json.dump(db, f, indent=2)
+
+def get_user(username):
+    conn = get_pg_conn()
+    if conn:
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT data FROM users WHERE username = %s", (username,))
+            row = cur.fetchone()
+            return row[0] if row else None
+        except Exception:
+            return None
+        finally:
+            conn.close()
+    return load_db().get(username)
+
+def save_user(username, data):
+    conn = get_pg_conn()
+    if conn:
+        try:
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT INTO users (username, data, updated_at)
+                VALUES (%s, %s, NOW())
+                ON CONFLICT (username) DO UPDATE
+                SET data = EXCLUDED.data, updated_at = NOW()
+            """, (username, json.dumps(data)))
+            conn.commit()
+            return
+        except Exception as e:
+            print(f"save_user error: {e}")
+        finally:
+            conn.close()
+    db = load_db(); db[username] = data
+    DB_FILE = os.path.join(os.path.dirname(__file__), "users.json")
     with open(DB_FILE, "w") as f:
         json.dump(db, f, indent=2)
 
@@ -469,6 +561,9 @@ OPENINGS = [
     {"name":"Queen's Gambit","moves":["d4","d5","c4","e6","Nc3","Nf6","Bg5"],"tip":"One of the most classical openings. White offers a pawn to gain central control.","color":"white"},
 ]
 
+# ── Init DB on startup ───────────────────────────────────────────────────────
+init_db()
+
 # ── Auth Routes ────────────────────────────────────────────────────────────────
 @app.route("/auth/register", methods=["POST"])
 def register():
@@ -488,13 +583,16 @@ def register():
     if len(password) < 8:
         return jsonify({"error": "Password must be at least 8 characters."}), 400
 
-    db = load_db()
-    if username in db:
+    # Check if username taken
+    if get_user(username):
         return jsonify({"error": "That username is already taken."}), 400
-    if email and any(u.get("email") == email for u in db.values()):
-        return jsonify({"error": "An account with that email already exists."}), 400
+    # Check email uniqueness
+    if email:
+        db = load_db()
+        if any(u.get("email","").lower() == email for u in db.values()):
+            return jsonify({"error": "An account with that email already exists."}), 400
 
-    db[username] = {
+    new_user = {
         "password":     hash_password(password),
         "email":        email,
         "created":      int(time.time()),
@@ -505,7 +603,7 @@ def register():
         "games":        [],
         "progress":     empty_progress(),
     }
-    save_db(db)
+    save_user(username, new_user)
     session["username"] = username
     session.permanent  = True
     return jsonify({"ok": True, "username": username, "xp": 0, "progress": empty_progress()})
@@ -520,8 +618,7 @@ def login():
     if not username or not password:
         return jsonify({"error": "Username and password are required."}), 400
 
-    db = load_db()
-    user = db.get(username)
+    user = get_user(username)
     if not user or not verify_password(password, user["password"]):
         # Constant-time rejection to prevent timing attacks
         time.sleep(0.3)
@@ -550,8 +647,7 @@ def me():
     u = current_user()
     if not u:
         return jsonify({"loggedIn": False})
-    db   = load_db()
-    user = db.get(u)
+    user = get_user(u)
     if not user:
         session.clear()
         return jsonify({"loggedIn": False})
@@ -574,10 +670,13 @@ def save_game():
     if not pgn:
         return jsonify({"error": "No PGN provided."}), 400
     label = data.get("label", "Game")[:100]
-    db    = load_db()
-    db[u]["games"].append({"pgn": pgn, "label": label, "saved": int(time.time())})
-    db[u]["games"] = db[u]["games"][-50:]  # keep last 50 games
-    save_db(db)
+    user = get_user(u)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+    user["games"] = user.get("games", [])
+    user["games"].append({"pgn": pgn, "label": label, "saved": int(time.time())})
+    user["games"] = user["games"][-50:]
+    save_user(u, user)
     return jsonify({"ok": True, "total": len(db[u]["games"])})
 
 
@@ -590,8 +689,9 @@ def add_xp():
     xp_type = data.get("type", "")
     lesson_id = data.get("lesson_id", "")
 
-    db   = load_db()
-    user = db[u]
+    user = get_user(u)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
     user["xp"] = user.get("xp", 0) + amount
     prog = user.get("progress", empty_progress())
 
@@ -611,7 +711,7 @@ def add_xp():
         prog["challenge_solved"] = solved
 
     user["progress"] = prog
-    save_db(db)
+    save_user(u, user)
     return jsonify({"ok": True, "xp": user["xp"], "progress": prog})
 
 
@@ -675,8 +775,7 @@ def analyse():
     # ── Plan enforcement ───────────────────────────────────────────────────────
     u = current_user()
     if u:
-        db   = load_db()
-        user = db.get(u, {})
+        user = get_user(u) or {}
         if not is_pro(user):
             count = games_today(user)
             if count >= FREE_DAILY_LIMIT:
@@ -728,8 +827,7 @@ def analyse():
     # Update progress if logged in
     u = current_user()
     if u:
-        db   = load_db()
-        user = db.get(u)
+        user = get_user(u)
         if user:
             prog = user.get("progress", empty_progress())
             prog["games_analysed"]  = prog.get("games_analysed", 0)  + len(results)
@@ -737,7 +835,7 @@ def analyse():
             user["progress"] = prog
             user["xp"] = user.get("xp", 0) + 100
             increment_game_count(user)
-            save_db(db)
+            save_user(u, user)
             data["xp"] = user["xp"]
             data["plan"] = user.get("plan", "free")
             data["games_today"] = games_today(user)
@@ -777,12 +875,11 @@ def upgrade():
     # Simple admin key check — set ADMIN_KEY env var in Railway
     if key != os.environ.get("ADMIN_KEY",""):
         return jsonify({"error":"Unauthorized"}), 403
-    db   = load_db()
-    user = db.get(u)
+    user = get_user(u)
     if not user:
         return jsonify({"error":"User not found"}), 404
     user["plan"] = "pro"
-    save_db(db)
+    save_user(u, user)
     return jsonify({"ok":True,"plan":"pro"})
 
 
@@ -847,8 +944,7 @@ def stripe_webhook():
 def plan_status():
     """Return current user plan status and usage."""
     u    = current_user()
-    db   = load_db()
-    user = db.get(u, {})
+    user = get_user(u) or {}
     return jsonify({
         "plan":        user.get("plan","free"),
         "is_pro":      is_pro(user),
