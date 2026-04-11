@@ -63,6 +63,8 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;font-
 #xp-count{color:var(--cyan);font-weight:600}
 .xp-bar{height:4px;background:var(--bg4);border-radius:2px;overflow:hidden;margin-bottom:.7rem}
 .xp-fill{height:100%;background:var(--cyan);border-radius:2px;transition:width .5s ease;width:0%}
+.upgrade-btn{width:100%;background:var(--cyan);color:#000;border:none;font-size:.78rem;padding:.45rem;border-radius:6px;cursor:pointer;font-family:'Inter',sans-serif;font-weight:700;transition:all .2s;margin-bottom:.4rem}
+.upgrade-btn:hover{background:#1ae0ff;box-shadow:0 2px 12px var(--cyan-glow)}
 .home-btn{display:block;text-align:center;background:transparent;border:1px solid var(--border);color:var(--muted);font-size:.75rem;padding:.35rem;border-radius:6px;cursor:pointer;font-family:'Inter',sans-serif;transition:all .2s;text-decoration:none;margin-bottom:.4rem}
 .home-btn:hover{border-color:var(--cyan);color:var(--cyan)}
 .logout-btn{width:100%;background:transparent;border:1px solid var(--border);color:var(--muted);font-size:.75rem;padding:.35rem;border-radius:6px;cursor:pointer;font-family:'Inter',sans-serif;transition:all .2s}
