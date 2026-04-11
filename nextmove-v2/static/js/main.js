@@ -131,6 +131,36 @@ async function checkSession(){
   }catch(e){showAuthModal();}
 }
 
+/* ── Get Pro button ──────────────────────────────────────────────────────────── */
+async function goToPro(){
+  if(!State.loggedIn){ showAuthModal(); return; }
+  try{
+    const r=await fetch('/create-checkout-session',{method:'POST',credentials:'include'});
+    const d=await r.json();
+    if(d.error){ alert(d.error); return; }
+    window.location.href=d.url;
+  }catch(e){ alert('Could not start checkout. Please try again.'); }
+}
+
+// Check for payment success/cancel on page load
+(function(){
+  const params=new URLSearchParams(window.location.search);
+  if(params.get('payment')==='success'){
+    setTimeout(()=>{
+      const div=document.createElement('div');
+      div.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#00d4ff;color:#000;padding:1rem 2rem;border-radius:10px;font-weight:700;font-size:1rem;z-index:9999;box-shadow:0 4px 20px rgba(0,212,255,.4)';
+      div.textContent='🎉 Welcome to ChessForge Pro! Your account has been upgraded.';
+      document.body.appendChild(div);
+      setTimeout(()=>div.remove(), 5000);
+      // Clean URL
+      window.history.replaceState({}, '', '/');
+    }, 1000);
+  }
+  if(params.get('payment')==='cancelled'){
+    window.history.replaceState({}, '/', '/');
+  }
+})();
+
 /* ── Plan badge & upgrade prompt ─────────────────────────────────────────── */
 function updatePlanBadge(plan){
   const el=document.getElementById('user-xp-label');
@@ -157,7 +187,7 @@ function showUpgradePrompt(msg){
         <div style="color:#00d4ff;font-weight:700;font-size:1.1rem;margin-bottom:.8rem">Grandmaster — $9/mo</div>
         ${['Unlimited game analysis','Full psychological profiling','Custom drill generation','Blunder pattern tracking','Opening repertoire fixes'].map(f=>`<div style="color:#e8e8f0;font-size:.85rem;padding:.2rem 0">✅ ${f}</div>`).join('')}
       </div>
-      <button onclick="window.open('mailto:nextmove@chess.com?subject=Upgrade to Pro','_blank')" style="width:100%;background:#00d4ff;color:#000;border:none;border-radius:10px;padding:.85rem;font-weight:700;font-size:.95rem;cursor:pointer;margin-bottom:.8rem">Get Pro Access — $9/mo</button>
+      <button onclick="document.getElementById('upgrade-prompt').remove();goToPro()" style="width:100%;background:#00d4ff;color:#000;border:none;border-radius:10px;padding:.85rem;font-weight:700;font-size:.95rem;cursor:pointer;margin-bottom:.8rem">Get Pro Access — $9/mo ⚡</button>
       <button onclick="document.getElementById('upgrade-prompt').remove()" style="background:transparent;border:none;color:#666680;font-size:.82rem;cursor:pointer;text-decoration:underline">Maybe later</button>
     </div>`;
   document.body.appendChild(div);
