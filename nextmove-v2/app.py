@@ -3,7 +3,7 @@ ChessForge — Production Backend
 Flask API for chess game analysis, pattern detection, and personalised training.
 """
 
-import os, io, json, random, hashlib, hmac, time, secrets
+import os, io, json, random, hashlib, hmac, time, secrets, urllib.request, urllib.parse
 import chess, chess.pgn, chess.engine
 from flask import Flask, request, jsonify, render_template, session
 from collections import defaultdict
@@ -935,13 +935,22 @@ def stripe_webhook():
     if etype in ("checkout.session.completed", "invoice.payment_succeeded"):
         obj      = event.get("data",{}).get("object",{})
         email    = obj.get("customer_email") or obj.get("customer_details",{}).get("email","")
-        if email:
-            db = load_db()
+        username = obj.get("metadata",{}).get("username","")
+        # Try by username first (more reliable), then fall back to email
+        db = load_db()
+        upgraded = False
+        if username and username in db:
+            db[username]["plan"] = "pro"
+            db[username]["plan_started"] = int(time.time())
+            upgraded = True
+        elif email:
             for uname, user in db.items():
                 if user.get("email","").lower() == email.lower():
                     user["plan"] = "pro"
                     user["plan_started"] = int(time.time())
+                    upgraded = True
                     break
+        if upgraded:
             save_db(db)
 
     # Subscription cancelled — downgrade to free
@@ -972,6 +981,54 @@ def plan_status():
         "daily_limit": FREE_DAILY_LIMIT,
         "can_analyse": is_pro(user) or games_today(user) < FREE_DAILY_LIMIT,
     })
+
+
+@app.route("/create-checkout-session", methods=["POST"])
+@login_required
+def create_checkout_session():
+    """Create a Stripe checkout session for the logged in user."""
+    u    = current_user()
+    user = get_user(u)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    if is_pro(user):
+        return jsonify({"error": "You are already on the Pro plan!"}), 400
+
+    email      = user.get("email", "")
+    price_id   = STRIPE_PRO_PRICE
+    secret_key = STRIPE_SECRET
+    app_url    = os.environ.get("APP_URL", "https://nextmove-backend-production.up.railway.app")
+
+    if not price_id or not secret_key:
+        return jsonify({"error": "Stripe not configured on this server."}), 500
+
+    # Build Stripe checkout session via API
+    payload = urllib.parse.urlencode({
+        "mode":                          "subscription",
+        "line_items[0][price]":          price_id,
+        "line_items[0][quantity]":       "1",
+        "customer_email":                email,
+        "success_url":                   f"{app_url}?payment=success",
+        "cancel_url":                    f"{app_url}?payment=cancelled",
+        "metadata[username]":            u,
+    }).encode()
+
+    req = urllib.request.Request(
+        "https://api.stripe.com/v1/checkout/sessions",
+        data=payload,
+        headers={
+            "Authorization": f"Bearer {secret_key}",
+            "Content-Type":  "application/x-www-form-urlencoded",
+        }
+    )
+    try:
+        with urllib.request.urlopen(req) as resp:
+            session = json.loads(resp.read())
+            return jsonify({"url": session["url"]})
+    except urllib.error.HTTPError as e:
+        err = json.loads(e.read())
+        return jsonify({"error": err.get("error", {}).get("message", "Stripe error")}), 500
 
 
 @app.route("/health")
