@@ -118,6 +118,8 @@ function applySession(d){
   hideEl('progress-guest');
   showEl('progress-content');
   document.getElementById('save-game-btn').style.display='inline-flex';
+  const upgradeBtn=document.getElementById('upgrade-btn');
+  if(upgradeBtn) upgradeBtn.style.display=d.plan==='pro'?'none':'block';
   document.getElementById('go-replay-btn').style.display=State.replayMoves.length?'inline-flex':'none';
   document.getElementById('go-lessons-btn').style.display=State.lessonOrder.length?'inline-flex':'none';
 }
