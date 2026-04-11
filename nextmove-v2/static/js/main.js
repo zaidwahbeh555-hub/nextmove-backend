@@ -1,8 +1,8 @@
-/* NextMove — Main JS */
+/* ChessForge — Main JS */
 const PIECE_THEME = 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png';
 
 const State = {
-  xp:0, user:null, loggedIn:false,
+  xp:0, user:null, loggedIn:false, plan:'free',
   analysisData:null, lastPGN:'', lastPlayerColor:null,
   replayMoves:[], replayPly:-1, replayBoard:null,
   puzzles:[], puzzleIdx:0, puzzleBoard:null, puzzleGame:null,
@@ -32,7 +32,7 @@ async function awardXP(amount,type,lessonId){
     const body={amount,type};
     if(lessonId) body.lesson_id=lessonId;
     try{
-      const r=await fetch('/auth/add-xp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      const r=await fetch('/auth/add-xp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),credentials:'include'});
       const d=await r.json();
       if(d.xp!==undefined) setXP(d.xp);
       if(type==='lesson'&&lessonId&&!State.completedLessons.includes(lessonId)){
@@ -67,7 +67,7 @@ document.getElementById('login-btn').addEventListener('click',async()=>{
   err.textContent='';
   if(!u||!p){err.textContent='Please enter username and password.';return;}
   try{
-    const r=await fetch('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
+    const r=await fetch('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p}),credentials:'include'});
     const d=await r.json();
     if(d.error){err.textContent=d.error;return;}
     applySession(d); hideAuthModal();
@@ -81,8 +81,10 @@ document.getElementById('register-btn').addEventListener('click',async()=>{
   const err=document.getElementById('register-error');
   err.textContent='';
   if(!u||!p){err.textContent='Please enter username and password.';return;}
+  if(!em){err.textContent='Email is required — we use it to link your subscription.';return;}
+  if(!em.includes('@')||!em.includes('.')){err.textContent='Please enter a valid email address.';return;}
   try{
-    const r=await fetch('/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,email:em,password:p})});
+    const r=await fetch('/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,email:em,password:p}),credentials:'include'});
     const d=await r.json();
     if(d.error){err.textContent=d.error;return;}
     applySession(d); hideAuthModal();
@@ -92,7 +94,7 @@ document.getElementById('register-btn').addEventListener('click',async()=>{
 document.getElementById('skip-auth').addEventListener('click',hideAuthModal);
 
 document.getElementById('logout-btn').addEventListener('click',async()=>{
-  await fetch('/auth/logout',{method:'POST'});
+  await fetch('/auth/logout',{method:'POST',credentials:'include'});
   State.loggedIn=false; State.user=null;
   document.getElementById('user-name').textContent='Guest';
   document.getElementById('user-avatar').textContent='?';
@@ -106,6 +108,8 @@ function applySession(d){
   document.getElementById('user-avatar').textContent=d.username[0].toUpperCase();
   setXP(d.xp||0);
   State.completedLessons=d.progress?.lessons_completed||[];
+  State.plan=d.plan||'free';
+  updatePlanBadge(d.plan||'free');
   if(d.progress){
     const p=d.progress;
     [['pg-games',p.games_analysed],['pg-blunders',p.blunders_found],['pg-puzzles',p.puzzles_solved],['pg-lessons',(p.lessons_completed||[]).length]].forEach(([id,v])=>{const e=document.getElementById(id);if(e)e.textContent=v||0;});
@@ -114,15 +118,49 @@ function applySession(d){
   hideEl('progress-guest');
   showEl('progress-content');
   document.getElementById('save-game-btn').style.display='inline-flex';
+  document.getElementById('go-replay-btn').style.display=State.replayMoves.length?'inline-flex':'none';
+  document.getElementById('go-lessons-btn').style.display=State.lessonOrder.length?'inline-flex':'none';
 }
 
 async function checkSession(){
   try{
-    const r=await fetch('/auth/me');
+    const r=await fetch('/auth/me',{credentials:'include'});
     const d=await r.json();
     if(d.loggedIn){applySession(d);}
     else{showAuthModal();}
   }catch(e){showAuthModal();}
+}
+
+/* ── Plan badge & upgrade prompt ─────────────────────────────────────────── */
+function updatePlanBadge(plan){
+  const el=document.getElementById('user-xp-label');
+  if(el){
+    if(plan==='pro') el.textContent='⭐ Pro · '+State.xp+' XP';
+    else el.textContent='Free · '+State.xp+' XP';
+  }
+}
+
+function showUpgradePrompt(msg){
+  // Remove existing if any
+  const existing=document.getElementById('upgrade-prompt');
+  if(existing) existing.remove();
+
+  const div=document.createElement('div');
+  div.id='upgrade-prompt';
+  div.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px)';
+  div.innerHTML=`
+    <div style="background:#111118;border:1px solid #2a2a3a;border-radius:16px;padding:2.5rem;width:420px;max-width:95vw;text-align:center;box-shadow:0 0 60px rgba(0,212,255,.08)">
+      <div style="font-size:2.5rem;margin-bottom:1rem">⚡</div>
+      <h2 style="font-size:1.4rem;font-weight:700;margin-bottom:.5rem;color:#00d4ff">Upgrade to Grandmaster</h2>
+      <p style="color:#666680;font-size:.9rem;margin-bottom:1.5rem">${msg||'You have reached your free plan limit. Upgrade for unlimited analysis, all lessons, puzzles and more.'}</p>
+      <div style="background:#18181f;border:1px solid #2a2a3a;border-radius:10px;padding:1.2rem;margin-bottom:1.5rem;text-align:left">
+        <div style="color:#00d4ff;font-weight:700;font-size:1.1rem;margin-bottom:.8rem">Grandmaster — $9/mo</div>
+        ${['Unlimited game analysis','Full psychological profiling','Custom drill generation','Blunder pattern tracking','Opening repertoire fixes'].map(f=>`<div style="color:#e8e8f0;font-size:.85rem;padding:.2rem 0">✅ ${f}</div>`).join('')}
+      </div>
+      <button onclick="window.open('mailto:nextmove@chess.com?subject=Upgrade to Pro','_blank')" style="width:100%;background:#00d4ff;color:#000;border:none;border-radius:10px;padding:.85rem;font-weight:700;font-size:.95rem;cursor:pointer;margin-bottom:.8rem">Get Pro Access — $9/mo</button>
+      <button onclick="document.getElementById('upgrade-prompt').remove()" style="background:transparent;border:none;color:#666680;font-size:.82rem;cursor:pointer;text-decoration:underline">Maybe later</button>
+    </div>`;
+  document.body.appendChild(div);
 }
 
 /* ── Nav ──────────────────────────────────────────────────────────────────── */
@@ -191,7 +229,7 @@ document.getElementById('parse-btn').addEventListener('click', async()=>{
   btn.disabled=true; spinner.classList.add('on'); btnText.textContent='Reading game…';
 
   try{
-    const r=await fetch('/parse-pgn',{method:'POST',body:fd});
+    const r=await fetch('/parse-pgn',{method:'POST',body:fd,credentials:'include'});
     const d=await r.json();
     if(!r.ok||d.error){showParseError(d.error||'Could not read the PGN.');return;}
     showPlayerSelection(d);
@@ -276,9 +314,14 @@ async function runAnalysis(playerColor){
     const r=await fetch('/analyse',{method:'POST',body:fd});
     const d=await r.json();
     step3.classList.add('hidden');
+    if(r.status===403&&d.upgrade){showUpgradePrompt(d.message);return;}
     if(!r.ok||d.error){showParseError(d.error||'Analysis failed.');return;}
 
     State.analysisData=d;
+    if(d.plan==='free'&&d.games_today!==undefined){
+      const remaining=Math.max(0,d.daily_limit-d.games_today);
+      if(remaining===0) showParseError('You\'ve used your free analysis for today. Come back tomorrow or upgrade to Pro!');
+    }
     renderAnalysis(d);
     showEl('results');
     if(State.loggedIn) document.getElementById('save-game-btn').style.display='inline-flex';
@@ -292,11 +335,17 @@ async function runAnalysis(playerColor){
 
 /* ── Save game ─────────────────────────────────────────────────────────────── */
 document.getElementById('save-game-btn').addEventListener('click',async()=>{
-  if(!State.loggedIn||!State.lastPGN) return;
+  if(!State.loggedIn){showAuthModal();return;}
+  if(!State.lastPGN){
+    const b=document.getElementById('save-game-btn');
+    b.textContent='⚠ Analyse a game first!';
+    setTimeout(()=>b.textContent='💾 Save Game',2000);
+    return;
+  }
   const metas=State.analysisData?.game_metas||[];
   const label=metas.length?`${metas[0].white} vs ${metas[0].black} (${metas[0].date})`:'Game';
   try{
-    const r=await fetch('/auth/save-game',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pgn:State.lastPGN,label})});
+    const r=await fetch('/auth/save-game',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pgn:State.lastPGN,label}),credentials:'include'});
     const d=await r.json();
     if(d.ok){const b=document.getElementById('save-game-btn');b.textContent='✅ Saved!';setTimeout(()=>b.textContent='💾 Save Game',2000);}
   }catch(e){}
