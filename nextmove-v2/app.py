@@ -1,5 +1,5 @@
 """
-NextMove — Production Backend
+ChessForge — Production Backend
 Flask API for chess game analysis, pattern detection, and personalised training.
 """
 
@@ -574,6 +574,8 @@ def register():
 
     if not username or not password:
         return jsonify({"error": "Username and password are required."}), 400
+    if not email or "@" not in email:
+        return jsonify({"error": "A valid email address is required."}), 400
     if len(username) < 3:
         return jsonify({"error": "Username must be at least 3 characters."}), 400
     if len(username) > 30:

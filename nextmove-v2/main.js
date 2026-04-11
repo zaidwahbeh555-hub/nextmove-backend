@@ -1,4 +1,4 @@
-/* NextMove — Main JS */
+/* ChessForge — Main JS */
 const PIECE_THEME = 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png';
 
 const State = {
@@ -81,6 +81,8 @@ document.getElementById('register-btn').addEventListener('click',async()=>{
   const err=document.getElementById('register-error');
   err.textContent='';
   if(!u||!p){err.textContent='Please enter username and password.';return;}
+  if(!em){err.textContent='Email is required — we use it to link your subscription.';return;}
+  if(!em.includes('@')||!em.includes('.')){err.textContent='Please enter a valid email address.';return;}
   try{
     const r=await fetch('/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,email:em,password:p}),credentials:'include'});
     const d=await r.json();
