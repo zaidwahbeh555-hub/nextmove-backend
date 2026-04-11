@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NextMove — Chess Analysis</title>
+<title>ChessForge — Chess Analysis</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
@@ -15,9 +15,9 @@
 <div id="auth-overlay" class="auth-overlay hidden">
   <div class="auth-modal">
     <div class="auth-logo">
-      <span class="logo-icon">⬡</span> Next<strong>Move</strong>
+      <span class="logo-icon">⬡</span> Chess<strong>Forge</strong>
     </div>
-    <p class="auth-tagline">Psychologically optimized chess training</p>
+    <p class="auth-tagline">Pattern-based chess improvement platform</p>
     <div class="auth-tabs">
       <button class="auth-tab active" data-auth="login">Sign In</button>
       <button class="auth-tab" data-auth="register">Create Account</button>
@@ -43,8 +43,8 @@
         <input type="text" id="reg-username" placeholder="choose a username" autocomplete="username">
       </div>
       <div class="input-group">
-        <label>Email <span class="input-note">(optional)</span></label>
-        <input type="email" id="reg-email" placeholder="you@email.com" autocomplete="email">
+        <label>Email <span class="input-note">(required — used for account recovery & upgrades)</span></label>
+        <input type="email" id="reg-email" placeholder="you@email.com" autocomplete="email" required>
       </div>
       <div class="input-group">
         <label>Password <span class="input-note">(min 8 characters)</span></label>
@@ -59,7 +59,7 @@
 <!-- ═══ SIDEBAR ═══════════════════════════════════════════════════════════ -->
 <nav class="sidebar">
   <div class="sidebar-logo">
-    <span class="logo-icon">⬡</span> Next<strong>Move</strong>
+    <span class="logo-icon">⬡</span> Chess<strong>Forge</strong>
   </div>
   <div class="sidebar-user" id="sidebar-user">
     <div class="user-avatar" id="user-avatar">?</div>
