@@ -2,7 +2,7 @@
 const PIECE_THEME = 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png';
 
 const State = {
-  xp:0, user:null, loggedIn:false, plan:'free',
+  xp:0, user:null, loggedIn:false, plan:'free', pendingUpgrade:false,
   analysisData:null, lastPGN:'', lastPlayerColor:null,
   replayMoves:[], replayPly:-1, replayBoard:null,
   puzzles:[], puzzleIdx:0, puzzleBoard:null, puzzleGame:null,
@@ -115,6 +115,11 @@ function applySession(d){
     [['pg-games',p.games_analysed],['pg-blunders',p.blunders_found],['pg-puzzles',p.puzzles_solved],['pg-lessons',(p.lessons_completed||[]).length]].forEach(([id,v])=>{const e=document.getElementById(id);if(e)e.textContent=v||0;});
   }
   if(d.games) renderSavedGames(d.games);
+  // If user logged in due to upgrade=true param, trigger checkout
+  if(State.pendingUpgrade && d.plan !== 'pro'){
+    State.pendingUpgrade = false;
+    setTimeout(()=>goToPro(), 500);
+  }
   hideEl('progress-guest');
   showEl('progress-content');
   document.getElementById('save-game-btn').style.display='inline-flex';
@@ -131,6 +136,35 @@ async function checkSession(){
     if(d.loggedIn){applySession(d);}
     else{showAuthModal();}
   }catch(e){showAuthModal();}
+  return true;
+}
+
+/* ── Handle ?upgrade=true URL param ─────────────────────────────────────────── */
+async function handleURLParams(){
+  const params = new URLSearchParams(window.location.search);
+  if(params.get('upgrade') === 'true'){
+    window.history.replaceState({}, '', '/'); // clean URL
+    // Wait for session check to complete
+    await new Promise(r => setTimeout(r, 800));
+    if(State.loggedIn){
+      if(State.plan === 'pro'){
+        // Already pro — show message
+        const div=document.createElement('div');
+        div.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#00d4ff;color:#000;padding:1rem 2rem;border-radius:10px;font-weight:700;z-index:9999';
+        div.textContent='⭐ You are already on ChessForge Pro!';
+        document.body.appendChild(div);
+        setTimeout(()=>div.remove(), 3000);
+      } else {
+        // Logged in but not pro — go straight to Stripe
+        goToPro();
+      }
+    } else {
+      // Not logged in — show auth modal with upgrade intent
+      showAuthModal();
+      // After they log in, trigger upgrade
+      State.pendingUpgrade = true;
+    }
+  }
 }
 
 /* ── Get Pro button ──────────────────────────────────────────────────────────── */
@@ -747,4 +781,4 @@ function renderTrainingPage(training){
 }
 
 /* ── Init ─────────────────────────────────────────────────────────────────── */
-checkSession();
+checkSession().then(handleURLParams);
