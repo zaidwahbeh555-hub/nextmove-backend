@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ChessForge Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0a0a0f;--bg2:#111118;--bg3:#18181f;--border:#2a2a3a;--text:#e8e8f0;--muted:#666680;--cyan:#00d4ff;--red:#ff4757;--green:#2ed573;--orange:#ff6b35;--gold:#ffd32a}
+body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-height:100vh;padding:2rem}
+.login-wrap{max-width:380px;margin:10vh auto;background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:2.5rem}
+.logo{font-size:1.4rem;font-weight:700;text-align:center;margin-bottom:1.5rem;color:var(--cyan)}
+input{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'Inter',sans-serif;font-size:.95rem;padding:.7rem 1rem;outline:none;margin-bottom:.8rem}
+input:focus{border-color:var(--cyan)}
+.btn{width:100%;background:var(--cyan);color:#000;border:none;border-radius:8px;padding:.75rem;font-weight:700;font-size:.9rem;cursor:pointer}
+.btn:hover{background:#1ae0ff}
+.btn-sm{padding:.35rem .9rem;font-size:.78rem;border-radius:6px;border:none;cursor:pointer;font-family:'Inter',sans-serif;font-weight:600}
+.btn-pro{background:var(--gold);color:#000}
+.btn-free{background:var(--bg3);color:var(--muted);border:1px solid var(--border)}
+.btn-free:hover{border-color:var(--orange);color:var(--orange)}
+.btn-delete{background:rgba(255,71,87,.15);color:var(--red);border:1px solid var(--red)}
+.btn-delete:hover{background:var(--red);color:#fff}
+.error{color:var(--red);font-size:.85rem;margin-top:.5rem}
+/* Dashboard */
+.dashboard{display:none;max-width:1100px;margin:0 auto}
+.dash-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:2rem}
+.dash-header h1{font-size:1.6rem;font-weight:700;color:var(--cyan)}
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:2rem}
+.stat{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1.2rem;text-align:center}
+.stat-n{font-size:2rem;font-weight:700;line-height:1}
+.stat-l{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-top:.3rem}
+.stat-n.cyan{color:var(--cyan)}.stat-n.green{color:var(--green)}.stat-n.gold{color:var(--gold)}.stat-n.orange{color:var(--orange)}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1.5rem;margin-bottom:1.5rem}
+.card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem}
+.card-title{font-size:1rem;font-weight:600;color:var(--text)}
+table{width:100%;border-collapse:collapse;font-size:.83rem}
+th{text-align:left;padding:.6rem .8rem;color:var(--muted);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;border-bottom:1px solid var(--border)}
+td{padding:.6rem .8rem;border-bottom:1px solid rgba(255,255,255,.03)}
+tr:hover td{background:var(--bg3)}
+.badge{display:inline-block;padding:.18rem .6rem;border-radius:20px;font-size:.72rem;font-weight:600}
+.badge-pro{background:rgba(255,211,42,.15);color:var(--gold)}
+.badge-free{background:rgba(102,104,128,.15);color:var(--muted)}
+.search{background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'Inter',sans-serif;font-size:.88rem;padding:.5rem 1rem;outline:none;width:250px;margin-bottom:0}
+.search:focus{border-color:var(--cyan)}
+.report-box{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:1rem;font-family:'Courier New',monospace;font-size:.8rem;color:var(--muted);white-space:pre-wrap;max-height:300px;overflow-y:auto;margin-top:1rem}
+.top-actions{display:flex;gap:.8rem;align-items:center}
+</style>
+</head>
+<body>
+
+<!-- Login -->
+<div class="login-wrap" id="login-screen">
+  <div class="logo">♟ ChessForge Admin</div>
+  <input type="password" id="admin-pw" placeholder="Admin password" onkeydown="if(event.key==='Enter')adminLogin()">
+  <button class="btn" onclick="adminLogin()">Sign In →</button>
+  <div class="error" id="login-err"></div>
+</div>
+
+<!-- Dashboard -->
+<div class="dashboard" id="dashboard">
+  <div class="dash-header">
+    <h1>♟ ChessForge Admin</h1>
+    <div class="top-actions">
+      <button class="btn-sm btn-pro" onclick="sendReport()">📧 Email Report</button>
+      <button class="btn-sm btn-free" onclick="loadUsers()">↺ Refresh</button>
+    </div>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat"><div class="stat-n cyan" id="st-total">0</div><div class="stat-l">Total Users</div></div>
+    <div class="stat"><div class="stat-n gold" id="st-pro">0</div><div class="stat-l">Pro Users</div></div>
+    <div class="stat"><div class="stat-n orange" id="st-free">0</div><div class="stat-l">Free Users</div></div>
+    <div class="stat"><div class="stat-n green" id="st-revenue">$0</div><div class="stat-l">Est. Monthly Revenue</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">All Users</span>
+      <input class="search" id="search" placeholder="Search username or email..." oninput="filterUsers()">
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Username</th>
+          <th>Email</th>
+          <th>Plan</th>
+          <th>XP</th>
+          <th>Games</th>
+          <th>Joined</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="users-tbody"></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-title">Email Report</span></div>
+    <div class="report-box" id="report-box">Click "Email Report" to generate and send a report to zaidwahbeh555@gmail.com</div>
+  </div>
+</div>
+
+<script>
+let allUsers = [];
+
+async function adminLogin(){
+  const pw = document.getElementById('admin-pw').value;
+  const r = await fetch('/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw}),credentials:'include'});
+  const d = await r.json();
+  if(d.error){ document.getElementById('login-err').textContent = d.error; return; }
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'block';
+  loadUsers();
+}
+
+async function loadUsers(){
+  const r = await fetch('/admin/users',{credentials:'include'});
+  const d = await r.json();
+  if(d.error){ alert(d.error); return; }
+  allUsers = d.users;
+  document.getElementById('st-total').textContent = d.total;
+  document.getElementById('st-pro').textContent = d.pro;
+  document.getElementById('st-free').textContent = d.free;
+  document.getElementById('st-revenue').textContent = '$'+(d.pro*9)+'/mo';
+  renderUsers(allUsers);
+}
+
+function filterUsers(){
+  const q = document.getElementById('search').value.toLowerCase();
+  renderUsers(allUsers.filter(u => u.username.includes(q) || u.email.includes(q)));
+}
+
+function renderUsers(users){
+  const tb = document.getElementById('users-tbody');
+  tb.innerHTML = '';
+  users.forEach(u => {
+    const d = new Date(u.created*1000).toLocaleDateString();
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td><strong>${esc(u.username)}</strong></td>
+      <td style="color:var(--muted)">${esc(u.email)}</td>
+      <td><span class="badge ${u.plan==='pro'?'badge-pro':'badge-free'}">${u.plan}</span></td>
+      <td>${u.xp}</td>
+      <td>${u.games_count}</td>
+      <td style="color:var(--muted)">${d}</td>
+      <td style="display:flex;gap:.4rem">
+        ${u.plan==='free'?`<button class="btn-sm btn-pro" onclick="setPlan('${u.username}','pro')">Give Pro</button>`:`<button class="btn-sm btn-free" onclick="setPlan('${u.username}','free')">Revoke Pro</button>`}
+        <button class="btn-sm btn-delete" onclick="deleteUser('${u.username}')">Delete</button>
+      </td>`;
+    tb.appendChild(row);
+  });
+}
+
+async function setPlan(username, plan){
+  if(!confirm(`Set ${username} to ${plan}?`)) return;
+  const r = await fetch('/admin/set-plan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,plan}),credentials:'include'});
+  const d = await r.json();
+  if(d.ok) loadUsers();
+}
+
+async function deleteUser(username){
+  if(!confirm(`DELETE account for ${username}? This cannot be undone!`)) return;
+  const r = await fetch('/admin/delete-user',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username}),credentials:'include'});
+  const d = await r.json();
+  if(d.ok) loadUsers();
+}
+
+async function sendReport(){
+  const r = await fetch('/admin/send-report',{method:'POST',credentials:'include'});
+  const d = await r.json();
+  if(d.report) document.getElementById('report-box').textContent = d.report + '\n\n✅ Email sent to zaidwahbeh555@gmail.com';
+}
+
+function esc(s){ return s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'):''; }
+</script>
+</body>
+</html>

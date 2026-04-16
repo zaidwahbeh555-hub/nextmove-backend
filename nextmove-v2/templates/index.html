@@ -11,96 +11,61 @@
 </head>
 <body>
 
-<!-- ═══ AUTH MODAL ════════════════════════════════════════════════════════ -->
+<!-- AUTH MODAL -->
 <div id="auth-overlay" class="auth-overlay hidden">
   <div class="auth-modal">
-    <div class="auth-logo">
-      <span class="logo-icon">⬡</span> Chess<strong>Forge</strong>
-    </div>
+    <div class="auth-logo"><span class="logo-icon">⬡</span> Chess<strong>Forge</strong></div>
     <p class="auth-tagline">Pattern-based chess improvement platform</p>
     <div class="auth-tabs">
       <button class="auth-tab active" data-auth="login">Sign In</button>
       <button class="auth-tab" data-auth="register">Create Account</button>
     </div>
-    <!-- Login -->
     <div id="auth-login" class="auth-panel active">
-      <div class="input-group">
-        <label>Username</label>
-        <input type="text" id="login-username" placeholder="your username" autocomplete="username">
-      </div>
-      <div class="input-group">
-        <label>Password</label>
-        <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password">
-      </div>
+      <div class="input-group"><label>Username</label><input type="text" id="login-username" placeholder="your username" autocomplete="username"></div>
+      <div class="input-group"><label>Password</label><input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password"></div>
       <button class="btn-cyan" id="login-btn">Sign In →</button>
       <div class="auth-error" id="login-error"></div>
       <button class="auth-skip" id="skip-auth">Continue without account</button>
     </div>
-    <!-- Register -->
     <div id="auth-register" class="auth-panel">
-      <div class="input-group">
-        <label>Username <span class="input-note">(letters, numbers, _ or -)</span></label>
-        <input type="text" id="reg-username" placeholder="choose a username" autocomplete="username">
-      </div>
-      <div class="input-group">
-        <label>Email <span class="input-note">(required — used for account recovery & upgrades)</span></label>
-        <input type="email" id="reg-email" placeholder="you@email.com" autocomplete="email" required>
-      </div>
-      <div class="input-group">
-        <label>Password <span class="input-note">(min 8 characters)</span></label>
-        <input type="password" id="reg-password" placeholder="••••••••" autocomplete="new-password">
-      </div>
+      <div class="input-group"><label>Username</label><input type="text" id="reg-username" placeholder="choose a username" autocomplete="username"></div>
+      <div class="input-group"><label>Email <span class="input-note">(required)</span></label><input type="email" id="reg-email" placeholder="you@email.com" autocomplete="email"></div>
+      <div class="input-group"><label>Password <span class="input-note">(min 8 chars)</span></label><input type="password" id="reg-password" placeholder="••••••••" autocomplete="new-password"></div>
       <button class="btn-cyan" id="register-btn">Create Account →</button>
       <div class="auth-error" id="register-error"></div>
     </div>
   </div>
 </div>
 
-<!-- ═══ SIDEBAR ═══════════════════════════════════════════════════════════ -->
+<!-- SIDEBAR -->
 <nav class="sidebar">
-  <div class="sidebar-logo">
-    <span class="logo-icon">⬡</span> Chess<strong>Forge</strong>
-  </div>
-  <div class="sidebar-user" id="sidebar-user">
+  <div class="sidebar-logo"><span class="logo-icon">⬡</span> Chess<strong>Forge</strong></div>
+  <div class="sidebar-user">
     <div class="user-avatar" id="user-avatar">?</div>
-    <div>
-      <div class="user-name" id="user-name">Guest</div>
-      <div class="user-xp-label" id="user-xp-label">0 XP</div>
-    </div>
+    <div><div class="user-name" id="user-name">Guest</div><div class="user-xp-label" id="user-xp-label">0 XP</div></div>
   </div>
   <ul class="nav-links">
     <li><a href="#" class="nav-link active" data-page="analyze">📊 Analyze</a></li>
     <li><a href="#" class="nav-link" data-page="replay">🎬 Replay</a></li>
     <li><a href="#" class="nav-link" data-page="puzzles">🧩 Puzzles</a></li>
-    <li><a href="#" class="nav-link" data-page="challenges">🏆 Challenges</a></li>
     <li><a href="#" class="nav-link" data-page="lessons">📚 Lessons</a></li>
-    <li><a href="#" class="nav-link" data-page="openings">📖 Openings</a></li>
     <li><a href="#" class="nav-link" data-page="progress">📈 Progress</a></li>
-    <li><a href="#" class="nav-link" data-page="training">💪 Training</a></li>
   </ul>
   <div class="sidebar-bottom">
-    <div class="xp-row">
-      <span class="xp-label">XP</span>
-      <span id="xp-count">0</span>
-    </div>
+    <div class="xp-row"><span class="xp-label">XP</span><span id="xp-count">0</span></div>
     <div class="xp-bar"><div class="xp-fill" id="xp-fill"></div></div>
     <button class="upgrade-btn" id="upgrade-btn" onclick="goToPro()">⚡ Upgrade to Pro</button>
-    <a href="https://next-move-even8sin.replit.app" class="home-btn">← Back to Homepage</a>
+    <a href="https://chessforge.org" class="home-btn">← Back to Homepage</a>
     <button class="logout-btn" id="logout-btn">Sign Out</button>
   </div>
 </nav>
 
-<!-- ═══ MAIN ══════════════════════════════════════════════════════════════ -->
+<!-- MAIN -->
 <div class="main-wrap">
 
-<!-- ── ANALYZE ─────────────────────────────────────────────────────────── -->
+<!-- ANALYZE -->
 <div class="page active" id="page-analyze">
-  <div class="page-header">
-    <h1>Analyze My Games</h1>
-    <p>Paste your PGN — we'll detect your patterns and build your training plan</p>
-  </div>
-
-  <!-- Step 1: Input -->
+  <div class="page-header"><h1>Analyze My Games</h1><p>Paste your PGN — we detect your patterns and build your personalised training plan</p></div>
   <div class="card" id="step1-card">
     <div class="step-label">Step 1 — Paste Your Game</div>
     <div class="tabs">
@@ -108,75 +73,35 @@
       <button class="tab" data-tab="upload">Upload File</button>
     </div>
     <div id="tab-paste" class="tab-panel active">
-      <textarea id="pgn-text" placeholder="[Event &quot;Live Chess&quot;]
-[White &quot;Player1&quot;]
-[Black &quot;Player2&quot;]
-
-1. e4 e5 2. Nf3 ..."></textarea>
+      <textarea id="pgn-text" placeholder="Paste your Chess.com or Lichess PGN here..."></textarea>
     </div>
     <div id="tab-upload" class="tab-panel">
-      <label class="file-drop">
-        <input type="file" id="pgn-file" accept=".pgn">
-        <span class="drop-icon">📂</span>
-        <span class="drop-text">Click or drag a .pgn file here</span>
-        <span id="file-name" class="drop-name"></span>
-      </label>
+      <label class="file-drop"><input type="file" id="pgn-file" accept=".pgn"><span class="drop-icon">📂</span><span class="drop-text">Click or drag a .pgn file</span><span id="file-name" class="drop-name"></span></label>
     </div>
-    <button class="btn-cyan" id="parse-btn">
-      <span id="parse-btn-text">Load Game →</span>
-      <div class="spinner" id="parse-spinner"></div>
-    </button>
+    <button class="btn-cyan" id="parse-btn"><span id="parse-btn-text">Load Game →</span><div class="spinner" id="parse-spinner"></div></button>
     <div id="parse-error" class="error-box hidden"></div>
   </div>
-
-  <!-- Step 2: Player Selection (hidden until PGN parsed) -->
   <div class="card hidden" id="step2-card">
     <div class="step-label">Step 2 — Who Are You?</div>
-    <p class="step-desc">We found these players in the game. Select yourself so we only analyse <strong>your</strong> mistakes.</p>
-    <div class="player-select-row" id="player-select-row">
-      <!-- Buttons injected by JS -->
-    </div>
+    <p class="step-desc">Select yourself so we only analyse <strong>your</strong> mistakes.</p>
+    <div class="player-select-row" id="player-select-row"></div>
     <div class="game-info-row" id="game-info-row"></div>
-    <div class="pgn-stored" id="pgn-stored"></div>
   </div>
-
-  <!-- Step 3: Analysis running -->
   <div class="card hidden" id="step3-card">
-    <div class="step-label">Step 3 — Analysing</div>
-    <div class="analysis-progress">
-      <div class="analysis-spinner"></div>
-      <div>
-        <div class="analysis-title" id="analysis-title">Running Stockfish analysis…</div>
-        <div class="analysis-sub">Depth 16 · This takes 1–2 minutes per game</div>
-      </div>
-    </div>
+    <div class="step-label">Analysing your game…</div>
+    <div class="analysis-progress"><div class="analysis-spinner"></div><div><div class="analysis-title">Running Stockfish at depth 16</div><div class="analysis-sub">This takes 1–2 minutes per game</div></div></div>
   </div>
-
-  <!-- Results -->
   <div id="results" class="hidden">
-
-    <!-- Profile -->
     <div class="card profile-card">
       <div class="card-label">Your Player Profile</div>
-      <div class="profile-row">
-        <div class="profile-icon" id="profile-icon">♟</div>
-        <div>
-          <h2 id="profile-style"></h2>
-          <p id="profile-desc"></p>
-          <div id="player-color-badge"></div>
-        </div>
-      </div>
+      <div class="profile-row"><div class="profile-icon" id="profile-icon">♟</div><div><h2 id="profile-style"></h2><p id="profile-desc"></p><div id="player-color-badge"></div></div></div>
     </div>
-
-    <!-- Stats -->
     <div class="stats-row">
       <div class="stat-card"><div class="stat-n red" id="s-blunder">0</div><div class="stat-l">Blunders</div></div>
       <div class="stat-card"><div class="stat-n orange" id="s-mistake">0</div><div class="stat-l">Mistakes</div></div>
       <div class="stat-card"><div class="stat-n yellow" id="s-inaccuracy">0</div><div class="stat-l">Inaccuracies</div></div>
       <div class="stat-card"><div class="stat-n cyan" id="s-total">0</div><div class="stat-l">Total Errors</div></div>
     </div>
-
-    <!-- Weaknesses -->
     <div class="card">
       <div class="card-label">Pattern Analysis</div>
       <h2>Your Top Weaknesses</h2>
@@ -186,20 +111,28 @@
       <div class="divider-label">All Detected Patterns</div>
       <div id="pattern-grid" class="chip-grid"></div>
     </div>
-
-    <!-- Action buttons -->
+    <div class="card">
+      <div class="card-label">Your Personalised Training Plan</div>
+      <h2>What to Work On Next</h2>
+      <div id="training-inline-list"></div>
+      <div class="upgrade-inline hidden" id="upgrade-training-prompt">
+        <div class="upgrade-inline-content">
+          <div><strong>⚡ Unlock unlimited analysis</strong><p>Free plan: 1 game/day. Upgrade to Pro for unlimited games, deeper insights, and faster improvement.</p></div>
+          <button class="btn-cyan" style="width:auto;margin-top:0;white-space:nowrap" onclick="goToPro()">Upgrade to Pro →</button>
+        </div>
+      </div>
+    </div>
     <div class="action-row">
       <button class="btn-cyan" id="go-replay-btn" style="display:none">🎬 Replay Game</button>
       <button class="btn-outline" id="go-lessons-btn" style="display:none">📚 My Lessons</button>
       <button class="btn-outline" id="save-game-btn" style="display:none">💾 Save Game</button>
     </div>
-
-  </div><!-- /results -->
+  </div>
 </div>
 
-<!-- ── REPLAY ──────────────────────────────────────────────────────────── -->
+<!-- REPLAY -->
 <div class="page" id="page-replay">
-  <div class="page-header"><h1>Game Replay</h1><p>Step through every move · use ← → arrow keys</p></div>
+  <div class="page-header"><h1>Game Replay</h1><p>← → arrow keys · blunders pause automatically for critical moment training</p></div>
   <div class="replay-layout">
     <div class="replay-left">
       <div id="replay-board" style="width:480px;max-width:100%"></div>
@@ -209,27 +142,41 @@
         <button class="ctrl-btn" id="r-next">▶</button>
         <button class="ctrl-btn" id="r-end">⏭</button>
       </div>
-      <div class="replay-info-box" id="replay-info-box">
-        <div id="replay-move-label">No game loaded — analyse a game first.</div>
-      </div>
+      <div class="replay-info-box"><div id="replay-move-label">No game loaded — analyse a game first.</div></div>
     </div>
     <div class="replay-right">
-      <div class="card move-list-card">
-        <div class="card-label">Move List</div>
-        <div id="move-list" class="move-list"></div>
-      </div>
+      <div class="card move-list-card"><div class="card-label">Move List</div><div id="move-list" class="move-list"></div></div>
     </div>
   </div>
 </div>
 
-<!-- ── PUZZLES ─────────────────────────────────────────────────────────── -->
-<div class="page" id="page-puzzles">
-  <div class="page-header"><h1>Your Puzzles</h1><p>Real positions from your actual blunders</p></div>
-  <div id="no-puzzles" class="empty-state">
-    <div class="empty-icon">🧩</div><h3>No puzzles yet</h3>
-    <p>Analyse a game first — we'll turn your blunders into puzzles!</p>
-    <button class="btn-outline" onclick="showPage('analyze')">Analyse a Game →</button>
+<!-- Critical Moment Modal -->
+<div id="critical-modal" class="critical-modal hidden">
+  <div class="critical-inner">
+    <div class="critical-badge">⚠ Critical Moment</div>
+    <h2 class="critical-title">Stop and Think</h2>
+    <p class="critical-question"><span id="critical-side"></span> to move — what should happen here?</p>
+    <div class="critical-prompts">
+      <div class="critical-prompt">🔍 Scan every piece — is anything hanging or undefended?</div>
+      <div class="critical-prompt">🧠 What is your opponent threatening on their next move?</div>
+      <div class="critical-prompt">⚖️ Before moving — does this move create any new weaknesses?</div>
+    </div>
+    <p class="critical-played">You played: <strong id="critical-move-played"></strong></p>
+    <div class="critical-actions">
+      <button class="btn-outline" onclick="hideCriticalModal()">I've thought about it</button>
+      <button class="btn-cyan" onclick="showCriticalAnswer()" style="width:auto;margin-top:0">Show Best Move →</button>
+    </div>
+    <div class="critical-answer hidden" id="critical-answer">
+      <div class="critical-best">Best move: <strong id="critical-best-move"></strong></div>
+      <p id="critical-explanation" class="critical-exp"></p>
+    </div>
   </div>
+</div>
+
+<!-- PUZZLES -->
+<div class="page" id="page-puzzles">
+  <div class="page-header"><h1>Your Puzzles</h1><p>Real positions from your actual blunders — drag pieces to solve</p></div>
+  <div id="no-puzzles" class="empty-state"><div class="empty-icon">🧩</div><h3>No puzzles yet</h3><p>Analyse a game first!</p><button class="btn-outline" onclick="showPage('analyze')">Analyse a Game →</button></div>
   <div id="puzzle-area" class="hidden">
     <div class="two-col">
       <div>
@@ -242,76 +189,26 @@
         </div>
       </div>
       <div>
-        <div class="card">
-          <div class="card-label">Puzzle Info</div>
-          <div id="puzzle-meta" class="meta-list"></div>
-          <div class="puzzle-progress">Puzzle <span id="puzzle-num">1</span> of <span id="puzzle-total">0</span></div>
-          <div class="xp-flash hidden" id="xp-earned">+<span id="xp-amount">50</span> XP 🎉</div>
-        </div>
-        <div class="card" style="margin-top:1rem">
-          <div class="card-label">Score</div>
-          <div class="score-row">
-            <div class="score-col green"><div class="score-n" id="p-correct">0</div><div>Correct</div></div>
-            <div class="score-col red"><div class="score-n" id="p-wrong">0</div><div>Wrong</div></div>
-          </div>
-        </div>
+        <div class="card"><div class="card-label">Puzzle Info</div><div id="puzzle-meta" class="meta-list"></div><div class="puzzle-progress">Puzzle <span id="puzzle-num">1</span> of <span id="puzzle-total">0</span></div><div class="xp-flash hidden" id="xp-earned">+<span id="xp-amount">50</span> XP 🎉</div></div>
+        <div class="card" style="margin-top:1rem"><div class="card-label">Score</div><div class="score-row"><div class="score-col green"><div class="score-n" id="p-correct">0</div><div>Correct</div></div><div class="score-col red"><div class="score-n" id="p-wrong">0</div><div>Wrong</div></div></div></div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- ── CHALLENGES ─────────────────────────────────────────────────────── -->
-<div class="page" id="page-challenges">
-  <div class="page-header"><h1>Daily Challenges</h1><p>Hand-picked tactics to sharpen your play</p></div>
-  <div class="two-col">
-    <div>
-      <div id="challenge-board" style="width:480px;max-width:100%"></div>
-      <div class="status-box" id="challenge-status">Select a challenge →</div>
-      <div class="hint-box hidden" id="challenge-hint-text"></div>
-      <div class="btn-row">
-        <button class="btn-outline" id="challenge-hint-btn">💡 Hint</button>
-      </div>
-    </div>
-    <div id="challenge-list" class="challenge-list"></div>
-  </div>
-</div>
-
-<!-- ── LESSONS ────────────────────────────────────────────────────────── -->
+<!-- LESSONS -->
 <div class="page" id="page-lessons">
-  <div class="page-header"><h1>Lessons</h1><p>Personalised to your weaknesses — your biggest problem goes first</p></div>
+  <div class="page-header"><h1>Lessons</h1><p>30 in-depth lessons · sorted by your biggest weaknesses</p></div>
   <div class="lessons-layout">
     <div id="lessons-sidebar" class="lessons-sidebar"></div>
-    <div id="lesson-content" class="lesson-content">
-      <div class="empty-state"><div class="empty-icon">📚</div><h3>Select a lesson</h3><p>Lessons are ordered by what you need most based on your games.</p></div>
-    </div>
+    <div id="lesson-content" class="lesson-content"><div class="empty-state"><div class="empty-icon">📚</div><h3>Select a lesson</h3><p>Sorted by what you need most based on your games.</p></div></div>
   </div>
 </div>
 
-<!-- ── OPENINGS ───────────────────────────────────────────────────────── -->
-<div class="page" id="page-openings">
-  <div class="page-header"><h1>Opening Trainer</h1><p>Learn key openings move by move</p></div>
-  <div class="two-col">
-    <div>
-      <div id="opening-board" style="width:480px;max-width:100%"></div>
-      <div class="btn-row">
-        <button class="ctrl-btn" id="op-prev">◀ Back</button>
-        <button class="ctrl-btn" id="op-next">Next ▶</button>
-        <button class="ctrl-btn" id="op-reset">↺ Reset</button>
-      </div>
-      <div class="hint-box" id="opening-tip" style="display:none"></div>
-    </div>
-    <div id="opening-list" class="opening-list"></div>
-  </div>
-</div>
-
-<!-- ── PROGRESS ───────────────────────────────────────────────────────── -->
+<!-- PROGRESS -->
 <div class="page" id="page-progress">
   <div class="page-header"><h1>Your Progress</h1><p>Track your improvement over time</p></div>
-  <div id="progress-guest" class="empty-state hidden">
-    <div class="empty-icon">📈</div><h3>Create an account to track progress</h3>
-    <p>Sign in to save your games, earn XP, and track your improvement.</p>
-    <button class="btn-cyan" onclick="showAuthModal()">Create Account →</button>
-  </div>
+  <div id="progress-guest" class="empty-state hidden"><div class="empty-icon">📈</div><h3>Create an account to track progress</h3><p>Sign in to save games and track improvement.</p><button class="btn-cyan" onclick="showAuthModal()">Create Account →</button></div>
   <div id="progress-content" class="hidden">
     <div class="stats-row">
       <div class="stat-card"><div class="stat-n cyan" id="pg-games">0</div><div class="stat-l">Games Analysed</div></div>
@@ -319,28 +216,11 @@
       <div class="stat-card"><div class="stat-n green" id="pg-puzzles">0</div><div class="stat-l">Puzzles Solved</div></div>
       <div class="stat-card"><div class="stat-n yellow" id="pg-lessons">0</div><div class="stat-l">Lessons Done</div></div>
     </div>
-    <div class="card">
-      <div class="card-label">Saved Games</div>
-      <h2>Game History</h2>
-      <div id="saved-games-list" class="saved-games-list"></div>
-    </div>
+    <div class="card"><div class="card-label">Saved Games</div><h2>Game History</h2><div id="saved-games-list" class="saved-games-list"></div></div>
   </div>
 </div>
 
-<!-- ── TRAINING ───────────────────────────────────────────────────────── -->
-<div class="page" id="page-training">
-  <div class="page-header"><h1>Training Plan</h1><p>Personalised recommendations based on your detected weaknesses</p></div>
-  <div id="no-training" class="empty-state">
-    <div class="empty-icon">💪</div><h3>No training plan yet</h3>
-    <p>Analyse a game first!</p>
-    <button class="btn-outline" onclick="showPage('analyze')">Analyse →</button>
-  </div>
-  <div id="training-content" class="hidden">
-    <div id="training-list"></div>
-  </div>
 </div>
-
-</div><!-- /main-wrap -->
 
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
