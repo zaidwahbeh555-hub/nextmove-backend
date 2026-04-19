@@ -1534,123 +1534,137 @@ async function fetchMorePuzzles(){
 
 /* ── Premium Interactive Lesson ───────────────────────────────────────────── */
 function renderPremiumLesson(){
+  // Remove existing
+  const existing = document.getElementById('premium-lesson-section');
+  if(existing) existing.remove();
+
   const container = document.getElementById('lesson-content');
   if(!container) return;
 
-  const gamesAnalysed = State.analysisData?.games_analysed || 
-    parseInt(localStorage.getItem('cf-games-analysed') || '0');
-  const isPro = State.plan === 'pro';
-  const fp = State.analysisData?.cognitive_fingerprint;
-  const topWeakness = State.analysisData?.top_weaknesses?.[0]?.[0] || null;
-
-  // Build the premium lesson section
   const premDiv = document.createElement('div');
   premDiv.id = 'premium-lesson-section';
+  premDiv.style.marginBottom = '1.5rem';
+
+  const isPro = State.plan === 'pro';
+  const hasData = !!(State.analysisData && State.analysisData.total_mistakes >= 0);
+  const gamesAnalysed = State.analysisData?.games_analysed || parseInt(localStorage.getItem('cf-games-analysed') || '0');
+  const topWeakness = State.analysisData?.top_weaknesses?.[0]?.[0] || 'Hanging piece';
 
   if(!isPro){
     premDiv.innerHTML = `
       <div class="locked-lesson">
         <div class="locked-lesson-icon">⭐</div>
         <h3>Personal Game Lessons</h3>
-        <p>Upgrade to Pro to unlock interactive lessons built directly from your own games — with chessboard positions, theory, and personalised coaching.</p>
+        <p>Upgrade to Pro to unlock interactive lessons built directly from YOUR games — with multiple choice questions, personalised theory, and coaching from your actual mistakes.</p>
         <button class="btn-cyan" onclick="goToPro()" style="width:auto;margin:0 auto">Upgrade to Pro →</button>
       </div>`;
-  } else if(gamesAnalysed < 1){
-    const needed = 1 - gamesAnalysed;
+    container.insertBefore(premDiv, container.firstChild);
+    return;
+  }
+
+  if(!hasData){
     premDiv.innerHTML = `
       <div class="locked-lesson">
         <div class="locked-lesson-icon">📊</div>
-        <h3>Personal Game Lessons — Almost Ready</h3>
-        <p>Analyse your first game so ChessForge can build lessons from your specific mistakes.</p>
+        <h3>Personal Game Lessons</h3>
+        <p>Analyse a game first — ChessForge will build an interactive lesson from your specific mistakes.</p>
         <button class="btn-outline" onclick="showPage('analyze')">Analyse a Game →</button>
       </div>`;
-  } else {
-    // Build personalised lesson from their data
-    const weakness = topWeakness || 'Hanging piece';
-    const dominantPattern = fp?.dominant_pattern || 'Tactical Blind Spot';
-    const puzzles = State.puzzles || [];
-    const lessonPosition = puzzles.length > 0 ? puzzles[0] : null;
-
-    const WEAKNESS_LESSONS = {
-      'Hanging piece': {
-        title: 'Stop Hanging Pieces',
-        subtitle: 'Based on your ' + gamesAnalysed + ' analysed games',
-        steps: [
-          {label:'The Problem', text:`In your games, you have left pieces hanging ${State.analysisData?.pattern_counts?.['Hanging piece']||'multiple'} times. This is your #1 most costly mistake. Lets fix the thinking habit behind it.`, fen: lessonPosition?.fen || 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1'},
-          {label:'The Habit', text:'Before every move, your brain should automatically scan: "After I move this piece, does anything else become undefended?" Most players skip this scan when excited about their own plan.', fen: lessonPosition?.fen || 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1'},
-          {label:'The Fix', text:'From this moment: before every move, point (mentally or physically) at each of your pieces and ask "Is this safe?" It takes 3 seconds. It will immediately cut your hanging piece mistakes by more than half.', fen: lessonPosition?.fen || 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1'},
-        ]
-      },
-      'Missed tactic': {
-        title: "Seeing Whats There",
-        subtitle: 'Tactical vision from your actual games',
-        steps: [
-          {label:'Your Pattern', text:`You have missed ${State.analysisData?.pattern_counts?.['Missed tactic']||'several'} tactical opportunities. Good positions are being built then not converted. The issue is stopping your calculation too early.`, fen: lessonPosition?.fen || 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1'},
-          {label:'The Search', text:'After every opponent move, ask: "What did this move allow?" Check ALL forcing moves — checks, captures, and threats — before considering quiet moves. This is where your missed tactics hide.', fen: lessonPosition?.fen || 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1'},
-          {label:'The Drill', text:'Solve 10 tactics puzzles every day from your Puzzles tab. These come from YOUR actual games. Every puzzle you solve adds that pattern to your mental library.', fen: lessonPosition?.fen || 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1'},
-        ]
-      },
-      'King safety issue': {
-        title: 'Protecting Your King',
-        subtitle: 'King safety from your actual game positions',
-        steps: [
-          {label:'Your Vulnerability', text:`Your king has been in danger ${State.analysisData?.pattern_counts?.['King safety issue']||'multiple'} times. Every time this happened, it was preventable. Lets build the reflex to castle early.`, fen: lessonPosition?.fen || 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1'},
-          {label:'The Rule', text:'Castle within the first 10 moves. Every game. Without exception unless there is a concrete tactical reason not to. A king in the center is an accident waiting to happen.', fen: lessonPosition?.fen || 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1'},
-          {label:'The Habit', text:'In your next game, after moves 5 and 8, ask yourself: "Why have not I castled yet?" If you cannot give a concrete tactical answer, castle immediately.', fen: lessonPosition?.fen || 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1'},
-        ]
-      },
-    };
-
-    const lesson = WEAKNESS_LESSONS[weakness] || WEAKNESS_LESSONS['Hanging piece'];
-    let stepIdx = 0;
-
-    const stepsHTML = lesson.steps.map((s,i)=>`<button class="premium-lesson-step${i===0?' active':''}" onclick="showPremiumStep(${i})">${s.label}</button>`).join('');
-
-    // Interactive MCQ questions per weakness
-    const MCQ = {
-      'Hanging piece': [
-        {q:'Before making a move, what should you ALWAYS check?', opts:['Is my queen active?','Are any of my pieces left undefended?','Can I attack the king?','Is my opening correct?'], correct:1},
-        {q:'What does LPDO stand for?', opts:['Long Pawns Drop Off','Loose Pieces Drop Off','Last Piece Defence Only','Lateral Pawn Defence Option'], correct:1},
-        {q:'You spot a great attack. What do you do first?', opts:['Launch it immediately','Check if any of your pieces become undefended after your move','Move your queen to the attack','Castle quickly'], correct:1},
-      ],
-      'Missed tactic': [
-        {q:'After your opponent makes a move, what is the FIRST question to ask?', opts:['What is my plan?','What is my opponent threatening?','Should I castle?','Which piece should I develop?'], correct:1},
-        {q:'What type of moves should you always calculate first?', opts:['Quiet positional moves','Pawn moves','Forcing moves: checks, captures, threats','King moves'], correct:2},
-        {q:'You have a good move. Should you play it immediately?', opts:['Yes, always play the first good move','No, always look for something better first','Only if it wins material','Only in the endgame'], correct:1},
-      ],
-      'King safety issue': [
-        {q:'By which move should you castle in most games?', opts:['Move 5','Move 10','Move 20','Move 15'], correct:1},
-        {q:'Moving which pawns weakens your castled king most?', opts:['Center pawns','The pawns directly in front of your castled king','Edge pawns','Opponent pawns'], correct:1},
-        {q:'Your king has not castled by move 10. What should you do?', opts:['Keep delaying, development first','Castle immediately unless there is a concrete tactical reason not to','Push your h pawn for air','Move king to the center'], correct:1},
-      ],
-    };
-    const mcqSet = MCQ[weakness] || MCQ['Hanging piece'];
-    window._premiumLessonSteps = lesson.steps;
-    window._premiumMCQ = mcqSet;
-    window._premiumMCQIdx = 0;
-    window._premiumMCQScore = 0;
-
-    premDiv.innerHTML = `
-      <div class="premium-lesson-card">
-        <div class="premium-lesson-badge">⭐ Your Personal Lesson</div>
-        <div class="premium-lesson-title">${esc(lesson.title)}</div>
-        <div class="premium-lesson-subtitle">${esc(lesson.subtitle)}</div>
-        <div class="premium-lesson-nav" id="prem-nav">${stepsHTML}</div>
-        <div class="premium-lesson-explanation" id="prem-lesson-text">${lesson.steps[0].text}</div>
-        <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border)">
-          <div class="card-label">🧠 Test Your Understanding</div>
-          <div id="prem-mcq-area"></div>
-        </div>
-        <div style="text-align:center;margin-top:.8rem;color:var(--muted);font-size:.78rem">Based on ${gamesAnalysed} game${gamesAnalysed!==1?'s':''} · ${State.analysisData?.total_mistakes||0} mistakes analysed</div>
-      </div>`;
-
-    showPremiumMCQ(0);
+    container.insertBefore(premDiv, container.firstChild);
+    return;
   }
 
-  // Insert at very top of lesson-content
-  const existingPrem = document.getElementById('premium-lesson-section');
-  if(existingPrem) existingPrem.remove();
+  // Build lesson content from weakness
+  const WEAKNESS_CONTENT = {
+    'Hanging piece': {
+      title: 'Stop Hanging Pieces — Your #1 Problem',
+      theory: 'In your analysed games, leaving pieces undefended is your most costly mistake. This is not a knowledge problem — it is a habit problem. You need to build an automatic pre-move scan into your thinking process.',
+      steps: ['Before every move: mentally point at each of your pieces', 'Ask "Is this safe after my move?"', 'Only then commit to the move'],
+      keyLesson: 'LPDO — Loose Pieces Drop Off. Every loose piece is a target. Make defending your pieces automatic.',
+    },
+    'Missed tactic': {
+      title: 'Seeing the Tactics That Are Already There',
+      theory: 'Your games show you build good positions but miss opportunities to win material or deliver decisive attacks. The tactics are there — you are not yet looking for them at the right moment.',
+      steps: ['After every opponent move: ask "What did this move allow?"', 'Check all checks, captures, and threats before quiet moves', 'If a position feels good, look harder — something might be winning'],
+      keyLesson: 'The best move is rarely the first one you see. Always check for forcing moves before committing.',
+    },
+    'King safety issue': {
+      title: 'Your King Keeps Getting into Trouble',
+      theory: 'Your analysed games show recurring king safety problems. Every time your king was endangered, it was preventable. The fix is a simple rule applied consistently.',
+      steps: ['Castle within the first 10 moves — every game', 'Never move the pawns in front of your castled king without a concrete reason', 'If center files open, your king must be castled'],
+      keyLesson: 'A king in the center is an accident waiting to happen. Castle early, castle every game.',
+    },
+    'Early queen development': {
+      title: 'Stop Moving Your Queen Too Early',
+      theory: 'You are bringing your queen out before developing your other pieces. Every time your queen gets attacked, you lose a tempo — your opponent develops a piece for free while you run away.',
+      steps: ['Develop both knights before moving your queen', 'Develop both bishops before moving your queen', 'Castle — then consider activating the queen'],
+      keyLesson: 'The queen is most powerful when it coordinates with active pieces. Alone in the opening, it is just a target.',
+    },
+    'Opening mistake': {
+      title: 'Building Better Opening Habits',
+      theory: 'Most of your mistakes happen in the first 10 moves. You are starting games on the wrong foot, which makes the rest of the game an uphill battle.',
+      steps: ['Move 1: Claim central space with e4 or d4', 'Moves 2-5: Develop knights then bishops toward the center', 'Moves 5-8: Castle your king to safety'],
+      keyLesson: 'You do not need to memorise openings. Master the 4 principles: control center, develop pieces, castle early, no early queen.',
+    },
+  };
+
+  const content = WEAKNESS_CONTENT[topWeakness] || WEAKNESS_CONTENT['Hanging piece'];
+
+  // MCQ per weakness
+  const MCQ_SETS = {
+    'Hanging piece': [
+      {q:'Before making a move, what should you ALWAYS check?', opts:['Is my queen active?','Are any of my pieces left undefended after this move?','Can I attack the king?','Is my pawn structure good?'], correct:1},
+      {q:'What does LPDO stand for?', opts:['Long Pawns Drop Off','Loose Pieces Drop Off','Last Piece Defence Option','Lateral Pawn Defence Only'], correct:1},
+      {q:'You spot a great attack. What do you do FIRST?', opts:['Launch it immediately','Check if any of your pieces become undefended first','Move your queen into the attack','Develop another piece'], correct:1},
+    ],
+    'Missed tactic': [
+      {q:'After your opponent makes a move, what is the FIRST question?', opts:['What is my long-term plan?','What is my opponent threatening?','Should I castle now?','Which piece needs developing?'], correct:1},
+      {q:'Which moves should you calculate FIRST?', opts:['Quiet positional moves','Pawn structure improvements','Forcing moves: checks, captures, threats','King safety moves'], correct:2},
+      {q:'You find a good move. Should you play it immediately?', opts:['Yes always','No — first check if something even better exists','Only if it wins material','Only in tactical positions'], correct:1},
+    ],
+    'King safety issue': [
+      {q:'By which move should you castle in most games?', opts:['Move 5','Move 10','Move 20','Move 30'], correct:1},
+      {q:'Which pawns are most dangerous to move when castled kingside?', opts:['Center pawns d and e','The f, g, h pawns in front of your king','The a and b pawns','Opponent pawns'], correct:1},
+      {q:'Your king has not castled by move 12. What should you do?', opts:['Keep developing, castle later','Castle immediately unless there is a concrete tactical reason not to','Push h pawn for luft','Move king to the center temporarily'], correct:1},
+    ],
+    'Early queen development': [
+      {q:'When should you bring your queen out in the opening?', opts:['Move 1 or 2','As soon as possible','After both knights and bishops are developed','Never in the opening'], correct:2},
+      {q:'Why is early queen development bad?', opts:['The queen is not powerful enough early','Opponent can attack it with developing moves and gain tempo','It controls too many squares','It blocks your pawns'], correct:1},
+      {q:'Your queen is on d3 on move 4 and gets attacked by Nc6. What happened?', opts:['You gained an attack','Your opponent wasted a move','Your opponent developed a piece for free while you moved your queen again','You created a pin'], correct:2},
+    ],
+    'Opening mistake': [
+      {q:'What is the most important principle on move 1?', opts:['Develop a knight','Control the center with a pawn','Protect your king','Develop a bishop'], correct:1},
+      {q:'Which sequence is correct?', opts:['Queen first, then pieces','Knights then bishops then castle','Bishops then knights then queen','Castle first then develop'], correct:1},
+      {q:'Your opponent plays an unusual move 3. What do you do?', opts:['Copy their move','Ignore it and follow your plan','Ask yourself: what is the threat? Then respond','Immediately attack their king'], correct:2},
+    ],
+  };
+
+  const mcqSet = MCQ_SETS[topWeakness] || MCQ_SETS['Hanging piece'];
+  window._premiumLessonContent = content;
+  window._premiumMCQ = mcqSet;
+  window._premiumMCQIdx = 0;
+  window._premiumMCQScore = 0;
+
+  const stepsHTML = content.steps.map((s,i)=>`<div style="display:flex;gap:.7rem;align-items:flex-start;margin-bottom:.5rem;font-size:.85rem;color:var(--muted)"><span style="background:var(--cyan);color:#000;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;flex-shrink:0">${i+1}</span>${s}</div>`).join('');
+
+  premDiv.innerHTML = `
+    <div class="premium-lesson-card">
+      <div class="premium-lesson-badge">⭐ Your Personal Lesson — Based on ${gamesAnalysed} Game${gamesAnalysed!==1?'s':''}</div>
+      <div class="premium-lesson-title">${content.title}</div>
+      <div style="background:var(--bg3);border-radius:8px;padding:1rem;margin:1rem 0;font-size:.87rem;color:var(--muted);line-height:1.7">${content.theory}</div>
+      <div class="card-label" style="margin-bottom:.6rem">The 3-Step Fix</div>
+      ${stepsHTML}
+      <div style="background:var(--cyan-dim);border-left:2px solid var(--cyan);padding:.7rem 1rem;border-radius:0 8px 8px 0;margin:1rem 0;font-size:.85rem;color:var(--cyan)">
+        💡 <strong>Key lesson:</strong> ${content.keyLesson}
+      </div>
+      <div class="card-label" style="margin-top:1.2rem;padding-top:1.2rem;border-top:1px solid var(--border)">🧠 Test Your Understanding</div>
+      <div id="prem-mcq-area" style="margin-top:.8rem"></div>
+    </div>`;
+
   container.insertBefore(premDiv, container.firstChild);
+
+  // Start the quiz
+  setTimeout(()=>showPremiumMCQ(0), 100);
 }
 
 function showPremiumMCQ(idx){
