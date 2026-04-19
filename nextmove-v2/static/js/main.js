@@ -519,43 +519,68 @@ function initPuzzleBoard(){
 
 function handlePuzzleSquareClick(square){
   if(!State.puzzleGame||!State.puzzleBoard)return;
-  clearHighlights();
   const piece=State.puzzleGame.get(square);
-  // If clicked an already selected square or empty square with no selection
-  if(State.selectedSquare===square){State.selectedSquare=null;return;}
-  // If we have a selected piece and click a different square — try to move
+  // Clicking selected square = deselect
+  if(State.selectedSquare===square){
+    clearHighlights();
+    return;
+  }
+  // Have a piece selected — try to move to clicked square
   if(State.selectedSquare){
-    const src=State.selectedSquare;State.selectedSquare=null;
-    const result=handlePuzzleDrop(src,square);
-    if(result==='snapback'){
-      // Try selecting new piece
-      if(piece){State.selectedSquare=square;highlightMoves(square);}
+    const src=State.selectedSquare;
+    clearHighlights();
+    // Try the move
+    const mv=State.puzzleGame.move({from:src,to:square,promotion:'q'});
+    if(mv){
+      // Valid move made
+      State.puzzleBoard.position(State.puzzleGame.fen(),false);
+      const p=State.puzzles[State.puzzleIdx];
+      const uci=src+square;
+      const solUCI=p?p.solution.toLowerCase().replace(/[+#=qrbn]/g,'').slice(0,4):'';
+      const ok=p&&(mv.san===p.solution||uci===solUCI);
+      const status=document.getElementById('puzzle-status');
+      if(ok){status.textContent='✅ Correct! Well done!';status.style.color='var(--green)';State.puzzleCorrect++;awardXP(50,'puzzle');}
+      else{status.textContent=`❌ Not quite (${mv.san}) — try again!`;status.style.color='var(--red)';State.puzzleWrong++;State.puzzleGame.undo();State.puzzleBoard.position(State.puzzleGame.fen(),false);}
+      document.getElementById('p-correct').textContent=State.puzzleCorrect;
+      document.getElementById('p-wrong').textContent=State.puzzleWrong;
+    } else {
+      // Invalid move — maybe selecting a new piece
+      if(piece && piece.color===State.puzzleGame.turn()){
+        State.selectedSquare=square;
+        highlightMoves(square);
+      }
     }
     return;
   }
-  // Select piece
-  if(piece){State.selectedSquare=square;highlightMoves(square);}
+  // No piece selected — select if it's the right color
+  if(piece && piece.color===State.puzzleGame.turn()){
+    State.selectedSquare=square;
+    highlightMoves(square);
+  }
 }
 
 function highlightMoves(square){
   const moves=State.puzzleGame.moves({square,verbose:true});
   if(!moves.length)return;
-  // Highlight the selected square
-  document.querySelectorAll(`[data-square="${square}"]`).forEach(el=>el.style.boxShadow='inset 0 0 0 4px rgba(0,212,255,.9)');
-  // Show dots on target squares
+  // Use chessboard.js square elements (they have class like "square-e4")
+  const selEl=document.querySelector(`#puzzle-board .square-${square}`);
+  if(selEl)selEl.style.boxShadow='inset 0 0 0 4px rgba(0,212,255,.9)';
   moves.forEach(m=>{
-    document.querySelectorAll(`[data-square="${m.to}"]`).forEach(el=>{
-      el.style.background=el.style.background||'';
+    const el=document.querySelector(`#puzzle-board .square-${m.to}`);
+    if(el){
       const dot=document.createElement('div');
-      dot.className='move-dot';dot.dataset.square=m.to;
-      dot.style.cssText='position:absolute;width:30%;height:30%;background:rgba(0,212,255,.5);border-radius:50%;top:35%;left:35%;pointer-events:none;z-index:10';
+      dot.className='move-dot';
+      dot.style.cssText='position:absolute;width:33%;height:33%;background:rgba(0,212,255,.45);border-radius:50%;top:33%;left:33%;pointer-events:none;z-index:10';
       el.style.position='relative';el.appendChild(dot);
-    });
+    }
   });
 }
 
 function clearHighlights(){
-  document.querySelectorAll('[data-square]').forEach(el=>{el.style.boxShadow='';});
+  // Clear puzzle board highlights
+  document.querySelectorAll('#puzzle-board .square-55d63').forEach(el=>{el.style.boxShadow='';});
+  // Also try data-square approach
+  document.querySelectorAll('#puzzle-board [class*="square-"]').forEach(el=>{el.style.boxShadow='';});
   document.querySelectorAll('.move-dot').forEach(el=>el.remove());
   State.selectedSquare=null;
 }
@@ -838,6 +863,8 @@ const LESSONS={
 /* ── LESSONS PAGE ─────────────────────────────────────────────────────────── */
 function initLessonsPage(){
   const sidebar=document.getElementById('lessons-sidebar');sidebar.innerHTML='';
+  // Show premium interactive lesson at top
+  renderPremiumLesson();
   const order=State.lessonOrder.length?State.lessonOrder:Object.keys(LESSONS);
   // Add any missing lessons at end
   Object.keys(LESSONS).forEach(k=>{if(!order.includes(k))order.push(k);});
@@ -928,6 +955,33 @@ function setTheme(theme){
   document.getElementById('theme-panel').classList.add('hidden');
 }
 
+function toggleDarkMode(isDark){
+  if(isDark){
+    document.documentElement.removeAttribute('data-light');
+    localStorage.setItem('cf-lightmode','0');
+  } else {
+    document.documentElement.setAttribute('data-light','1');
+    localStorage.setItem('cf-lightmode','1');
+  }
+}
+
+// Load saved theme + mode
+(function(){
+  const savedTheme = localStorage.getItem('cf-theme');
+  if(savedTheme) {
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    document.querySelectorAll('.theme-opt').forEach(el=>{
+      el.classList.toggle('active', el.dataset.theme===savedTheme);
+    });
+  }
+  const lightMode = localStorage.getItem('cf-lightmode');
+  if(lightMode === '1'){
+    document.documentElement.setAttribute('data-light','1');
+    const tog = document.getElementById('dark-mode-toggle');
+    if(tog) tog.checked = false;
+  }
+})();
+
 function toggleThemePanel(){
   const panel = document.getElementById('theme-panel');
   panel.classList.toggle('hidden');
@@ -942,11 +996,7 @@ document.addEventListener('click', e=>{
   }
 });
 
-// Load saved theme
-(function(){
-  const saved = localStorage.getItem('cf-theme');
-  if(saved) setTheme(saved);
-})();
+
 
 
 /* ── Cognitive Fingerprint ───────────────────────────────────────────────── */
@@ -1156,6 +1206,35 @@ function checkBotGameOver(){
   showBotReview();
 }
 
+function getBotPGN(){
+  // Generate PGN from bot game history
+  const moves = BotState.game.history();
+  let pgn = '[Event "ChessForge Bot Game"]\n';
+  pgn += `[White "${BotState.playerColor==='white'?'You':'ChessForge Bot'}"]\n`;
+  pgn += `[Black "${BotState.playerColor==='black'?'You':'ChessForge Bot'}"]\n`;
+  pgn += `[Result "${BotState.game.game_over()?BotState.game.result():'*'}"]\n\n`;
+  for(let i=0;i<moves.length;i++){
+    if(i%2===0) pgn += `${Math.floor(i/2)+1}. `;
+    pgn += moves[i] + ' ';
+  }
+  return pgn.trim();
+}
+
+function copyBotPGN(){
+  const pgn = getBotPGN();
+  navigator.clipboard.writeText(pgn).then(()=>{
+    const btn = document.getElementById('copy-pgn-btn');
+    if(btn){btn.textContent='✅ Copied!';setTimeout(()=>btn.textContent='📋 Copy PGN',2000);}
+  }).catch(()=>{
+    // Fallback
+    const ta = document.createElement('textarea');
+    ta.value = pgn; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+    const btn = document.getElementById('copy-pgn-btn');
+    if(btn){btn.textContent='✅ Copied!';setTimeout(()=>btn.textContent='📋 Copy PGN',2000);}
+  });
+}
+
 function showBotReview(){
   const card = document.getElementById('bot-review-card');
   const content = document.getElementById('bot-review-content');
@@ -1169,7 +1248,11 @@ function showBotReview(){
     <div class="bot-review-item"><strong>Total moves:</strong> ${total}</div>
     <div class="bot-review-item"><strong>Your captures:</strong> ${captures}</div>
     <div class="bot-review-item"><strong>Tip:</strong> ${getBotTip()}</div>
-    <div style="margin-top:.8rem"><button class="btn-outline" onclick="startBotGame()">Play Again</button></div>`;
+    <div style="margin-top:.8rem;display:flex;gap:.6rem;flex-wrap:wrap">
+      <button class="btn-outline" onclick="startBotGame()">Play Again</button>
+      <button class="btn-outline" id="copy-pgn-btn" onclick="copyBotPGN()">📋 Copy PGN</button>
+    </div>
+    <p style="color:var(--muted);font-size:.78rem;margin-top:.5rem">Paste PGN into the Analyze tab to see exactly where mistakes happened!</p>`;
   content.innerHTML = html;
 }
 
@@ -1303,6 +1386,123 @@ async function fetchMorePuzzles(){
     }
   }catch(e){}
   return false;
+}
+
+
+/* ── Premium Interactive Lesson ───────────────────────────────────────────── */
+function renderPremiumLesson(){
+  const container = document.getElementById('lesson-content');
+  if(!container) return;
+
+  const gamesAnalysed = State.analysisData?.games_analysed || 0;
+  const isPro = State.plan === 'pro';
+  const fp = State.analysisData?.cognitive_fingerprint;
+  const topWeakness = State.analysisData?.top_weaknesses?.[0]?.[0] || null;
+
+  // Build the premium lesson section
+  const premDiv = document.createElement('div');
+  premDiv.id = 'premium-lesson-section';
+
+  if(!isPro){
+    premDiv.innerHTML = `
+      <div class="locked-lesson">
+        <div class="locked-lesson-icon">⭐</div>
+        <h3>Personal Game Lessons</h3>
+        <p>Upgrade to Pro to unlock interactive lessons built directly from your own games — with chessboard positions, theory, and personalised coaching.</p>
+        <button class="btn-cyan" onclick="goToPro()" style="width:auto;margin:0 auto">Upgrade to Pro →</button>
+      </div>`;
+  } else if(gamesAnalysed < 5){
+    const needed = 5 - gamesAnalysed;
+    premDiv.innerHTML = `
+      <div class="locked-lesson">
+        <div class="locked-lesson-icon">📊</div>
+        <h3>Personal Game Lessons — Almost Ready</h3>
+        <p>Analyse <strong>${needed} more game${needed!==1?'s':''}</strong> so ChessForge can build lessons directly from your specific positions and mistakes.</p>
+        <button class="btn-outline" onclick="showPage('analyze')">Analyse a Game →</button>
+      </div>`;
+  } else {
+    // Build personalised lesson from their data
+    const weakness = topWeakness || 'Hanging piece';
+    const dominantPattern = fp?.dominant_pattern || 'Tactical Blind Spot';
+    const puzzles = State.puzzles || [];
+    const lessonPosition = puzzles.length > 0 ? puzzles[0] : null;
+
+    const WEAKNESS_LESSONS = {
+      'Hanging piece': {
+        title: 'Stop Hanging Pieces',
+        subtitle: 'Based on your ' + gamesAnalysed + ' analysed games',
+        steps: [
+          {label:'The Problem', text:`In your games, you've left pieces hanging ${State.analysisData?.pattern_counts?.['Hanging piece']||'multiple'} times. This is your #1 most costly mistake. Let's fix the thinking habit behind it.`, fen: lessonPosition?.fen || 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1'},
+          {label:'The Habit', text:'Before every move, your brain should automatically scan: "After I move this piece, does anything else become undefended?" Most players skip this scan when excited about their own plan.', fen: lessonPosition?.fen || 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1'},
+          {label:'The Fix', text:'From this moment: before every move, point (mentally or physically) at each of your pieces and ask "Is this safe?" It takes 3 seconds. It will immediately cut your hanging piece mistakes by more than half.', fen: lessonPosition?.fen || 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1'},
+        ]
+      },
+      'Missed tactic': {
+        title: 'Seeing What's There',
+        subtitle: 'Tactical vision from your actual games',
+        steps: [
+          {label:'Your Pattern', text:`You've missed ${State.analysisData?.pattern_counts?.['Missed tactic']||'several'} tactical opportunities. Good positions are being built then not converted. The issue is stopping your calculation too early.`, fen: lessonPosition?.fen || 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1'},
+          {label:'The Search', text:'After every opponent move, ask: "What did this move allow?" Check ALL forcing moves — checks, captures, and threats — before considering quiet moves. This is where your missed tactics hide.', fen: lessonPosition?.fen || 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1'},
+          {label:'The Drill', text:'Solve 10 tactics puzzles every day from your Puzzles tab. These come from YOUR actual games. Every puzzle you solve adds that pattern to your mental library.', fen: lessonPosition?.fen || 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1'},
+        ]
+      },
+      'King safety issue': {
+        title: 'Protecting Your King',
+        subtitle: 'King safety from your actual game positions',
+        steps: [
+          {label:'Your Vulnerability', text:`Your king has been in danger ${State.analysisData?.pattern_counts?.['King safety issue']||'multiple'} times. Every time this happened, it was preventable. Let's build the reflex to castle early.`, fen: lessonPosition?.fen || 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1'},
+          {label:'The Rule', text:'Castle within the first 10 moves. Every game. Without exception unless there is a concrete tactical reason not to. A king in the center is an accident waiting to happen.', fen: lessonPosition?.fen || 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1'},
+          {label:'The Habit', text:'In your next game, after moves 5 and 8, ask yourself: "Why haven't I castled yet?" If you can't give a concrete tactical answer, castle immediately.', fen: lessonPosition?.fen || 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1'},
+        ]
+      },
+    };
+
+    const lesson = WEAKNESS_LESSONS[weakness] || WEAKNESS_LESSONS['Hanging piece'];
+    let stepIdx = 0;
+
+    const stepsHTML = lesson.steps.map((s,i)=>`<button class="premium-lesson-step${i===0?' active':''}" onclick="showPremiumStep(${i})">${s.label}</button>`).join('');
+
+    premDiv.innerHTML = `
+      <div class="premium-lesson-card">
+        <div class="premium-lesson-badge">⭐ Your Personal Lesson</div>
+        <div class="premium-lesson-title">${esc(lesson.title)}</div>
+        <div class="premium-lesson-subtitle">${esc(lesson.subtitle)}</div>
+        <div class="premium-lesson-nav">${stepsHTML}</div>
+        <div class="premium-lesson-explanation" id="prem-lesson-text">${lesson.steps[0].text}</div>
+        <div style="text-align:center;margin-top:.8rem;color:var(--muted);font-size:.78rem">Based on ${gamesAnalysed} games · ${State.analysisData?.total_mistakes||0} mistakes analysed</div>
+      </div>`;
+
+    // Store steps for navigation
+    window._premiumLessonSteps = lesson.steps;
+  }
+
+  // Insert at very top of lesson-content
+  const existingPrem = document.getElementById('premium-lesson-section');
+  if(existingPrem) existingPrem.remove();
+  container.insertBefore(premDiv, container.firstChild);
+}
+
+function showPremiumStep(idx){
+  const steps = window._premiumLessonSteps;
+  if(!steps || idx >= steps.length) return;
+  document.getElementById('prem-lesson-text').textContent = steps[idx].text;
+  document.querySelectorAll('.premium-lesson-step').forEach((el,i)=>{
+    el.classList.toggle('active', i===idx);
+  });
+}
+
+
+// Gold theme
+if(!document.getElementById('gold-theme-style')){
+  const s=document.createElement('style');s.id='gold-theme-style';
+  s.textContent='[data-theme="gold"]{--cyan:#ffd32a;--cyan-dim:rgba(255,211,42,.12);--cyan-glow:rgba(255,211,42,.25)}';
+  document.head.appendChild(s);
+}
+// Light mode
+if(!document.getElementById('light-mode-style')){
+  const s=document.createElement('style');s.id='light-mode-style';
+  s.textContent='[data-light="1"]{--bg:#f5f5f7;--bg2:#ffffff;--bg3:#f0f0f5;--bg4:#e8e8f0;--border:#d0d0e0;--text:#1a1a2e;--muted:#555570}';
+  document.head.appendChild(s);
 }
 
 /* ── Init ─────────────────────────────────────────────────────────────────── */
