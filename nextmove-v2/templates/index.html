@@ -65,13 +65,21 @@
 <!-- Theme Panel -->
 <div id="theme-panel" class="theme-panel hidden">
   <div class="theme-title">Choose Theme</div>
+  <div class="theme-toggle-row">
+    <span class="theme-toggle-label">🌙 Dark mode</span>
+    <label class="toggle-switch">
+      <input type="checkbox" id="dark-mode-toggle" checked onchange="toggleDarkMode(this.checked)">
+      <span class="toggle-slider"></span>
+    </label>
+  </div>
+  <div class="theme-section-label">Accent Color</div>
   <div class="theme-options">
     <button class="theme-opt active" data-theme="cyan" onclick="setTheme('cyan')"><span style="background:#00d4ff"></span>Cyan</button>
     <button class="theme-opt" data-theme="blue" onclick="setTheme('blue')"><span style="background:#4a9eff"></span>Blue</button>
     <button class="theme-opt" data-theme="purple" onclick="setTheme('purple')"><span style="background:#a855f7"></span>Purple</button>
     <button class="theme-opt" data-theme="green" onclick="setTheme('green')"><span style="background:#2ed573"></span>Green</button>
     <button class="theme-opt" data-theme="red" onclick="setTheme('red')"><span style="background:#ff4757"></span>Red</button>
-    <button class="theme-opt" data-theme="light" onclick="setTheme('light')"><span style="background:#f0f0f0;border:1px solid #ccc"></span>Light</button>
+    <button class="theme-opt" data-theme="gold" onclick="setTheme('gold')"><span style="background:#ffd32a"></span>Gold</button>
   </div>
 </div>
 
