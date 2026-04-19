@@ -479,13 +479,20 @@ function hideCriticalModal(){
 }
 
 function showCriticalAnswer(){
-  const m=State.currentCritical;if(!m)return;
-  document.getElementById('critical-best-move').textContent=m.best_move||'—';
-  document.getElementById('critical-explanation').textContent=m.threat_desc||`You played ${m.san}. The engine recommends ${m.best_move} — a ${m.drop_cp} centipawn improvement.`;
+  const m = State.currentCritical; if(!m) return;
+  const bestEl = document.getElementById('critical-best-move');
+  const expEl = document.getElementById('critical-explanation');
+  if(bestEl) bestEl.textContent = m.best_move || 'No clear best move found';
+  if(expEl){
+    const drop = m.drop_cp;
+    let severity = drop >= 300 ? 'a massive blunder' : drop >= 200 ? 'a serious blunder' : 'a significant mistake';
+    expEl.textContent = `You played ${m.san} — ${severity} (lost ${Math.round(drop/100*10)/10} pawns of advantage). The engine recommends ${m.best_move||'a different move'}. ${m.threat_desc||''}`;
+  }
   document.getElementById('critical-answer').classList.remove('hidden');
-  // Change button to "Continue Replay"
   const actions = document.querySelector('.critical-actions');
-  if(actions) actions.innerHTML = '<button class="btn-cyan" onclick="hideCriticalModal()" style="width:auto;margin-top:0">Continue Replay →</button>';
+  if(actions) actions.innerHTML = `
+    <button class="btn-cyan" onclick="hideCriticalModal()" style="width:auto;margin-top:0;padding:.5rem 1.2rem;font-size:.85rem">Continue ▶</button>
+  `;
 }
 
 document.getElementById('r-start').addEventListener('click',()=>{if(!State.replayBoard)return;State.replayPly=-1;State.replayBoard.position('start',false);updateReplayInfo();document.querySelectorAll('.move-san').forEach(el=>el.classList.remove('active-move'));});
@@ -503,87 +510,149 @@ document.addEventListener('keydown',e=>{
 });
 
 /* ── PUZZLES with click-to-move ───────────────────────────────────────────── */
+// ── Puzzle highlight helpers ──
+function getPuzzleSquareEl(square, boardId){
+  boardId = boardId || 'puzzle-board';
+  // chessboard.js gives each square a class like "square-e4"
+  return document.querySelector(`#${boardId} .square-${square}`);
+}
+
+function highlightSquare(square, color, boardId){
+  const el = getPuzzleSquareEl(square, boardId);
+  if(el) el.style.background = color;
+}
+
+function clearAllHighlights(boardId){
+  boardId = boardId || 'puzzle-board';
+  document.querySelectorAll(`#${boardId} .square-55d63`).forEach(el=>{
+    el.style.background = '';
+    el.style.boxShadow = '';
+  });
+  document.querySelectorAll('.move-dot').forEach(el=>el.remove());
+  State.selectedSquare = null;
+}
+
+function showMoveDots(moves, boardId){
+  boardId = boardId || 'puzzle-board';
+  moves.forEach(m=>{
+    const el = getPuzzleSquareEl(m.to, boardId);
+    if(!el) return;
+    // Create dot overlay
+    const dot = document.createElement('div');
+    dot.className = 'move-dot';
+    const hasPiece = State.puzzleGame.get(m.to);
+    if(hasPiece){
+      // Capture ring
+      dot.style.cssText = 'position:absolute;inset:0;border:4px solid rgba(0,212,255,.7);border-radius:50%;pointer-events:none;z-index:100;box-sizing:border-box';
+    } else {
+      // Move dot
+      dot.style.cssText = 'position:absolute;width:34%;height:34%;background:rgba(0,212,255,.5);border-radius:50%;top:33%;left:33%;pointer-events:none;z-index:100';
+    }
+    el.style.position = 'relative';
+    el.appendChild(dot);
+  });
+}
+
 function initPuzzleBoard(){
   if(State.boardsReady.puzzle&&State.puzzleBoard){if(State.puzzles.length)loadPuzzle(State.puzzleIdx);return;}
   if(State.puzzleBoard){try{State.puzzleBoard.destroy();}catch(e){}}
   State.puzzleGame=new Chess();
   State.puzzleBoard=Chessboard('puzzle-board',{
-    position:'start',draggable:true,pieceTheme:PIECE_THEME,
+    position:'start',
+    draggable:true,
+    pieceTheme:PIECE_THEME,
     onDrop:handlePuzzleDrop,
     onSnapEnd:()=>{if(State.puzzleGame)State.puzzleBoard.position(State.puzzleGame.fen());},
     onSquareClick:handlePuzzleSquareClick,
+    onMouseoverSquare: onMouseoverPuzzleSquare,
+    onMouseoutSquare: onMouseoutPuzzleSquare,
   });
   State.boardsReady.puzzle=true;
   if(State.puzzles.length)loadPuzzle(State.puzzleIdx);
 }
 
+function onMouseoverPuzzleSquare(square){
+  if(State.selectedSquare) return; // already selected, dont show hover hints
+  if(!State.puzzleGame) return;
+  const piece = State.puzzleGame.get(square);
+  if(!piece || piece.color !== State.puzzleGame.turn()) return;
+  const moves = State.puzzleGame.moves({square, verbose:true});
+  if(!moves.length) return;
+  highlightSquare(square, 'rgba(0,212,255,.25)', 'puzzle-board');
+}
+
+function onMouseoutPuzzleSquare(square){
+  if(State.selectedSquare === square) return;
+  const el = getPuzzleSquareEl(square, 'puzzle-board');
+  if(el) el.style.background = '';
+}
+
 function handlePuzzleSquareClick(square){
-  if(!State.puzzleGame||!State.puzzleBoard)return;
-  const piece=State.puzzleGame.get(square);
+  if(!State.puzzleGame||!State.puzzleBoard) return;
+  const piece = State.puzzleGame.get(square);
+  const turn = State.puzzleGame.turn();
+
   // Clicking selected square = deselect
-  if(State.selectedSquare===square){
-    clearHighlights();
+  if(State.selectedSquare === square){
+    clearAllHighlights('puzzle-board');
     return;
   }
-  // Have a piece selected — try to move to clicked square
+
+  // Have a selected square — try to move
   if(State.selectedSquare){
-    const src=State.selectedSquare;
-    clearHighlights();
-    // Try the move
-    const mv=State.puzzleGame.move({from:src,to:square,promotion:'q'});
+    const src = State.selectedSquare;
+    clearAllHighlights('puzzle-board');
+
+    const mv = State.puzzleGame.move({from:src, to:square, promotion:'q'});
     if(mv){
-      // Valid move made
-      State.puzzleBoard.position(State.puzzleGame.fen(),false);
-      const p=State.puzzles[State.puzzleIdx];
-      const uci=src+square;
-      const solUCI=p?p.solution.toLowerCase().replace(/[+#=qrbn]/g,'').slice(0,4):'';
-      const ok=p&&(mv.san===p.solution||uci===solUCI);
-      const status=document.getElementById('puzzle-status');
-      if(ok){status.textContent='✅ Correct! Well done!';status.style.color='var(--green)';State.puzzleCorrect++;awardXP(50,'puzzle');}
-      else{status.textContent=`❌ Not quite (${mv.san}) — try again!`;status.style.color='var(--red)';State.puzzleWrong++;State.puzzleGame.undo();State.puzzleBoard.position(State.puzzleGame.fen(),false);}
-      document.getElementById('p-correct').textContent=State.puzzleCorrect;
-      document.getElementById('p-wrong').textContent=State.puzzleWrong;
+      State.puzzleBoard.position(State.puzzleGame.fen(), false);
+      checkPuzzleMove(mv, src, square);
     } else {
-      // Invalid move — maybe selecting a new piece
-      if(piece && piece.color===State.puzzleGame.turn()){
-        State.selectedSquare=square;
-        highlightMoves(square);
+      // Not a valid move — maybe user clicked another own piece
+      if(piece && piece.color === turn){
+        State.selectedSquare = square;
+        highlightSquare(square, 'rgba(0,212,255,.4)', 'puzzle-board');
+        const moves = State.puzzleGame.moves({square, verbose:true});
+        showMoveDots(moves, 'puzzle-board');
       }
     }
     return;
   }
-  // No piece selected — select if it is the right color
-  if(piece && piece.color===State.puzzleGame.turn()){
-    State.selectedSquare=square;
-    highlightMoves(square);
+
+  // Nothing selected — select own piece
+  if(piece && piece.color === turn){
+    State.selectedSquare = square;
+    clearAllHighlights('puzzle-board');
+    highlightSquare(square, 'rgba(0,212,255,.4)', 'puzzle-board');
+    const moves = State.puzzleGame.moves({square, verbose:true});
+    showMoveDots(moves, 'puzzle-board');
   }
 }
 
-function highlightMoves(square){
-  const moves=State.puzzleGame.moves({square,verbose:true});
-  if(!moves.length)return;
-  // Use chessboard.js square elements (they have class like "square-e4")
-  const selEl=document.querySelector(`#puzzle-board .square-${square}`);
-  if(selEl)selEl.style.boxShadow='inset 0 0 0 4px rgba(0,212,255,.9)';
-  moves.forEach(m=>{
-    const el=document.querySelector(`#puzzle-board .square-${m.to}`);
-    if(el){
-      const dot=document.createElement('div');
-      dot.className='move-dot';
-      dot.style.cssText='position:absolute;width:33%;height:33%;background:rgba(0,212,255,.45);border-radius:50%;top:33%;left:33%;pointer-events:none;z-index:10';
-      el.style.position='relative';el.appendChild(dot);
-    }
-  });
+function checkPuzzleMove(mv, src, tgt){
+  const p = State.puzzles[State.puzzleIdx];
+  if(!p) return;
+  const uci = src + tgt;
+  const solUCI = p.solution.toLowerCase().replace(/[+#=qrbn]/g,'').slice(0,4);
+  const ok = mv.san === p.solution || uci === solUCI;
+  const status = document.getElementById('puzzle-status');
+  if(ok){
+    status.textContent = '✅ Correct! Well done!';
+    status.style.color = 'var(--green)';
+    State.puzzleCorrect++;
+    awardXP(50,'puzzle');
+  } else {
+    status.textContent = `❌ Not quite (${mv.san}) — try again!`;
+    status.style.color = 'var(--red)';
+    State.puzzleWrong++;
+    State.puzzleGame.undo();
+    State.puzzleBoard.position(State.puzzleGame.fen(), false);
+  }
+  document.getElementById('p-correct').textContent = State.puzzleCorrect;
+  document.getElementById('p-wrong').textContent = State.puzzleWrong;
 }
 
-function clearHighlights(){
-  // Clear puzzle board highlights
-  document.querySelectorAll('#puzzle-board .square-55d63').forEach(el=>{el.style.boxShadow='';});
-  // Also try data-square approach
-  document.querySelectorAll('#puzzle-board [class*="square-"]').forEach(el=>{el.style.boxShadow='';});
-  document.querySelectorAll('.move-dot').forEach(el=>el.remove());
-  State.selectedSquare=null;
-}
+// highlight helpers moved to initPuzzleBoard section above
 
 function loadPuzzle(idx){
   if(idx>=State.puzzles.length||!State.puzzleBoard)return;
@@ -603,19 +672,11 @@ function loadPuzzle(idx){
 }
 
 function handlePuzzleDrop(src,tgt){
-  const p=State.puzzles[State.puzzleIdx];
-  if(!p||!State.puzzleGame)return'snapback';
-  clearHighlights();
-  const mv=State.puzzleGame.move({from:src,to:tgt,promotion:'q'});
-  if(!mv)return'snapback';
-  const uci=src+tgt;
-  const solUCI=p.solution.toLowerCase().replace(/[+#=qrbn]/g,'').slice(0,4);
-  const ok=mv.san===p.solution||uci===solUCI;
-  const status=document.getElementById('puzzle-status');
-  if(ok){status.textContent='✅ Correct! Well done!';status.style.color='var(--green)';State.puzzleCorrect++;awardXP(50,'puzzle');}
-  else{status.textContent=`❌ Not quite (${mv.san}) — try again!`;status.style.color='var(--red)';State.puzzleWrong++;State.puzzleGame.undo();State.puzzleBoard.position(State.puzzleGame.fen(),false);}
-  document.getElementById('p-correct').textContent=State.puzzleCorrect;
-  document.getElementById('p-wrong').textContent=State.puzzleWrong;
+  if(!State.puzzleGame) return 'snapback';
+  clearAllHighlights('puzzle-board');
+  const mv = State.puzzleGame.move({from:src, to:tgt, promotion:'q'});
+  if(!mv) return 'snapback';
+  checkPuzzleMove(mv, src, tgt);
 }
 
 document.getElementById('hint-btn').addEventListener('click',()=>{
@@ -1222,17 +1283,31 @@ function getBotPGN(){
 
 function copyBotPGN(){
   const pgn = getBotPGN();
-  navigator.clipboard.writeText(pgn).then(()=>{
-    const btn = document.getElementById('copy-pgn-btn');
-    if(btn){btn.textContent='✅ Copied!';setTimeout(()=>btn.textContent='📋 Copy PGN',2000);}
-  }).catch(()=>{
-    // Fallback
+  const btn = document.getElementById('copy-pgn-btn');
+  // Most reliable cross-browser copy
+  try {
     const ta = document.createElement('textarea');
-    ta.value = pgn; document.body.appendChild(ta); ta.select();
-    document.execCommand('copy'); document.body.removeChild(ta);
-    const btn = document.getElementById('copy-pgn-btn');
-    if(btn){btn.textContent='✅ Copied!';setTimeout(()=>btn.textContent='📋 Copy PGN',2000);}
-  });
+    ta.value = pgn;
+    ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const success = document.execCommand('copy');
+    document.body.removeChild(ta);
+    if(success && btn){
+      btn.textContent = '✅ Copied to clipboard!';
+      btn.style.color = 'var(--green)';
+      btn.style.borderColor = 'var(--green)';
+      setTimeout(()=>{btn.textContent='📋 Copy PGN';btn.style.color='';btn.style.borderColor='';}, 2500);
+    }
+  } catch(e) {
+    // Try clipboard API as fallback
+    if(navigator.clipboard){
+      navigator.clipboard.writeText(pgn).then(()=>{
+        if(btn){btn.textContent='✅ Copied!';setTimeout(()=>btn.textContent='📋 Copy PGN',2500);}
+      });
+    }
+  }
 }
 
 function showBotReview(){
