@@ -102,6 +102,22 @@ function applySession(d){
   State.completedLessons=d.progress?.lessons_completed||[];
   const upgradeBtn=document.getElementById('upgrade-btn');
   if(upgradeBtn)upgradeBtn.style.display=State.plan==='pro'?'none':'block';
+  // Show cancel button for pro users
+  let cancelBtn = document.getElementById('cancel-sub-btn');
+  if(State.plan==='pro'){
+    if(!cancelBtn){
+      cancelBtn=document.createElement('button');
+      cancelBtn.id='cancel-sub-btn';
+      cancelBtn.className='logout-btn';
+      cancelBtn.style.marginBottom='.4rem';
+      cancelBtn.textContent='Cancel Pro';
+      cancelBtn.onclick=cancelSubscription;
+      const homeBtn=document.querySelector('.home-btn');
+      if(homeBtn)homeBtn.parentNode.insertBefore(cancelBtn,homeBtn);
+    }
+  } else {
+    if(cancelBtn) cancelBtn.remove();
+  }
   if(d.progress){
     const p=d.progress;
     [['pg-games',p.games_analysed],['pg-blunders',p.blunders_found],['pg-puzzles',p.puzzles_solved],['pg-lessons',(p.lessons_completed||[]).length]].forEach(([id,v])=>{const e=document.getElementById(id);if(e)e.textContent=v||0;});
@@ -110,6 +126,7 @@ function applySession(d){
   hideEl('progress-guest');showEl('progress-content');
   document.getElementById('save-game-btn').style.display='inline-flex';
   if(State.pendingUpgrade&&State.plan!=='pro'){State.pendingUpgrade=false;setTimeout(()=>goToPro(),500);}
+  setTimeout(checkOnboarding, 1500);
 }
 
 async function checkSession(){
@@ -180,6 +197,7 @@ function showPage(name){
     if(name==='puzzles')initPuzzleBoard();
     if(name==='lessons')initLessonsPage();
     if(name==='progress')renderProgressPage();
+    if(name==='bot')initBotPage();
   },60);
 }
 document.querySelectorAll('.nav-link').forEach(l=>l.addEventListener('click',e=>{e.preventDefault();showPage(l.dataset.page);}));
@@ -279,6 +297,12 @@ async function runAnalysis(playerColor){
     showEl('results');
     if(State.loggedIn)document.getElementById('save-game-btn').style.display='inline-flex';
     if(d.xp)setXP(d.xp);
+    // Auto-save game after analysis
+    if(State.loggedIn && State.lastPGN){
+      const metas=d.game_metas||[];
+      const label=metas.length?`${metas[0].white} vs ${metas[0].black} (${metas[0].date})`:'Game';
+      fetch('/auth/save-game',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pgn:State.lastPGN,label}),credentials:'include'}).then(r=>r.json()).then(d=>{if(d.games)renderSavedGames(d.games);}).catch(()=>{});
+    }
     if(d.plan==='free'&&d.games_today!==undefined){
       const remaining=Math.max(0,d.daily_limit-d.games_today);
       if(remaining===0){
@@ -339,6 +363,8 @@ function renderAnalysis(data){
   Object.entries(data.pattern_counts||{}).sort((a,b)=>b[1]-a[1]).forEach(([n,c])=>{pg.innerHTML+=`<div class="chip"><span class="chip-name">${esc(n)}</span><span class="chip-count">${c}</span></div>`;});
   // Training inline
   renderTrainingInline(data.training);
+  // Cognitive fingerprint
+  if(data.cognitive_fingerprint) renderCognitiveFingerprint(data.cognitive_fingerprint);
   // Lesson order
   State.lessonOrder=data.lessons||Object.keys(LESSONS);
   // Puzzles
@@ -428,6 +454,17 @@ function updateReplayInfo(){
 
 /* ── Critical Moment Modal ─────────────────────────────────────────────────── */
 function showCriticalModal(move){
+  // This is called when a blunder is detected in replay
+  const modal = document.getElementById('critical-modal');
+  const board = document.getElementById('replay-board');
+  if(board){
+    const rect = board.getBoundingClientRect();
+    const inner = modal.querySelector('.critical-inner');
+    if(inner){
+      // Show below the board controls
+      inner.style.maxWidth = '520px';
+    }
+  }
   State.currentCritical=move;
   State.replayPaused=true;
   document.getElementById('critical-side').textContent=cap(move.side);
@@ -446,6 +483,9 @@ function showCriticalAnswer(){
   document.getElementById('critical-best-move').textContent=m.best_move||'—';
   document.getElementById('critical-explanation').textContent=m.threat_desc||`You played ${m.san}. The engine recommends ${m.best_move} — a ${m.drop_cp} centipawn improvement.`;
   document.getElementById('critical-answer').classList.remove('hidden');
+  // Change button to "Continue Replay"
+  const actions = document.querySelector('.critical-actions');
+  if(actions) actions.innerHTML = '<button class="btn-cyan" onclick="hideCriticalModal()" style="width:auto;margin-top:0">Continue Replay →</button>';
 }
 
 document.getElementById('r-start').addEventListener('click',()=>{if(!State.replayBoard)return;State.replayPly=-1;State.replayBoard.position('start',false);updateReplayInfo();document.querySelectorAll('.move-san').forEach(el=>el.classList.remove('active-move'));});
@@ -558,9 +598,16 @@ document.getElementById('hint-btn').addEventListener('click',()=>{
   const h=document.getElementById('puzzle-hint-text');h.classList.remove('hidden');
   h.textContent=`💡 Best move: ${p.solution}`;
 });
-document.getElementById('next-puzzle-btn').addEventListener('click',()=>{
+document.getElementById('next-puzzle-btn').addEventListener('click',async()=>{
   if(!State.puzzles.length)return;
-  State.puzzleIdx=(State.puzzleIdx+1)%State.puzzles.length;loadPuzzle(State.puzzleIdx);
+  State.puzzleIdx++;
+  if(State.puzzleIdx >= State.puzzles.length){
+    // Fetch more puzzles
+    document.getElementById('puzzle-status').textContent='Loading more puzzles…';
+    const got = await fetchMorePuzzles();
+    if(!got) State.puzzleIdx = 0; // loop back
+  }
+  loadPuzzle(State.puzzleIdx);
 });
 
 /* ── LESSONS DATA ─────────────────────────────────────────────────────────── */
@@ -868,6 +915,394 @@ async function handleURLParams(){
       } else goToPro();
     } else {showAuthModal();State.pendingUpgrade=true;}
   }
+}
+
+
+/* ── Theme System ─────────────────────────────────────────────────────────── */
+function setTheme(theme){
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('cf-theme', theme);
+  document.querySelectorAll('.theme-opt').forEach(el=>{
+    el.classList.toggle('active', el.dataset.theme===theme);
+  });
+  document.getElementById('theme-panel').classList.add('hidden');
+}
+
+function toggleThemePanel(){
+  const panel = document.getElementById('theme-panel');
+  panel.classList.toggle('hidden');
+}
+
+// Close theme panel when clicking outside
+document.addEventListener('click', e=>{
+  const panel = document.getElementById('theme-panel');
+  const btn = document.getElementById('theme-btn');
+  if(panel && !panel.contains(e.target) && e.target !== btn){
+    panel.classList.add('hidden');
+  }
+});
+
+// Load saved theme
+(function(){
+  const saved = localStorage.getItem('cf-theme');
+  if(saved) setTheme(saved);
+})();
+
+
+/* ── Cognitive Fingerprint ───────────────────────────────────────────────── */
+function renderCognitiveFingerprint(fp){
+  if(!fp) return;
+  // Remove existing card if any
+  const existing = document.getElementById('fingerprint-card');
+  if(existing) existing.remove();
+
+  const card = document.createElement('div');
+  card.id = 'fingerprint-card';
+  card.className = 'fingerprint-card';
+
+  const confidence = fp.confidence || 0;
+  const gamesNeeded = fp.games_needed || 0;
+
+  let html = `
+    <div class="card-label">🧠 Thinking Process Fingerprint</div>
+    <h2>${esc(fp.dominant_pattern)}</h2>
+    <p style="color:var(--muted);font-size:.88rem;margin-bottom:.8rem">
+      Based on your game analysis, ChessForge has identified the cognitive patterns behind your mistakes — not just what you do wrong, but <strong style="color:var(--text)">why</strong>.
+      ${gamesNeeded > 0 ? `<br><em>Analyse ${gamesNeeded} more game${gamesNeeded!==1?'s':''} for a complete profile.</em>` : ''}
+    </p>
+    <div class="fp-confidence">
+      <span>Profile confidence</span>
+      <div class="fp-confidence-bar"><div class="fp-confidence-fill" style="width:${confidence}%"></div></div>
+      <span>${confidence}%</span>
+    </div>
+    <div class="fingerprint-patterns">`;
+
+  (fp.patterns || []).forEach(p => {
+    html += `
+      <div class="fp-pattern ${p.severity}">
+        <div class="fp-name">⚠ ${esc(p.name)}</div>
+        <div class="fp-desc">${esc(p.description)}</div>
+        <div class="fp-trigger">📌 When it happens: ${esc(p.trigger)}</div>
+        <div class="fp-fix">✅ Fix: ${esc(p.fix)}</div>
+      </div>`;
+  });
+
+  html += `</div>`;
+
+  if(fp.premove_checklist && fp.premove_checklist.length){
+    html += `
+      <div class="divider-label" style="margin-top:1.2rem">Your Personalised Pre-Move Checklist</div>
+      <ul class="checklist">
+        ${fp.premove_checklist.map(item=>`<li>${esc(item)}</li>`).join('')}
+      </ul>`;
+  }
+
+  html += `</div>`;
+  card.innerHTML = html;
+
+  // Insert after profile card
+  const profileCard = document.querySelector('.profile-card');
+  if(profileCard) profileCard.insertAdjacentElement('afterend', card);
+  else document.getElementById('results').prepend(card);
+}
+
+
+/* ── BOT GAME ─────────────────────────────────────────────────────────────── */
+const BotState = {
+  board: null, game: null, playerColor: 'white',
+  moveHistory: [], gameActive: false, thinking: false,
+  weaknesses: []
+};
+
+function initBotPage(){
+  if(BotState.board) return;
+  BotState.board = Chessboard('bot-board', {
+    position: 'start',
+    draggable: true,
+    pieceTheme: PIECE_THEME,
+    onDrop: handleBotDrop,
+    onSnapEnd: ()=>{ if(BotState.game) BotState.board.position(BotState.game.fen()); },
+    onSquareClick: handleBotSquareClick,
+  });
+  // Show weakness targets if we have analysis data
+  if(State.analysisData){
+    const wp = (State.analysisData.top_weaknesses || []).map(([n])=>n);
+    BotState.weaknesses = wp;
+    if(wp.length){
+      showEl('bot-weakness-targets');
+      const list = document.getElementById('bot-target-list');
+      list.innerHTML = wp.slice(0,3).map(w=>`<div class="bot-target">🎯 ${esc(w)}</div>`).join('');
+    }
+  }
+}
+
+function startBotGame(){
+  BotState.playerColor = document.getElementById('bot-color').value;
+  BotState.game = new Chess();
+  BotState.moveHistory = [];
+  BotState.gameActive = true;
+  BotState.thinking = false;
+  BotState.board.orientation(BotState.playerColor);
+  BotState.board.position('start', false);
+  document.getElementById('bot-move-history').innerHTML = '';
+  document.getElementById('bot-review-card').classList.add('hidden');
+  setBotStatus('Game started! ' + (BotState.playerColor==='white' ? 'You play White — make your move!' : 'You play Black — bot is thinking…'));
+
+  // If player is black, bot plays first
+  if(BotState.playerColor === 'black'){
+    setTimeout(makeBotMove, 800);
+  }
+}
+
+function handleBotSquareClick(square){
+  if(!BotState.gameActive || BotState.thinking) return;
+  if(BotState.game.turn() !== BotState.playerColor[0]) return;
+  clearBotHighlights();
+  const piece = BotState.game.get(square);
+  if(BotState.selectedSquare === square){ BotState.selectedSquare = null; return; }
+  if(BotState.selectedSquare){
+    const src = BotState.selectedSquare; BotState.selectedSquare = null;
+    const mv = BotState.game.move({from:src, to:square, promotion:'q'});
+    if(mv){ BotState.board.position(BotState.game.fen()); addBotMove(mv.san, src+square); checkBotGameOver(); if(!BotState.game.game_over()) setTimeout(makeBotMove, 600); }
+    else if(piece && piece.color === BotState.playerColor[0]){ BotState.selectedSquare = square; highlightBotMoves(square); }
+    return;
+  }
+  if(piece && piece.color === BotState.playerColor[0]){ BotState.selectedSquare = square; highlightBotMoves(square); }
+}
+
+function highlightBotMoves(square){
+  const moves = BotState.game.moves({square, verbose:true});
+  document.querySelectorAll(`#bot-board [data-square="${square}"]`).forEach(el=>el.style.boxShadow='inset 0 0 0 4px rgba(0,212,255,.9)');
+  moves.forEach(m=>{
+    document.querySelectorAll(`#bot-board [data-square="${m.to}"]`).forEach(el=>{
+      const dot = document.createElement('div');
+      dot.className = 'bot-dot';
+      dot.style.cssText = 'position:absolute;width:30%;height:30%;background:rgba(0,212,255,.5);border-radius:50%;top:35%;left:35%;pointer-events:none;z-index:10';
+      el.style.position = 'relative'; el.appendChild(dot);
+    });
+  });
+}
+
+function clearBotHighlights(){
+  document.querySelectorAll('#bot-board [data-square]').forEach(el=>el.style.boxShadow='');
+  document.querySelectorAll('.bot-dot').forEach(el=>el.remove());
+  BotState.selectedSquare = null;
+}
+
+function handleBotDrop(src, tgt){
+  if(!BotState.gameActive || BotState.thinking) return 'snapback';
+  if(BotState.game.turn() !== BotState.playerColor[0]) return 'snapback';
+  clearBotHighlights();
+  const mv = BotState.game.move({from:src, to:tgt, promotion:'q'});
+  if(!mv) return 'snapback';
+  addBotMove(mv.san, src+tgt);
+  checkBotGameOver();
+  if(!BotState.game.game_over()) setTimeout(makeBotMove, 600);
+}
+
+async function makeBotMove(){
+  if(!BotState.gameActive || BotState.game.game_over()) return;
+  BotState.thinking = true;
+  setBotStatus('🤖 Bot is thinking…');
+  try{
+    const diff = document.getElementById('bot-difficulty').value;
+    const r = await fetch('/bot-move', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({fen: BotState.game.fen(), weaknesses: BotState.weaknesses, difficulty: diff}),
+      credentials:'include'
+    });
+    const d = await r.json();
+    if(d.error || !d.move){ setBotStatus('Bot error — your turn!'); BotState.thinking=false; return; }
+    const mv = BotState.game.move({from:d.move.slice(0,2), to:d.move.slice(2,4), promotion:'q'});
+    if(mv){
+      BotState.board.position(BotState.game.fen(), false);
+      addBotMove(mv.san, d.move, true);
+      if(d.in_check) setBotStatus('♟ Bot played ' + mv.san + ' — You are in CHECK!');
+      else setBotStatus('♟ Bot played ' + mv.san + ' — Your turn!');
+      checkBotGameOver();
+    }
+  }catch(e){ setBotStatus('Connection error. Your turn!'); }
+  BotState.thinking = false;
+}
+
+function addBotMove(san, uci, isBot=false){
+  const hist = document.getElementById('bot-move-history');
+  const moveNum = Math.ceil((BotState.game.history().length) / 2);
+  if(!isBot){
+    const row = document.createElement('div');
+    row.className = 'bot-move-item'; row.id = 'bot-row-'+moveNum;
+    row.innerHTML = `<span class="bot-move-num">${moveNum}.</span><span class="bot-move-w">${esc(san)}</span><span class="bot-move-b" id="bot-b-${moveNum}"></span>`;
+    hist.appendChild(row);
+  } else {
+    const cell = document.getElementById('bot-b-'+moveNum);
+    if(cell) cell.textContent = san;
+  }
+  hist.scrollTop = hist.scrollHeight;
+}
+
+function setBotStatus(msg){ document.getElementById('bot-status').textContent = msg; }
+
+function checkBotGameOver(){
+  if(!BotState.game.game_over()) return;
+  BotState.gameActive = false;
+  let result = '';
+  if(BotState.game.in_checkmate()){
+    const winner = BotState.game.turn() === 'w' ? 'Black' : 'White';
+    const playerWon = (winner === 'White' && BotState.playerColor === 'white') || (winner === 'Black' && BotState.playerColor === 'black');
+    result = playerWon ? '🎉 You won by checkmate!' : '😔 Bot won by checkmate. Review the game and analyse where it went wrong.';
+  } else if(BotState.game.in_stalemate()){ result = '½ Stalemate — draw!'; }
+  else if(BotState.game.in_draw()){ result = '½ Draw!'; }
+  setBotStatus(result);
+  showBotReview();
+}
+
+function showBotReview(){
+  const card = document.getElementById('bot-review-card');
+  const content = document.getElementById('bot-review-content');
+  card.classList.remove('hidden');
+  const moves = BotState.game.history({verbose:true});
+  const total = moves.length;
+  const playerMoves = moves.filter(m => (m.color === 'w') === (BotState.playerColor === 'white'));
+  const captures = playerMoves.filter(m => m.captured).length;
+
+  let html = `
+    <div class="bot-review-item"><strong>Total moves:</strong> ${total}</div>
+    <div class="bot-review-item"><strong>Your captures:</strong> ${captures}</div>
+    <div class="bot-review-item"><strong>Tip:</strong> ${getBotTip()}</div>
+    <div style="margin-top:.8rem"><button class="btn-outline" onclick="startBotGame()">Play Again</button></div>`;
+  content.innerHTML = html;
+}
+
+function getBotTip(){
+  const tips = [
+    'Analyse this game in the Analyze tab to see exactly where mistakes happened.',
+    'The bot targeted your pattern weaknesses — did you notice?',
+    'Try a harder difficulty once you can beat this level consistently.',
+    'Check your Pre-Move Checklist before every move in your next game.',
+    'The positions the bot created were chosen to expose your typical weaknesses.',
+  ];
+  return tips[Math.floor(Math.random()*tips.length)];
+}
+
+
+/* ── Tutorial ─────────────────────────────────────────────────────────────── */
+const TUTORIAL_STEPS = [
+  {title:'Welcome to ChessForge! ♟', desc:'Let me show you around in 30 seconds. ChessForge analyses YOUR games to find YOUR specific patterns — not generic advice.', target:null, pos:{top:'50%',left:'50%',transform:'translate(-50%,-50%)'}},
+  {title:'Step 1: Analyze', desc:'Start by pasting a PGN from Chess.com or Lichess and clicking "Load Game". We'll identify which player you are, then run Stockfish at depth 16.', target:'page-analyze', pos:{top:'20%',left:'50%',transform:'translateX(-50%)'}},
+  {title:'Step 2: Your Fingerprint', desc:'After analysis, ChessForge builds your Thinking Process Fingerprint — identifying WHY you make mistakes, not just what.', target:null, pos:{top:'30%',left:'50%',transform:'translateX(-50%)'}},
+  {title:'Step 3: Puzzles', desc:'Your blunders become puzzles you solve. After your puzzles run out, infinite puzzles target your specific weakness patterns.', target:'page-puzzles', pos:{top:'20%',left:'50%',transform:'translateX(-50%)'}},
+  {title:'Step 4: Play the Bot', desc:'The bot knows your weaknesses and deliberately creates positions that test them. Beat the bot = you're improving!', target:'page-bot', pos:{top:'20%',left:'50%',transform:'translateX(-50%)'}},
+];
+
+let tutorialStep = 0;
+
+function startTutorial(){
+  tutorialStep = 0;
+  showTutorialStep();
+  document.getElementById('tutorial-overlay').classList.remove('hidden');
+}
+
+function showTutorialStep(){
+  const step = TUTORIAL_STEPS[tutorialStep];
+  if(!step){ skipTutorial(); return; }
+  document.getElementById('t-step-num').textContent = tutorialStep + 1;
+  document.getElementById('t-step-total').textContent = TUTORIAL_STEPS.length;
+  document.getElementById('t-title').textContent = step.title;
+  document.getElementById('t-desc').textContent = step.desc;
+  const box = document.getElementById('tutorial-box');
+  Object.assign(box.style, {top:'',left:'',transform:'', bottom:'', right:''});
+  Object.assign(box.style, step.pos);
+}
+
+function nextTutorialStep(){
+  tutorialStep++;
+  if(tutorialStep >= TUTORIAL_STEPS.length){ skipTutorial(); return; }
+  showTutorialStep();
+}
+
+function skipTutorial(){
+  document.getElementById('tutorial-overlay').classList.add('hidden');
+  localStorage.setItem('cf-tutorial-done', '1');
+}
+
+// Show tutorial for first-time users
+(function(){
+  if(!localStorage.getItem('cf-tutorial-done')){
+    setTimeout(startTutorial, 2000);
+  }
+})();
+
+
+/* ── Onboarding ───────────────────────────────────────────────────────────── */
+function checkOnboarding(){
+  if(!State.loggedIn) return;
+  const done = localStorage.getItem('cf-onboarding-'+State.user);
+  if(done) return;
+  const analysed = State.analysisData ? 1 : 0;
+  if(analysed < 1){
+    showOnboarding();
+  }
+}
+
+function showOnboarding(){
+  const existing = document.getElementById('onboarding-overlay');
+  if(existing) return;
+  const div = document.createElement('div');
+  div.id = 'onboarding-overlay';
+  div.className = 'onboarding-overlay';
+  div.innerHTML = `
+    <div class="onboarding-modal">
+      <div class="onboarding-step">Getting Started</div>
+      <div class="onboarding-title">Let's learn your game 🎯</div>
+      <div class="onboarding-desc">
+        To build your personalised training plan, ChessForge needs to analyse a few of your games. The more games you add, the more accurate your pattern detection and Thinking Process Fingerprint become.
+        <br><br>
+        <strong style="color:var(--cyan)">Start by analysing your first game below!</strong> You can do this from the Analyze tab.
+      </div>
+      <div style="display:flex;gap:.8rem;flex-wrap:wrap;justify-content:center">
+        <button class="btn-cyan" onclick="closeOnboarding();showPage('analyze')" style="width:auto">Analyse My First Game →</button>
+        <button class="onboarding-skip" onclick="closeOnboarding()">Skip for now</button>
+      </div>
+    </div>`;
+  document.body.appendChild(div);
+}
+
+function closeOnboarding(){
+  const el = document.getElementById('onboarding-overlay');
+  if(el) el.remove();
+  if(State.user) localStorage.setItem('cf-onboarding-'+State.user, '1');
+}
+
+
+/* ── Cancel Subscription ─────────────────────────────────────────────────── */
+async function cancelSubscription(){
+  if(!confirm('This will open Stripe\'s billing portal where you can manage or cancel your subscription. Continue?')) return;
+  try{
+    const r = await fetch('/cancel-subscription', {method:'POST', credentials:'include'});
+    const d = await r.json();
+    if(d.url) window.open(d.url, '_blank');
+    else alert(d.error || 'Could not open billing portal.');
+  }catch(e){ alert('Connection error. Please try again.'); }
+}
+
+
+/* ── Infinite Puzzles ─────────────────────────────────────────────────────── */
+async function fetchMorePuzzles(){
+  const weakness = State.analysisData?.top_weaknesses?.[0]?.[0] || 'tactics';
+  try{
+    const r = await fetch('/generate-puzzles', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({weakness, count:5}),
+      credentials:'include'
+    });
+    const d = await r.json();
+    if(d.puzzles && d.puzzles.length){
+      State.puzzles.push(...d.puzzles);
+      document.getElementById('puzzle-total').textContent = State.puzzles.length;
+      return true;
+    }
+  }catch(e){}
+  return false;
 }
 
 /* ── Init ─────────────────────────────────────────────────────────────────── */
