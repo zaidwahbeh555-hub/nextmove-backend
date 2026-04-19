@@ -983,6 +983,9 @@ function initLessonsPage(){
 function renderLesson(id){
   const L=LESSONS[id];if(!L)return;
   const done=State.completedLessons.includes(id);
+  // Save premium lesson section before wiping
+  const premSaved = document.getElementById('premium-lesson-section');
+  const premHTML = premSaved ? premSaved.outerHTML : null;
   let html=`<div class="lesson-priority-badge ${L.priority}">${L.priority==='high'?'⭐ High Priority':'📌 Recommended'}</div><div class="lesson-title">${L.icon} ${L.title}</div><div class="lesson-subtitle">${L.subtitle}</div>`;
   L.sections.forEach(s=>{
     html+=`<div class="lesson-section">`;
@@ -994,7 +997,15 @@ function renderLesson(id){
     html+=`</div>`;
   });
   html+=`<div class="lesson-complete-btn">${done?`<button class="btn-outline" disabled>✅ Completed (+30 XP earned)</button>`:`<button class="btn-cyan" id="complete-btn" onclick="completeLesson('${id}')" style="max-width:280px">✅ Mark Complete (+30 XP)</button>`}</div>`;
-  document.getElementById('lesson-content').innerHTML=html;
+  const lc = document.getElementById('lesson-content');
+  lc.innerHTML = html;
+  // Restore premium lesson at top
+  if(premHTML){
+    const tmp = document.createElement('div');
+    tmp.innerHTML = premHTML;
+    lc.insertBefore(tmp.firstChild, lc.firstChild);
+    setTimeout(()=>showPremiumMCQ(window._premiumMCQIdx||0), 50);
+  }
 }
 
 async function completeLesson(id){
