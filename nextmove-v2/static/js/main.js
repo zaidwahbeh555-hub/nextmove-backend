@@ -552,7 +552,7 @@ function handlePuzzleSquareClick(square){
     }
     return;
   }
-  // No piece selected — select if it's the right color
+  // No piece selected — select if it is the right color
   if(piece && piece.color===State.puzzleGame.turn()){
     State.selectedSquare=square;
     highlightMoves(square);
@@ -649,9 +649,9 @@ const LESSONS={
     {heading:'Your daily drill',body:'<strong>Solve 10 puzzles every day.</strong> 10 minutes of consistent daily practice will transform your tactical vision within 2-3 months. Your Puzzles tab has positions from YOUR actual games.'},
   ]},
   blunders:{title:'How to Stop Blundering',subtitle:'The single biggest rating booster at every level',priority:'high',icon:'🚫',sections:[
-    {heading:'Why we blunder',body:'Blunders rarely happen because you don\'t know chess — they happen because you didn\'t check before moving. The most common causes: moving too fast, emotional reactions, not scanning the whole board, and "hope chess" (assuming the opponent won\'t find the response).'},
+    {heading:'Why we blunder',body:'Blunders rarely happen because you dont know chess — they happen because you didn\'t check before moving. The most common causes: moving too fast, emotional reactions, not scanning the whole board, and "hope chess" (assuming the opponent wont find the response).'},
     {heading:'The one-move check — do this EVERY move',body:'Before touching any piece, run this mental checklist:',steps:['<strong>Am I walking into check or losing a piece immediately?</strong>','<strong>Did my move leave anything undefended?</strong> Scan all your pieces.','<strong>What is my opponent threatening on their next move?</strong>','<strong>Is my king safe?</strong>','Only then — make the move.']},
-    {tip:'The chess engine makes its move instantly. The difference isn\'t speed — it\'s that the engine checks everything. Slow down, even when you\'re sure.'},
+    {tip:'The chess engine makes its move instantly. The difference isnt speed — its that the engine checks everything. Slow down, even when you\'re sure.'},
     {heading:'LPDO — Loose Pieces Drop Off',body:'Before every move, identify all "loose" pieces — pieces with no defender. Loose pieces are always targets. Either defend them, move them, or trade them before your opponent wins them for free.'},
     {heading:'The 3-question blunder check',body:'',steps:['Can my opponent capture any of my pieces for free after this move?','Can my opponent check me, and if so, where does my king go?','Did I just leave something hanging that was defended before?']},
     {warning:'If you ever say "I didn\'t see that" after a game — you weren\'t looking. Train yourself to look every time, even in completely won positions.'},
@@ -664,7 +664,7 @@ const LESSONS={
     {heading:'Rule 2: Don\'t move castled pawns',body:'The pawns in front of your castled king are its bodyguards. Moving them without a specific concrete reason creates permanent weaknesses your opponent will target all game.'},
     {warning:'Never push h3 or g4 "just to give the king air" in the early middlegame. It weakens your king far more than it helps.'},
     {heading:'Rule 3: Watch the back rank',body:'Once pieces are exchanged, your back rank becomes a target. If your king is behind unmoved pawns, a rook or queen can deliver back-rank mate. Play h3 or g3 early in rook endgames to create an escape square.'},
-    {heading:'Signs your king is in danger',body:'',steps:['Opponent has rooks or queens pointing toward your king\'s wing','Your king-side pawns have moved or been traded','All your pieces are on the opposite side of the board','You can\'t castle and the center files are open','Your opponent has a knight outpost near your king']},
+    {heading:'Signs your king is in danger',body:'',steps:['Opponent has rooks or queens pointing toward your king\'s wing','Your king-side pawns have moved or been traded','All your pieces are on the opposite side of the board','You cannot castle and the center files are open','Your opponent has a knight outpost near your king']},
   ]},
   openings:{title:'Opening Principles That Actually Work',subtitle:'Stop memorising moves. Start understanding why.',priority:'medium',icon:'📖',sections:[
     {heading:'Why you\'re doing openings wrong',body:'Most players try to memorise opening moves without understanding why. This falls apart the moment the opponent deviates. Instead, master these 4 principles — they apply to every opening ever played.'},
@@ -678,12 +678,12 @@ const LESSONS={
   ]},
   capitalize:{title:'How to Punish Your Opponent\'s Mistakes',subtitle:'Turn their errors into decisive wins',priority:'medium',icon:'💥',sections:[
     {heading:'Games are given away, not won',body:'At club level, most decisive games are decided by mistakes rather than brilliant play. The player who makes the last major mistake usually loses. So two skills matter equally: avoiding your own mistakes AND capitalising on your opponent\'s.'},
-    {heading:'Step 1: Ask "why did they play that?"',body:'After every opponent move, before thinking about your own plans, ask: "Why did they just do that? What are they threatening?" If you can\'t find a good reason for their move, they may have blundered.'},
+    {heading:'Step 1: Ask "why did they play that?"',body:'After every opponent move, before thinking about your own plans, ask: "Why did they just do that? What are they threatening?" If you cannot find a good reason for their move, they may have blundered.'},
     {tip:'If an opponent move seems random or pointless, look harder. Either you\'re missing something, or they are.'},
-    {heading:'Step 2: Check for hanging pieces',body:'When your opponent makes a suspicious move, the first thing to check: <strong>did they leave anything undefended?</strong> Capture hanging pieces immediately — don\'t celebrate and then forget to take them.'},
+    {heading:'Step 2: Check for hanging pieces',body:'When your opponent makes a suspicious move, the first thing to check: <strong>did they leave anything undefended?</strong> Capture hanging pieces immediately — dont celebrate and then forget to take them.'},
     {heading:'Step 3: Attack long-term weaknesses',body:'Not all mistakes are immediate blunders. Some create permanent weaknesses:\n\n<strong>Pawn weaknesses:</strong> Isolated, doubled, or backward pawns need constant defence.\n<strong>King exposure:</strong> Attack an uncastled or poorly-castled king relentlessly.\n<strong>Open files:</strong> If they open a file toward their own king, double rooks on it immediately.'},
     {heading:'Step 4: Don\'t let them back in',body:'The biggest mistake after your opponent blunders: letting them recover.',steps:['Simplify into a winning endgame when possible','Don\'t go for complications you haven\'t calculated','Trade pieces when ahead in material','Keep your own king safe']},
-    {warning:'When you\'re winning, slow down even more than usual. Excitement causes blunders. The win isn\'t yours until it\'s over.'},
+    {warning:'When you\'re winning, slow down even more than usual. Excitement causes blunders. The win isnt yours until its over.'},
   ]},
   calculation:{title:'How to Calculate Properly',subtitle:'See further, miss less, win more',priority:'high',icon:'🔢',sections:[
     {heading:'What is calculation?',body:'Calculation is the process of visualising sequences of moves in your head before making them. It\'s one of the most trainable skills in chess and directly determines your tactical strength.'},
@@ -694,21 +694,21 @@ const LESSONS={
     {heading:'Visualisation training',body:'',steps:['Set up a position and close your eyes','Try to visualise where pieces would be after 3 moves','Open eyes and verify','Repeat — this builds your mental board'],},
     {warning:'Calculating 10 moves of a wrong variation is worse than calculating 3 moves of the right one. Quality over quantity.'},
   ]},
-  threats:{title:'Evaluating Threats',subtitle:'See what your opponent is planning before it\'s too late',priority:'high',icon:'⚠️',sections:[
-    {heading:'The most important question in chess',body:'After every single opponent move, ask: <strong>"What is my opponent threatening?"</strong> This one habit will eliminate the majority of your losses. Most blunders happen not because we don\'t know tactics, but because we ignore the opponent\'s plans.'},
+  threats:{title:'Evaluating Threats',subtitle:'See what your opponent is planning before its too late',priority:'high',icon:'⚠️',sections:[
+    {heading:'The most important question in chess',body:'After every single opponent move, ask: <strong>"What is my opponent threatening?"</strong> This one habit will eliminate the majority of your losses. Most blunders happen not because we dont know tactics, but because we ignore the opponent\'s plans.'},
     {heading:'Types of threats',body:'<strong>Immediate threats:</strong> Can win material or checkmate next move. Must be dealt with immediately.\n\n<strong>Long-term threats:</strong> Plans the opponent is building toward. Can often be countered while making your own move.\n\n<strong>Positional threats:</strong> Subtle improvements like occupying an outpost or opening a file.'},
-    {heading:'How to assess a threat',body:'When you identify a threat, ask: "If I don\'t respond, what happens?" Then evaluate how bad that outcome actually is. Sometimes the best response to a threat is to create a bigger counter-threat.'},
-    {tip:'You don\'t always have to defend directly. Often the best response to a threat is a counter-attack.'},
+    {heading:'How to assess a threat',body:'When you identify a threat, ask: "If I dont respond, what happens?" Then evaluate how bad that outcome actually is. Sometimes the best response to a threat is to create a bigger counter-threat.'},
+    {tip:'You dont always have to defend directly. Often the best response to a threat is a counter-attack.'},
     {heading:'The threat of the threat',body:'Advanced players think one level deeper — they consider not just the current threat, but what threat the opponent will make AFTER you respond. This prevents walking from one problem into another.'},
     {heading:'Threat evaluation checklist',body:'',steps:['What can my opponent do if I ignore their move?','Is the threat immediate or long-term?','Can I counter-attack instead of defending?','If I defend, does it create new threats for me?','After my move, what will they do next?']},
   ]},
   pieces:{title:'Using Your Pieces Effectively',subtitle:'Good pieces win games. Passive pieces lose them.',priority:'medium',icon:'♞',sections:[
     {heading:'The fundamental principle',body:'Every piece should be on its best possible square. A bad piece — a knight on the rim, a bishop blocked by its own pawns — is nearly worthless regardless of how many pieces you have. <strong>Every move, ask: "Is this piece doing its job?"</strong>'},
     {heading:'Knights: outposts are everything',body:'A knight needs a stable base to be effective. An <strong>outpost</strong> is a square in enemy territory that no enemy pawn can attack. A knight on an outpost in the center is a monster piece.'},
-    {tip:'To create a knight outpost, trade the pawn that would attack it. Then march your knight in — your opponent can\'t kick it out.'},
+    {tip:'To create a knight outpost, trade the pawn that would attack it. Then march your knight in — your opponent cannot kick it out.'},
     {heading:'Bishops: open diagonals',body:'Bishops are useless when their diagonals are blocked by their own pawns. Key rule: <strong>Don\'t fix pawns on the same color as your bishop.</strong> In bishop vs knight endgames, open positions favour the bishop; closed positions favour the knight.'},
     {heading:'Rooks: open files and 7th rank',body:'A rook needs an open file to penetrate. <strong>Control of open files controls the game.</strong> Double rooks on the open file and invade to the 7th rank — a rook on the 7th rank simultaneously attacks all unmoved enemy pawns.'},
-    {heading:'The queen: power with care',body:'The queen is most effective coordinating with other pieces. Don\'t bring it out early. A queen alone achieves little — it\'s the combination of queen plus rooks, bishops, or knights that creates unstoppable threats.'},
+    {heading:'The queen: power with care',body:'The queen is most effective coordinating with other pieces. Don\'t bring it out early. A queen alone achieves little — its the combination of queen plus rooks, bishops, or knights that creates unstoppable threats.'},
     {heading:'Piece coordination check',body:'',steps:['Is any of my pieces doing nothing useful?','Can I trade my worst piece for a well-placed enemy piece?','Is there an outpost for a knight?','Are my rooks on open or half-open files?','Are all my pieces working toward the same plan?']},
   ]},
   endgame:{title:'Endgame Fundamentals',subtitle:'Where games are won and lost at every level',priority:'medium',icon:'🏁',sections:[
@@ -729,7 +729,7 @@ const LESSONS={
     {heading:'Pawn chains',body:'A pawn chain is a diagonal line of pawns protecting each other. <strong>Attack the base of the pawn chain</strong> — the back pawn that supports the whole structure. The head of the chain is strong; the base is weak.'},
   ]},
   planning:{title:'How to Make a Plan',subtitle:'Chess without a plan is just moving pieces',priority:'medium',icon:'🗺',sections:[
-    {heading:'Why most players don\'t have a plan',body:'Most club players react to threats without ever having a clear plan. They move whatever piece looks active or responds to the opponent\'s last move. This reactive style means they\'re always a step behind.'},
+    {heading:'Why most players dont have a plan',body:'Most club players react to threats without ever having a clear plan. They move whatever piece looks active or responds to the opponent\'s last move. This reactive style means they\'re always a step behind.'},
     {heading:'How to form a plan',body:'After every move, assess the position:',steps:['What are the imbalances? (material, space, piece activity, pawn structure)','What does each side\'s ideal position look like?','What is preventing you from reaching that ideal position?','Make a move that improves your worst-placed piece or achieves part of the plan']},
     {tip:'A bad plan is better than no plan at all. Having a direction to work toward prevents random moves.'},
     {heading:'Short-term vs long-term plans',body:'<strong>Short-term plans</strong> (1-3 moves): Respond to immediate threats, capture material, deliver tactics.\n\n<strong>Long-term plans</strong> (5+ moves): Reposition pieces, create a passed pawn, undermine the opponent\'s king safety, trade into a favourable endgame.'},
@@ -749,7 +749,7 @@ const LESSONS={
     {heading:'What is initiative?',body:'Initiative means your opponent must respond to your threats rather than pursuing their own plans. The player with initiative dictates the flow of the game. Maintaining initiative is often more important than winning material.'},
     {heading:'How to gain initiative',body:'',steps:['Develop faster than your opponent in the opening','Create threats your opponent must respond to','Open files and diagonals for your pieces','Attack the king before it has castled','Keep your pieces coordinated and active']},
     {tip:'Every tempo you spend responding to your opponent\'s threats is a tempo you\'re not using to build your own attack.'},
-    {heading:'Maintaining initiative',body:'Once you have the initiative, <strong>don\'t let go.</strong> Create new threats before the old ones are resolved. Give your opponent no time to breathe. The moment you stop threatening, they can reorganise and take the initiative back.'},
+    {heading:'Maintaining initiative',body:'Once you have the initiative, <strong>dont let go.</strong> Create new threats before the old ones are resolved. Give your opponent no time to breathe. The moment you stop threatening, they can reorganise and take the initiative back.'},
     {heading:'Counter-initiative',body:'When your opponent has the initiative, look for counterplay rather than pure defence. A successful counter-attack is far more effective than passive defence. Ask: "Can I create a bigger threat on the other side of the board?"'},
     {heading:'Sacrificing for initiative',body:'Sometimes giving material to maintain initiative is completely correct. A pawn sacrifice that opens lines, brings all your pieces into the attack, and prevents your opponent from castling can be worth far more than the pawn.'},
   ]},
@@ -758,20 +758,20 @@ const LESSONS={
     {heading:'The defensive mindset',body:'When under attack, the instinct is to panic and make impulsive moves. Instead:\n\n1. Take a deep breath\n2. Assess the ACTUAL danger (not perceived)\n3. Find the most accurate defence\n4. Look for counter-chances'},
     {tip:'Most attacks can be defended if you calculate carefully. The attacker needs everything to work. The defender only needs one good move.'},
     {heading:'Types of defence',body:'<strong>Direct defence:</strong> Move a threatened piece to safety or add a defender.\n<strong>Counter-attack:</strong> Create a bigger threat elsewhere.\n<strong>Simplification:</strong> Trade pieces to reduce attacking resources.\n<strong>Prophylaxis:</strong> Prevent the threat before it materialises.'},
-    {heading:'Prophylactic thinking',body:'Great defenders don\'t wait for threats to materialise — they prevent them. Prophylaxis means making moves that stop your opponent\'s plans before they become dangerous. Ask yourself: "What is my opponent planning? Can I stop it now at minimal cost?"'},
-    {heading:'When to defend, when to counter-attack',body:'',steps:['If the attack is decisive, defend accurately','If the attack is slow, counter-attack immediately','If material equal, look for simplification','If losing, complicate — don\'t go quietly']},
+    {heading:'Prophylactic thinking',body:'Great defenders dont wait for threats to materialise — they prevent them. Prophylaxis means making moves that stop your opponent\'s plans before they become dangerous. Ask yourself: "What is my opponent planning? Can I stop it now at minimal cost?"'},
+    {heading:'When to defend, when to counter-attack',body:'',steps:['If the attack is decisive, defend accurately','If the attack is slow, counter-attack immediately','If material equal, look for simplification','If losing, complicate — dont go quietly']},
   ]},
   coordinates:{title:'Board Vision & Coordinates',subtitle:'See the whole board, not just where you\'re looking',priority:'medium',icon:'🗺',sections:[
-    {heading:'Why board vision matters',body:'Many tactical mistakes happen not because players don\'t know the tactics, but because they literally don\'t see the whole board. Pieces in the corner or on the far side get ignored. Developing consistent, wide board vision is trainable.'},
+    {heading:'Why board vision matters',body:'Many tactical mistakes happen not because players dont know the tactics, but because they literally dont see the whole board. Pieces in the corner or on the far side get ignored. Developing consistent, wide board vision is trainable.'},
     {heading:'The 64-square habit',body:'After every opponent move, before thinking about your own plans, do a quick scan of all 64 squares. It takes 3 seconds. Look for:\n- Undefended pieces\n- Pieces that have changed their attack patterns\n- New diagonals or files that opened'},
     {tip:'Specifically look at pieces that haven\'t moved recently — they\'re often the ones that get forgotten and left hanging.'},
     {heading:'Learning coordinates',body:'Being able to quickly identify squares by name (e4, f6, etc.) helps enormously when visualising moves. Practice by:\n1. Opening a board\n2. Closing your eyes\n3. Someone calls a square name\n4. Point to where it is\n5. Repeat until instant recognition'},
     {heading:'Piece awareness drill',body:'Before making any move, point to every one of your pieces and ask: "Is this piece safe? Is it doing something useful?" This sounds simple but most blunders happen to pieces we\'ve mentally forgotten about.'},
-    {heading:'Peripheral vision',body:'',steps:['When calculating a line, periodically check the whole board','Don\'t get so focused on one area that you miss a piece elsewhere','Use process of elimination — if you can\'t find the opponent\'s threat, check every piece systematically']},
+    {heading:'Peripheral vision',body:'',steps:['When calculating a line, periodically check the whole board','Don\'t get so focused on one area that you miss a piece elsewhere','Use process of elimination — if you cannot find the opponent\'s threat, check every piece systematically']},
   ]},
   mindset:{title:'Chess Mindset & Psychology',subtitle:'The mental game that decides who wins',priority:'medium',icon:'🧠',sections:[
     {heading:'Chess is 50% psychology',body:'At equal technical levels, the player with the stronger mental game wins. This includes: staying calm under pressure, bouncing back from mistakes, not tilting after a bad game, and maintaining focus throughout a long game.'},
-    {heading:'After a blunder',body:'The moment you blunder, two things can happen:\n\n1. You panic, your calculation gets worse, you blunder again — you lose.\n2. You take a breath, reset mentally, find the best defence — you might still draw or win.\n\n<strong>The game isn\'t over when you blunder. It\'s over when you give up.</strong>'},
+    {heading:'After a blunder',body:'The moment you blunder, two things can happen:\n\n1. You panic, your calculation gets worse, you blunder again — you lose.\n2. You take a breath, reset mentally, find the best defence — you might still draw or win.\n\n<strong>The game isnt over when you blunder. It\'s over when you give up.</strong>'},
     {tip:'The most dangerous time in chess is the move AFTER you make a mistake. That\'s when players tilt and make a second, even worse mistake.'},
     {heading:'Managing emotions',body:'Chess generates strong emotions — frustration, excitement, fear, overconfidence. Learn to recognize when emotions are affecting your play:\n- Moving too fast after an emotional moment\n- Avoiding complications out of fear\n- Playing aggressively when angry\n- Relaxing after gaining an advantage'},
     {heading:'The process mindset',body:'Instead of focusing on winning or losing, focus on the process: making good decisions each move. You can play perfectly and still lose to a lucky blunder. You can make mistakes and still win. <strong>Judge your performance by the quality of your thinking, not the result.</strong>'},
@@ -781,17 +781,17 @@ const LESSONS={
     {heading:'The clock is part of the game',body:'Time management is a skill that many players never consciously develop. Poor time management leads to time pressure, which leads to blunders. Learning to allocate your time correctly is as important as any tactical skill.'},
     {heading:'When to think long',body:'Spend more time when:\n- The position is sharp and tactical\n- You\'re about to make a pawn move (irreversible)\n- You\'re entering an endgame\n- Your opponent has just made an unexpected move\n- You\'re about to sacrifice material'},
     {heading:'When to move faster',body:'Move faster when:\n- The position is simple and forced\n- You\'ve already spent time on this position in previous moves\n- Your opponent is in severe time pressure\n- The move is obvious (like taking a free piece)'},
-    {tip:'If you can\'t figure out what to do, improve your worst-placed piece. This is almost never wrong and uses your time productively.'},
+    {tip:'If you cannot figure out what to do, improve your worst-placed piece. This is almost never wrong and uses your time productively.'},
     {heading:'Managing time pressure',body:'When down to less than 2 minutes:\n1. Stop calculating long variations\n2. Look for the most forcing moves (checks, captures)\n3. Simplify the position if possible\n4. Trust your instincts — your first idea is often good enough'},
     {heading:'Building the time advantage',body:'Try to reach the time control (or endgame) with more time than your opponent. Players who consistently outplay opponents in time pressure develop it as a skill. Move confidently in simple positions to bank time for complex ones.'},
   ]},
   patterns:{title:'Pattern Recognition',subtitle:'The foundation of chess strength',priority:'high',icon:'🔍',sections:[
-    {heading:'What is pattern recognition?',body:'Chess masters don\'t calculate everything from scratch — they recognise familiar patterns and know the correct responses almost instantly. This "chunking" of knowledge is what makes strong players faster and more accurate.'},
+    {heading:'What is pattern recognition?',body:'Chess masters dont calculate everything from scratch — they recognise familiar patterns and know the correct responses almost instantly. This "chunking" of knowledge is what makes strong players faster and more accurate.'},
     {heading:'Types of patterns',body:'<strong>Tactical patterns:</strong> Forks, pins, skewers, back-rank mates, smothered mates, discovered attacks.\n\n<strong>Positional patterns:</strong> Outposts, bishop pairs, pawn majorities, rook on 7th.\n\n<strong>Opening patterns:</strong> Standard development schemes, common pawn breaks.\n\n<strong>Endgame patterns:</strong> Opposition, Lucena/Philidor, triangulation.'},
     {tip:'Every puzzle you solve correctly adds a pattern to your mental library. Consistent puzzle training is the most efficient way to build pattern recognition.'},
     {heading:'How patterns are built',body:'Pattern recognition is built through repeated exposure. Every time you see a position and correctly identify the key idea, that pattern becomes more accessible in future games. This is why puzzle training works — even "seeing" a pattern incorrectly and then seeing the answer builds the pattern.'},
     {heading:'Pattern vs calculation',body:'Strong players use pattern recognition to quickly identify candidate moves, then use calculation to verify them. Pure calculation without patterns is slow and error-prone. Pure patterns without calculation leads to tactical blunders.'},
-    {heading:'Building your pattern library',body:'',steps:['Solve 10 puzzles daily, even if it\'s just 5 minutes','Review games of great players and note recurring themes','After losing, identify the tactical or positional pattern you missed','Study endgame positions until you can recognise them instantly']},
+    {heading:'Building your pattern library',body:'',steps:['Solve 10 puzzles daily, even if its just 5 minutes','Review games of great players and note recurring themes','After losing, identify the tactical or positional pattern you missed','Study endgame positions until you can recognise them instantly']},
   ]},
   strategy:{title:'Strategic Chess',subtitle:'The long-term thinking that creates winning positions',priority:'medium',icon:'♟',sections:[
     {heading:'Tactics vs strategy',body:'Tactics are about immediate gains — winning material or giving checkmate. Strategy is about building a position where tactics work in your favor. Strategy creates the conditions; tactics execute them.'},
@@ -810,7 +810,7 @@ const LESSONS={
     {heading:'Rook endgame technique',body:'',steps:['Put your king in front of your passed pawn', 'Place your rook behind your passed pawn','Cut off the enemy king from the queening square','Use the Lucena and Philidor positions as your foundation','Trade rooks into a won king-pawn endgame when ahead']},
   ]},
   bishops:{title:'The Power of Bishops',subtitle:'Long-range dominance when used correctly',priority:'medium',icon:'♗',sections:[
-    {heading:'The bishop\'s strength',body:'Bishops are long-range pieces that can control an entire diagonal from across the board. In open positions, bishops are often stronger than knights. The bishop pair — having both bishops when the opponent doesn\'t — is considered a significant advantage.'},
+    {heading:'The bishop\'s strength',body:'Bishops are long-range pieces that can control an entire diagonal from across the board. In open positions, bishops are often stronger than knights. The bishop pair — having both bishops when the opponent doesnt — is considered a significant advantage.'},
     {heading:'Good bishop vs bad bishop',body:'A <strong>good bishop</strong> has open diagonals and is not blocked by its own pawns. A <strong>bad bishop</strong> is blocked by pawns fixed on the same color squares it travels. Avoid fixing your pawns on the same color as your bishop.'},
     {tip:'When placing pawns in the opening and middlegame, ask: "Is this pawn going on the same color as my bishop?" If yes, reconsider.'},
     {heading:'Bishop pair advantage',body:'The bishop pair is strongest in open positions where both bishops can be active simultaneously. To exploit the bishop pair:\n1. Open the position with pawn breaks\n2. Trade the opponent\'s good pieces\n3. Create targets on different parts of the board'},
@@ -819,10 +819,10 @@ const LESSONS={
   ]},
   knights:{title:'Knight Mastery',subtitle:'The tricky piece that controls the board',priority:'medium',icon:'♞',sections:[
     {heading:'What makes knights special',body:'Knights are the only pieces that jump over other pieces. Their L-shaped movement means they\'re unpredictable and can surprise opponents. Unlike bishops, knights can access all 64 squares regardless of position color.'},
-    {heading:'Knights need outposts',body:'An <strong>outpost</strong> is a square in the opponent\'s territory that cannot be attacked by an enemy pawn. A knight on an outpost is one of the most powerful pieces in chess — it\'s a permanent fixture that the opponent can\'t remove.'},
+    {heading:'Knights need outposts',body:'An <strong>outpost</strong> is a square in the opponent\'s territory that cannot be attacked by an enemy pawn. A knight on an outpost is one of the most powerful pieces in chess — its a permanent fixture that the opponent cannot remove.'},
     {tip:'To create a knight outpost, trade the pawn that defends that square. Then station your knight there permanently.'},
     {heading:'Knight vs bishop',body:'Knights are superior to bishops in:\n- Closed positions with fixed pawn structures\n- Positions where the knight has a strong outpost\n- Endgames with pawns on only one side of the board\n\nBishops are superior in open positions and when pawns are on both sides.'},
-    {heading:'Knight manoeuvres',body:'Knights often need several moves to reach their ideal squares. Plan these manoeuvres in advance — a knight heading to c5 might need to go Nd3-b4-c6-d4 or similar. Calculate the path and ensure it\'s safe.'},
+    {heading:'Knight manoeuvres',body:'Knights often need several moves to reach their ideal squares. Plan these manoeuvres in advance — a knight heading to c5 might need to go Nd3-b4-c6-d4 or similar. Calculate the path and ensure its safe.'},
     {heading:'The octopus knight',body:'A knight placed on a central square that cannot be attacked is called an "octopus" knight. From d5 or e5 (for White), a knight attacks 8 squares and coordinates with other pieces to dominate the entire board. Achieving this structure is often a winning advantage.'},
   ]},
   queenplay:{title:'Queen Play',subtitle:'The most powerful piece — used wisely',priority:'medium',icon:'♛',sections:[
@@ -845,7 +845,7 @@ const LESSONS={
   practical:{title:'Practical Decision Making',subtitle:'Chess is a game of decisions — make better ones',priority:'medium',icon:'🎯',sections:[
     {heading:'The practical approach',body:'In a game, you rarely have time for complete analysis. Practical chess means making good-enough decisions quickly — finding moves that are hard to refute even if not always technically best.'},
     {heading:'When to complicate',body:'Create complications when:\n- You\'re losing — a complicated position gives you more chances\n- Your opponent is in time pressure\n- The position favors the side that calculates better (usually the stronger player)\n\nAvoid complications when winning — a simple, technical win is always best.'},
-    {tip:'If you have a good move, play it. You don\'t need to find the best move every time — good enough usually wins.'},
+    {tip:'If you have a good move, play it. You dont need to find the best move every time — good enough usually wins.'},
     {heading:'Choosing between moves',body:'When two moves seem equally good, choose the one that:\n- Is safer (harder to go wrong)\n- Keeps more options open\n- Puts pressure on your opponent\n- Is easier to execute correctly under time pressure'},
     {heading:'Prophylaxis in practice',body:'The most practical skill: preventing your opponent\'s plans before they materialise. Every move, ask: "What is my opponent planning for next move? Can I stop it now?" This prevents 90% of tactical disasters.'},
     {heading:'Decision-making framework',body:'',steps:['Identify what your opponent is threatening','Find 2-3 candidate moves that address the threat','Calculate each briefly','Choose the one that creates the most problems for the opponent','Sanity check: any blunders?','Play it']},
@@ -1336,7 +1336,7 @@ function showOnboarding(){
   div.innerHTML = `
     <div class="onboarding-modal">
       <div class="onboarding-step">Getting Started</div>
-      <div class="onboarding-title">Let's learn your game 🎯</div>
+      <div class="onboarding-title">Lets learn your game 🎯</div>
       <div class="onboarding-desc">
         To build your personalised training plan, ChessForge needs to analyse a few of your games. The more games you add, the more accurate your pattern detection and Thinking Process Fingerprint become.
         <br><br>
@@ -1432,16 +1432,16 @@ function renderPremiumLesson(){
         title: 'Stop Hanging Pieces',
         subtitle: 'Based on your ' + gamesAnalysed + ' analysed games',
         steps: [
-          {label:'The Problem', text:`In your games, you've left pieces hanging ${State.analysisData?.pattern_counts?.['Hanging piece']||'multiple'} times. This is your #1 most costly mistake. Let's fix the thinking habit behind it.`, fen: lessonPosition?.fen || 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1'},
+          {label:'The Problem', text:`In your games, you have left pieces hanging ${State.analysisData?.pattern_counts?.['Hanging piece']||'multiple'} times. This is your #1 most costly mistake. Lets fix the thinking habit behind it.`, fen: lessonPosition?.fen || 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1'},
           {label:'The Habit', text:'Before every move, your brain should automatically scan: "After I move this piece, does anything else become undefended?" Most players skip this scan when excited about their own plan.', fen: lessonPosition?.fen || 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1'},
           {label:'The Fix', text:'From this moment: before every move, point (mentally or physically) at each of your pieces and ask "Is this safe?" It takes 3 seconds. It will immediately cut your hanging piece mistakes by more than half.', fen: lessonPosition?.fen || 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1'},
         ]
       },
       'Missed tactic': {
-        title: 'Seeing What's There',
+        title: "Seeing Whats There",
         subtitle: 'Tactical vision from your actual games',
         steps: [
-          {label:'Your Pattern', text:`You've missed ${State.analysisData?.pattern_counts?.['Missed tactic']||'several'} tactical opportunities. Good positions are being built then not converted. The issue is stopping your calculation too early.`, fen: lessonPosition?.fen || 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1'},
+          {label:'Your Pattern', text:`You have missed ${State.analysisData?.pattern_counts?.['Missed tactic']||'several'} tactical opportunities. Good positions are being built then not converted. The issue is stopping your calculation too early.`, fen: lessonPosition?.fen || 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1'},
           {label:'The Search', text:'After every opponent move, ask: "What did this move allow?" Check ALL forcing moves — checks, captures, and threats — before considering quiet moves. This is where your missed tactics hide.', fen: lessonPosition?.fen || 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1'},
           {label:'The Drill', text:'Solve 10 tactics puzzles every day from your Puzzles tab. These come from YOUR actual games. Every puzzle you solve adds that pattern to your mental library.', fen: lessonPosition?.fen || 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1'},
         ]
@@ -1450,9 +1450,9 @@ function renderPremiumLesson(){
         title: 'Protecting Your King',
         subtitle: 'King safety from your actual game positions',
         steps: [
-          {label:'Your Vulnerability', text:`Your king has been in danger ${State.analysisData?.pattern_counts?.['King safety issue']||'multiple'} times. Every time this happened, it was preventable. Let's build the reflex to castle early.`, fen: lessonPosition?.fen || 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1'},
+          {label:'Your Vulnerability', text:`Your king has been in danger ${State.analysisData?.pattern_counts?.['King safety issue']||'multiple'} times. Every time this happened, it was preventable. Lets build the reflex to castle early.`, fen: lessonPosition?.fen || 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1'},
           {label:'The Rule', text:'Castle within the first 10 moves. Every game. Without exception unless there is a concrete tactical reason not to. A king in the center is an accident waiting to happen.', fen: lessonPosition?.fen || 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1'},
-          {label:'The Habit', text:'In your next game, after moves 5 and 8, ask yourself: "Why haven't I castled yet?" If you can't give a concrete tactical answer, castle immediately.', fen: lessonPosition?.fen || 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1'},
+          {label:'The Habit', text:'In your next game, after moves 5 and 8, ask yourself: "Why have not I castled yet?" If you cannot give a concrete tactical answer, castle immediately.', fen: lessonPosition?.fen || 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1'},
         ]
       },
     };
