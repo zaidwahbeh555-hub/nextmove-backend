@@ -50,15 +50,43 @@
     <li><a href="#" class="nav-link" data-page="puzzles">🧩 Puzzles</a></li>
     <li><a href="#" class="nav-link" data-page="lessons">📚 Lessons</a></li>
     <li><a href="#" class="nav-link" data-page="progress">📈 Progress</a></li>
+    <li><a href="#" class="nav-link" data-page="bot">🤖 Play Bot</a></li>
   </ul>
   <div class="sidebar-bottom">
     <div class="xp-row"><span class="xp-label">XP</span><span id="xp-count">0</span></div>
     <div class="xp-bar"><div class="xp-fill" id="xp-fill"></div></div>
     <button class="upgrade-btn" id="upgrade-btn" onclick="goToPro()">⚡ Upgrade to Pro</button>
+    <button class="theme-btn" id="theme-btn" onclick="toggleThemePanel()">🎨 Theme</button>
     <a href="https://chessforge.org" class="home-btn">← Back to Homepage</a>
     <button class="logout-btn" id="logout-btn">Sign Out</button>
   </div>
 </nav>
+
+<!-- Theme Panel -->
+<div id="theme-panel" class="theme-panel hidden">
+  <div class="theme-title">Choose Theme</div>
+  <div class="theme-options">
+    <button class="theme-opt active" data-theme="cyan" onclick="setTheme('cyan')"><span style="background:#00d4ff"></span>Cyan</button>
+    <button class="theme-opt" data-theme="blue" onclick="setTheme('blue')"><span style="background:#4a9eff"></span>Blue</button>
+    <button class="theme-opt" data-theme="purple" onclick="setTheme('purple')"><span style="background:#a855f7"></span>Purple</button>
+    <button class="theme-opt" data-theme="green" onclick="setTheme('green')"><span style="background:#2ed573"></span>Green</button>
+    <button class="theme-opt" data-theme="red" onclick="setTheme('red')"><span style="background:#ff4757"></span>Red</button>
+    <button class="theme-opt" data-theme="light" onclick="setTheme('light')"><span style="background:#f0f0f0;border:1px solid #ccc"></span>Light</button>
+  </div>
+</div>
+
+<!-- Tutorial Overlay -->
+<div id="tutorial-overlay" class="tutorial-overlay hidden">
+  <div class="tutorial-box" id="tutorial-box">
+    <div class="tutorial-step-label">Step <span id="t-step-num">1</span> of <span id="t-step-total">5</span></div>
+    <div class="tutorial-title" id="t-title"></div>
+    <div class="tutorial-desc" id="t-desc"></div>
+    <div class="tutorial-actions">
+      <button class="btn-outline" onclick="skipTutorial()">Skip</button>
+      <button class="btn-cyan" onclick="nextTutorialStep()" style="width:auto;margin-top:0">Next →</button>
+    </div>
+  </div>
+</div>
 
 <!-- MAIN -->
 <div class="main-wrap">
@@ -217,6 +245,51 @@
       <div class="stat-card"><div class="stat-n yellow" id="pg-lessons">0</div><div class="stat-l">Lessons Done</div></div>
     </div>
     <div class="card"><div class="card-label">Saved Games</div><h2>Game History</h2><div id="saved-games-list" class="saved-games-list"></div></div>
+  </div>
+</div>
+
+<!-- BOT PAGE -->
+<div class="page" id="page-bot">
+  <div class="page-header"><h1>Play Against Bot</h1><p>The bot targets your specific weaknesses — it knows what you struggle with</p></div>
+  <div class="bot-layout">
+    <div class="bot-left">
+      <div id="bot-board" style="width:480px;max-width:100%"></div>
+      <div class="bot-controls">
+        <select id="bot-difficulty" class="bot-select">
+          <option value="easy">Easy</option>
+          <option value="medium" selected>Medium</option>
+          <option value="hard">Hard</option>
+        </select>
+        <select id="bot-color" class="bot-select">
+          <option value="white">Play as White</option>
+          <option value="black">Play as Black</option>
+        </select>
+        <button class="btn-cyan" onclick="startBotGame()" style="width:auto;margin-top:0">New Game</button>
+      </div>
+      <div class="bot-status-box" id="bot-status">Click "New Game" to start!</div>
+    </div>
+    <div class="bot-right">
+      <div class="card">
+        <div class="card-label">Bot Intelligence</div>
+        <div class="bot-info" id="bot-info">
+          <div class="bot-avatar">🤖</div>
+          <div class="bot-name">ChessForge Bot</div>
+          <div class="bot-desc">I study your mistake patterns and play to expose them. Every game teaches you something.</div>
+        </div>
+        <div id="bot-weakness-targets" class="bot-targets hidden">
+          <div class="card-label" style="margin-top:1rem">Targeting Your Weaknesses</div>
+          <div id="bot-target-list"></div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:1rem" id="bot-move-history-card">
+        <div class="card-label">Move History</div>
+        <div id="bot-move-history" class="bot-move-history"></div>
+      </div>
+      <div class="card hidden" id="bot-review-card" style="margin-top:1rem">
+        <div class="card-label">Post-Game Review</div>
+        <div id="bot-review-content"></div>
+      </div>
+    </div>
   </div>
 </div>
 
