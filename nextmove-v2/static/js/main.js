@@ -932,7 +932,13 @@ function loadPuzzle(idx){
   document.getElementById('p-wrong').textContent=State.puzzleWrong;
 }
 
-// Drag disabled - using click-to-move only
+function handlePuzzleDrop(src,tgt){
+  if(!State.puzzleGame) return 'snapback';
+  clearAllHighlights('puzzle-board');
+  const mv = State.puzzleGame.move({from:src, to:tgt, promotion:'q'});
+  if(!mv) return 'snapback';
+  checkPuzzleMove(mv, src, tgt);
+}
 
 document.getElementById('hint-btn').addEventListener('click',()=>{
   const p=State.puzzles[State.puzzleIdx];if(!p)return;
@@ -1061,6 +1067,9 @@ function toggleDarkMode(isDark){
 
 // Load saved theme + mode
 (function(){
+  // Default to cyan dark if never set
+  if(!localStorage.getItem('cf-theme')) localStorage.setItem('cf-theme','cyan');
+  if(!localStorage.getItem('cf-lightmode')) localStorage.setItem('cf-lightmode','0');
   const savedTheme = localStorage.getItem('cf-theme');
   if(savedTheme) {
     document.documentElement.setAttribute('data-theme', savedTheme);
@@ -1546,13 +1555,13 @@ function renderPremiumLesson(){
         <p>Upgrade to Pro to unlock interactive lessons built directly from your own games — with chessboard positions, theory, and personalised coaching.</p>
         <button class="btn-cyan" onclick="goToPro()" style="width:auto;margin:0 auto">Upgrade to Pro →</button>
       </div>`;
-  } else if(gamesAnalysed < 5){
-    const needed = 5 - gamesAnalysed;
+  } else if(gamesAnalysed < 1){
+    const needed = 1 - gamesAnalysed;
     premDiv.innerHTML = `
       <div class="locked-lesson">
         <div class="locked-lesson-icon">📊</div>
         <h3>Personal Game Lessons — Almost Ready</h3>
-        <p>Analyse <strong>${needed} more game${needed!==1?'s':''}</strong> so ChessForge can build lessons directly from your specific positions and mistakes.</p>
+        <p>Analyse your first game so ChessForge can build lessons from your specific mistakes.</p>
         <button class="btn-outline" onclick="showPage('analyze')">Analyse a Game →</button>
       </div>`;
   } else {
@@ -1597,24 +1606,97 @@ function renderPremiumLesson(){
 
     const stepsHTML = lesson.steps.map((s,i)=>`<button class="premium-lesson-step${i===0?' active':''}" onclick="showPremiumStep(${i})">${s.label}</button>`).join('');
 
+    // Interactive MCQ questions per weakness
+    const MCQ = {
+      'Hanging piece': [
+        {q:'Before making a move, what should you ALWAYS check?', opts:['Is my queen active?','Are any of my pieces left undefended?','Can I attack the king?','Is my opening correct?'], correct:1},
+        {q:'What does LPDO stand for?', opts:['Long Pawns Drop Off','Loose Pieces Drop Off','Last Piece Defence Only','Lateral Pawn Defence Option'], correct:1},
+        {q:'You spot a great attack. What do you do first?', opts:['Launch it immediately','Check if any of your pieces become undefended after your move','Move your queen to the attack','Castle quickly'], correct:1},
+      ],
+      'Missed tactic': [
+        {q:'After your opponent makes a move, what is the FIRST question to ask?', opts:['What is my plan?','What is my opponent threatening?','Should I castle?','Which piece should I develop?'], correct:1},
+        {q:'What type of moves should you always calculate first?', opts:['Quiet positional moves','Pawn moves','Forcing moves: checks, captures, threats','King moves'], correct:2},
+        {q:'You have a good move. Should you play it immediately?', opts:['Yes, always play the first good move','No, always look for something better first','Only if it wins material','Only in the endgame'], correct:1},
+      ],
+      'King safety issue': [
+        {q:'By which move should you castle in most games?', opts:['Move 5','Move 10','Move 20','Move 15'], correct:1},
+        {q:'Moving which pawns weakens your castled king most?', opts:['Center pawns','The pawns directly in front of your castled king','Edge pawns','Opponent pawns'], correct:1},
+        {q:'Your king has not castled by move 10. What should you do?', opts:['Keep delaying, development first','Castle immediately unless there is a concrete tactical reason not to','Push your h pawn for air','Move king to the center'], correct:1},
+      ],
+    };
+    const mcqSet = MCQ[weakness] || MCQ['Hanging piece'];
+    window._premiumLessonSteps = lesson.steps;
+    window._premiumMCQ = mcqSet;
+    window._premiumMCQIdx = 0;
+    window._premiumMCQScore = 0;
+
     premDiv.innerHTML = `
       <div class="premium-lesson-card">
         <div class="premium-lesson-badge">⭐ Your Personal Lesson</div>
         <div class="premium-lesson-title">${esc(lesson.title)}</div>
         <div class="premium-lesson-subtitle">${esc(lesson.subtitle)}</div>
-        <div class="premium-lesson-nav">${stepsHTML}</div>
+        <div class="premium-lesson-nav" id="prem-nav">${stepsHTML}</div>
         <div class="premium-lesson-explanation" id="prem-lesson-text">${lesson.steps[0].text}</div>
-        <div style="text-align:center;margin-top:.8rem;color:var(--muted);font-size:.78rem">Based on ${gamesAnalysed} games · ${State.analysisData?.total_mistakes||0} mistakes analysed</div>
+        <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border)">
+          <div class="card-label">🧠 Test Your Understanding</div>
+          <div id="prem-mcq-area"></div>
+        </div>
+        <div style="text-align:center;margin-top:.8rem;color:var(--muted);font-size:.78rem">Based on ${gamesAnalysed} game${gamesAnalysed!==1?'s':''} · ${State.analysisData?.total_mistakes||0} mistakes analysed</div>
       </div>`;
 
-    // Store steps for navigation
-    window._premiumLessonSteps = lesson.steps;
+    showPremiumMCQ(0);
   }
 
   // Insert at very top of lesson-content
   const existingPrem = document.getElementById('premium-lesson-section');
   if(existingPrem) existingPrem.remove();
   container.insertBefore(premDiv, container.firstChild);
+}
+
+function showPremiumMCQ(idx){
+  const area = document.getElementById('prem-mcq-area');
+  if(!area) return;
+  const mcq = window._premiumMCQ;
+  if(!mcq || idx >= mcq.length){
+    area.innerHTML = `<div style="color:var(--green);font-size:.95rem;font-weight:600;padding:1rem 0">🎉 Quiz complete! Score: ${window._premiumMCQScore}/${mcq?mcq.length:0}. Great work!</div>`;
+    return;
+  }
+  const q = mcq[idx];
+  const optsHTML = q.opts.map((o,i)=>`
+    <button onclick="answerPremiumMCQ(${i})" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);font-family:Inter,sans-serif;font-size:.85rem;padding:.6rem 1rem;border-radius:8px;cursor:pointer;text-align:left;margin-bottom:.4rem;transition:all .2s" onmouseover="this.style.borderColor='var(--cyan)'" onmouseout="this.style.borderColor='var(--border)'">${o}</button>
+  `).join('');
+  area.innerHTML = `
+    <div style="font-size:.88rem;font-weight:600;color:var(--text);margin-bottom:.8rem">Q${idx+1}/${mcq.length}: ${esc(q.q)}</div>
+    ${optsHTML}`;
+}
+
+function answerPremiumMCQ(chosen){
+  const mcq = window._premiumMCQ;
+  const idx = window._premiumMCQIdx;
+  if(!mcq || idx >= mcq.length) return;
+  const q = mcq[idx];
+  const correct = q.correct;
+  const area = document.getElementById('prem-mcq-area');
+  if(!area) return;
+  const btns = area.querySelectorAll('button');
+  btns.forEach((b,i)=>{
+    b.disabled = true;
+    b.style.cursor = 'default';
+    if(i === correct) b.style.background = 'rgba(46,213,115,.15)', b.style.borderColor = 'var(--green)', b.style.color = 'var(--green)';
+    else if(i === chosen && chosen !== correct) b.style.background = 'rgba(255,71,87,.15)', b.style.borderColor = 'var(--red)', b.style.color = 'var(--red)';
+  });
+  if(chosen === correct) window._premiumMCQScore++;
+  const feedback = document.createElement('div');
+  feedback.style.cssText = 'margin-top:.8rem;padding:.7rem 1rem;border-radius:8px;font-size:.85rem;';
+  feedback.style.background = chosen===correct ? 'rgba(46,213,115,.1)' : 'rgba(255,71,87,.1)';
+  feedback.style.color = chosen===correct ? 'var(--green)' : 'var(--red)';
+  feedback.innerHTML = chosen===correct ? '✅ Correct! ' : `❌ The correct answer is: <strong>${q.opts[correct]}</strong>. `;
+  area.appendChild(feedback);
+  const nextBtn = document.createElement('button');
+  nextBtn.textContent = idx+1 < mcq.length ? 'Next Question →' : 'Finish Quiz';
+  nextBtn.style.cssText = 'margin-top:.6rem;background:var(--cyan);color:#000;border:none;border-radius:8px;padding:.5rem 1.2rem;font-weight:700;cursor:pointer;font-family:Inter,sans-serif;';
+  nextBtn.onclick = ()=>{ window._premiumMCQIdx++; showPremiumMCQ(window._premiumMCQIdx); };
+  area.appendChild(nextBtn);
 }
 
 function showPremiumStep(idx){
@@ -1628,13 +1710,16 @@ function showPremiumStep(idx){
 
 
 /* ── Init ─────────────────────────────────────────────────────────────────── */
-// Inject theme styles
+// Inject theme styles + set defaults
 (function(){
   if(!document.getElementById('gold-theme-style')){
     const s=document.createElement('style');s.id='gold-theme-style';
     s.textContent='[data-theme="gold"]{--cyan:#ffd32a;--cyan-dim:rgba(255,211,42,.12);--cyan-glow:rgba(255,211,42,.25)}[data-light="1"]{--bg:#f5f5f7;--bg2:#ffffff;--bg3:#f0f0f5;--bg4:#e8e8f0;--border:#d0d0e0;--text:#1a1a2e;--muted:#555570}';
     document.head.appendChild(s);
   }
+  // Default to cyan dark if never set
+  if(!localStorage.getItem('cf-theme')) localStorage.setItem('cf-theme','cyan');
+  if(!localStorage.getItem('cf-lightmode')) localStorage.setItem('cf-lightmode','0');
   const savedTheme = localStorage.getItem('cf-theme');
   if(savedTheme){
     document.documentElement.setAttribute('data-theme', savedTheme);
