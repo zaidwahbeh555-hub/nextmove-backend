@@ -161,7 +161,7 @@
     <div class="action-row">
       <button class="btn-cyan" id="go-replay-btn" style="display:none">🎬 Replay Game</button>
       <button class="btn-outline" id="go-lessons-btn" style="display:none">📚 My Lessons</button>
-      <button class="btn-outline" id="save-game-btn" style="display:none">💾 Save Game</button>
+
     </div>
   </div>
 </div>
@@ -177,6 +177,7 @@
         <button class="ctrl-btn" id="r-prev">◀</button>
         <button class="ctrl-btn" id="r-next">▶</button>
         <button class="ctrl-btn" id="r-end">⏭</button>
+        <button class="ctrl-btn" onclick="skipToNextBlunder()" title="Skip to next blunder" style="color:var(--red);border-color:var(--red)">⚡ Next Blunder</button>
       </div>
       <div class="replay-info-box"><div id="replay-move-label">No game loaded — analyse a game first.</div></div>
     </div>
@@ -263,11 +264,6 @@
     <div class="bot-left">
       <div id="bot-board" style="width:480px;max-width:100%"></div>
       <div class="bot-controls">
-        <select id="bot-difficulty" class="bot-select">
-          <option value="easy">Easy</option>
-          <option value="medium" selected>Medium</option>
-          <option value="hard">Hard</option>
-        </select>
         <select id="bot-color" class="bot-select">
           <option value="white">Play as White</option>
           <option value="black">Play as Black</option>
