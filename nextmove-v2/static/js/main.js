@@ -124,7 +124,7 @@ function applySession(d){
   }
   if(d.games)renderSavedGames(d.games);
   hideEl('progress-guest');showEl('progress-content');
-  document.getElementById('save-game-btn').style.display='inline-flex';
+  // Games auto-save now
   if(State.pendingUpgrade&&State.plan!=='pro'){State.pendingUpgrade=false;setTimeout(()=>goToPro(),500);}
   setTimeout(checkOnboarding, 1500);
 }
@@ -295,8 +295,11 @@ async function runAnalysis(playerColor){
     State.analysisData=d;
     renderAnalysis(d);
     showEl('results');
-    if(State.loggedIn)document.getElementById('save-game-btn').style.display='inline-flex';
+    // Auto-saved above
     if(d.xp)setXP(d.xp);
+    // Track total games analysed for premium lesson unlock
+    const prev = parseInt(localStorage.getItem('cf-games-analysed') || '0');
+    localStorage.setItem('cf-games-analysed', prev + (d.games_analysed || 1));
     // Auto-save game after analysis
     if(State.loggedIn && State.lastPGN){
       const metas=d.game_metas||[];
@@ -392,9 +395,26 @@ function renderTrainingInline(training){
 }
 
 /* ── REPLAY ───────────────────────────────────────────────────────────────── */
+
+function skipToNextBlunder(){
+  const moves = State.replayMoves;
+  if(!moves.length) return;
+  const start = State.replayPly + 1;
+  for(let i = start; i < moves.length; i++){
+    if(moves[i].severity === 'blunder' || moves[i].severity === 'mistake'){
+      goToPly(i);
+      return;
+    }
+  }
+  // No more blunders — go to end
+  goToPly(moves.length - 1);
+  document.getElementById('replay-move-label').textContent = 'No more critical moments — end of game.';
+}
+
 function initReplayBoard(){
   if(State.replayBoard){try{State.replayBoard.destroy();}catch(e){}State.replayBoard=null;}
-  State.replayBoard=Chessboard('replay-board',{position:'start',pieceTheme:PIECE_THEME});
+  const orientation = State.lastPlayerColor === 'black' ? 'black' : 'white';
+  State.replayBoard=Chessboard('replay-board',{position:'start',pieceTheme:PIECE_THEME,orientation:orientation});
   State.boardsReady.replay=true;
   if(State.replayMoves.length)goToPly(0);
   else document.getElementById('replay-move-label').textContent='No game loaded — analyse a game first.';
@@ -417,16 +437,22 @@ function buildMoveList(){
 
 function goToPly(ply){
   if(!State.replayBoard||!State.replayMoves.length)return;
+  // Show position BEFORE the move (so player can think)
   const game=new Chess();
-  for(let i=0;i<=ply&&i<State.replayMoves.length;i++){if(!game.move(State.replayMoves[i].san))break;}
+  for(let i=0;i<ply&&i<State.replayMoves.length;i++){if(!game.move(State.replayMoves[i].san))break;}
   State.replayPly=ply;State.replayGame=game;
   State.replayBoard.position(game.fen(),false);
   updateReplayInfo();
-  // Check for blunder — show critical moment modal
+  // Check if this move is a blunder — show critical moment BEFORE playing the move
   const m=State.replayMoves[ply];
-  if(m&&m.severity==='blunder'&&m.best_move){
+  if(m&&m.severity==='blunder'&&m.best_move&&!State.replayPaused){
     showCriticalModal(m);
+    return; // Don't advance the board yet — user must dismiss modal first
   }
+  // Not a blunder — just show the move on the board
+  const game2=new Chess();
+  for(let i=0;i<=ply&&i<State.replayMoves.length;i++){if(!game2.move(State.replayMoves[i].san))break;}
+  State.replayBoard.position(game2.fen(),false);
   // Highlight in move list
   document.querySelectorAll('.move-san').forEach(el=>el.classList.remove('active-move'));
   const active=document.querySelector(`[data-ply="${ply}"]`);
@@ -476,6 +502,13 @@ function showCriticalModal(move){
 function hideCriticalModal(){
   document.getElementById('critical-modal').classList.add('hidden');
   State.replayPaused=false;
+  // Now show the actual blunder move on the board
+  if(State.currentCritical){
+    const ply = State.replayPly;
+    const game=new Chess();
+    for(let i=0;i<=ply&&i<State.replayMoves.length;i++){if(!game.move(State.replayMoves[i].san))break;}
+    State.replayBoard.position(game.fen(),false);
+  }
 }
 
 function showCriticalAnswer(){
@@ -559,10 +592,8 @@ function initPuzzleBoard(){
   State.puzzleGame=new Chess();
   State.puzzleBoard=Chessboard('puzzle-board',{
     position:'start',
-    draggable:true,
+    draggable:false,
     pieceTheme:PIECE_THEME,
-    onDrop:handlePuzzleDrop,
-    onSnapEnd:()=>{if(State.puzzleGame)State.puzzleBoard.position(State.puzzleGame.fen());},
     onSquareClick:handlePuzzleSquareClick,
     onMouseoverSquare: onMouseoverPuzzleSquare,
     onMouseoutSquare: onMouseoutPuzzleSquare,
@@ -671,13 +702,7 @@ function loadPuzzle(idx){
   document.getElementById('p-wrong').textContent=State.puzzleWrong;
 }
 
-function handlePuzzleDrop(src,tgt){
-  if(!State.puzzleGame) return 'snapback';
-  clearAllHighlights('puzzle-board');
-  const mv = State.puzzleGame.move({from:src, to:tgt, promotion:'q'});
-  if(!mv) return 'snapback';
-  checkPuzzleMove(mv, src, tgt);
-}
+// Drag disabled - using click-to-move only
 
 document.getElementById('hint-btn').addEventListener('click',()=>{
   const p=State.puzzles[State.puzzleIdx];if(!p)return;
@@ -1147,6 +1172,25 @@ function initBotPage(){
   }
 }
 
+function getEloFromAnalysis(){
+  if(!State.analysisData) return null;
+  const metas = State.analysisData.game_metas || [];
+  if(!metas.length) return null;
+  // Try to get ELO from PGN headers stored in meta
+  // We'll use a reasonable default based on pattern data
+  const total = State.analysisData.total_mistakes || 0;
+  const games = State.analysisData.games_analysed || 1;
+  const errPerGame = total / games;
+  // Estimate ELO from error rate (rough heuristic)
+  if(errPerGame > 15) return 600;
+  if(errPerGame > 10) return 800;
+  if(errPerGame > 7) return 1000;
+  if(errPerGame > 5) return 1200;
+  if(errPerGame > 3) return 1400;
+  if(errPerGame > 2) return 1600;
+  return 1800;
+}
+
 function startBotGame(){
   BotState.playerColor = document.getElementById('bot-color').value;
   BotState.game = new Chess();
@@ -1157,7 +1201,14 @@ function startBotGame(){
   BotState.board.position('start', false);
   document.getElementById('bot-move-history').innerHTML = '';
   document.getElementById('bot-review-card').classList.add('hidden');
-  setBotStatus('Game started! ' + (BotState.playerColor==='white' ? 'You play White — make your move!' : 'You play Black — bot is thinking…'));
+  const estElo = getEloFromAnalysis();
+  const eloStr = estElo ? ` (targeting ~${estElo} ELO based on your games)` : '';
+  setBotStatus('Game started!' + eloStr + ' ' + (BotState.playerColor==='white' ? 'You play White — make your move!' : 'You play Black — bot is thinking…'));
+  // Update bot info card
+  const botDesc = document.querySelector('.bot-desc');
+  if(botDesc) botDesc.textContent = estElo ? 
+    'Playing at approximately ' + estElo + ' ELO — calibrated from your analysed games. I will target your specific weaknesses.' :
+    'Analyse a game first so I can calibrate to your level.';
 
   // If player is black, bot plays first
   if(BotState.playerColor === 'black'){
@@ -1216,10 +1267,10 @@ async function makeBotMove(){
   BotState.thinking = true;
   setBotStatus('🤖 Bot is thinking…');
   try{
-    const diff = document.getElementById('bot-difficulty').value;
+    const estElo = getEloFromAnalysis() || 1200;
     const r = await fetch('/bot-move', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({fen: BotState.game.fen(), weaknesses: BotState.weaknesses, difficulty: diff}),
+      body: JSON.stringify({fen: BotState.game.fen(), weaknesses: BotState.weaknesses, elo: estElo}),
       credentials:'include'
     });
     const d = await r.json();
@@ -1469,7 +1520,8 @@ function renderPremiumLesson(){
   const container = document.getElementById('lesson-content');
   if(!container) return;
 
-  const gamesAnalysed = State.analysisData?.games_analysed || 0;
+  const gamesAnalysed = State.analysisData?.games_analysed || 
+    parseInt(localStorage.getItem('cf-games-analysed') || '0');
   const isPro = State.plan === 'pro';
   const fp = State.analysisData?.cognitive_fingerprint;
   const topWeakness = State.analysisData?.top_weaknesses?.[0]?.[0] || null;
