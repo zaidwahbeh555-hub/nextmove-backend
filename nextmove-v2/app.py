@@ -799,7 +799,7 @@ def bot_move():
     data = request.get_json(silent=True) or {}
     fen  = data.get("fen", "")
     weaknesses = data.get("weaknesses", [])
-    difficulty = data.get("difficulty", "medium")  # easy/medium/hard
+    elo  = int(data.get("elo", 1200))
 
     sf = find_stockfish()
     if not sf or not fen:
@@ -810,8 +810,13 @@ def bot_move():
     except Exception:
         return jsonify({"error": "Invalid FEN"}), 400
 
-    depth_map = {"easy": 3, "medium": 6, "hard": 12}
-    depth = depth_map.get(difficulty, 6)
+    # Map ELO to depth — lower ELO = shallower search = more mistakes
+    if elo < 800:   depth = 2
+    elif elo < 1000: depth = 3
+    elif elo < 1200: depth = 5
+    elif elo < 1400: depth = 7
+    elif elo < 1600: depth = 9
+    else:            depth = 12
 
     # Occasionally play a "weakness-targeting" move instead of best move
     # This makes the bot play positions that expose the user's weak patterns
