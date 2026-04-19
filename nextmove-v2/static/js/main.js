@@ -1188,10 +1188,10 @@ function getBotTip(){
 /* ── Tutorial ─────────────────────────────────────────────────────────────── */
 const TUTORIAL_STEPS = [
   {title:'Welcome to ChessForge! ♟', desc:'Let me show you around in 30 seconds. ChessForge analyses YOUR games to find YOUR specific patterns — not generic advice.', target:null, pos:{top:'50%',left:'50%',transform:'translate(-50%,-50%)'}},
-  {title:'Step 1: Analyze', desc:'Start by pasting a PGN from Chess.com or Lichess and clicking "Load Game". We'll identify which player you are, then run Stockfish at depth 16.', target:'page-analyze', pos:{top:'20%',left:'50%',transform:'translateX(-50%)'}},
+  {title:'Step 1: Analyze', desc:"Start by pasting a PGN from Chess.com or Lichess and clicking Load Game. We'll identify which player you are, then run Stockfish at depth 16.", target:'page-analyze', pos:{top:'20%',left:'50%',transform:'translateX(-50%)'}},
   {title:'Step 2: Your Fingerprint', desc:'After analysis, ChessForge builds your Thinking Process Fingerprint — identifying WHY you make mistakes, not just what.', target:null, pos:{top:'30%',left:'50%',transform:'translateX(-50%)'}},
-  {title:'Step 3: Puzzles', desc:'Your blunders become puzzles you solve. After your puzzles run out, infinite puzzles target your specific weakness patterns.', target:'page-puzzles', pos:{top:'20%',left:'50%',transform:'translateX(-50%)'}},
-  {title:'Step 4: Play the Bot', desc:'The bot knows your weaknesses and deliberately creates positions that test them. Beat the bot = you're improving!', target:'page-bot', pos:{top:'20%',left:'50%',transform:'translateX(-50%)'}},
+  {title:'Step 3: Puzzles', desc:"Your blunders become puzzles you solve. After your puzzles run out, infinite puzzles target your specific weakness patterns.", target:'page-puzzles', pos:{top:'20%',left:'50%',transform:'translateX(-50%)'}},
+  {title:'Step 4: Play the Bot', desc:"The bot knows your weaknesses and deliberately creates positions that test them. Beat the bot = you are improving!", target:'page-bot', pos:{top:'20%',left:'50%',transform:'translateX(-50%)'}},
 ];
 
 let tutorialStep = 0;
