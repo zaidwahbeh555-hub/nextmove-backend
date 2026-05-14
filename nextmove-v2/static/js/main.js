@@ -421,7 +421,7 @@ function showPage(name){
     if(name==='puzzles')initPuzzleBoard();
     if(name==='lessons')initLessonsPage();
     if(name==='progress')renderProgressPage();
-    if(name==='bot')initBotPage();
+    if(name==='coach'||name==='bot')initCoachPage();
   },60);
 }
 document.querySelectorAll('.nav-link').forEach(l=>l.addEventListener('click',e=>{e.preventDefault();showPage(l.dataset.page);}));
@@ -1230,8 +1230,13 @@ function startBotGame(){
   document.getElementById('bot-move-history').innerHTML = '';
   document.getElementById('bot-review-card').classList.add('hidden');
   const estElo = getEloFromAnalysis();
-  const eloStr = estElo ? ` (targeting ~${estElo} ELO based on your games)` : '';
-  setBotStatus('Game started!' + eloStr + ' ' + (BotState.playerColor==='white' ? 'You play White — make your move!' : 'You play Black — bot is thinking…'));
+  const eloStr = estElo ? ` (~${estElo} ELO)` : '';
+  setBotStatus('Game started!' + eloStr + ' ' + (BotState.playerColor==='white' ? 'You play White — make your move!' : 'You play Black — bot is thinking...'));
+  enableCoachButtons(true);
+  if(State.coachMode==='coached'){
+    setCoachMessage('Game started! I am watching your position...', '');
+    document.getElementById('coach-status-label').textContent = 'Active';
+  }
   // Update bot info card
   const botDesc = document.querySelector('.bot-desc');
   if(botDesc) botDesc.textContent = estElo ? 
@@ -1287,7 +1292,11 @@ function handleBotDrop(src, tgt){
   if(!mv) return 'snapback';
   addBotMove(mv.san, src+tgt);
   checkBotGameOver();
-  if(!BotState.game.game_over()) setTimeout(makeBotMove, 600);
+  if(!BotState.game.game_over()){
+    // Get coach message for position after player move
+    if(State.coachMode==='coached') setTimeout(()=>fetchCoachMessage('nudge'), 300);
+    setTimeout(makeBotMove, 800);
+  }
 }
 
 async function makeBotMove(){
@@ -1307,8 +1316,13 @@ async function makeBotMove(){
     if(mv){
       BotState.board.position(BotState.game.fen(), false);
       addBotMove(mv.san, d.move, true);
-      if(d.in_check) setBotStatus('♟ Bot played ' + mv.san + ' — You are in CHECK!');
-      else setBotStatus('♟ Bot played ' + mv.san + ' — Your turn!');
+      if(d.in_check){
+        setBotStatus('♟ Bot played ' + mv.san + ' — You are in CHECK!');
+        if(State.coachMode==='coached') setCoachMessage('⚠️ You are in check! Deal with it before anything else.', 'warning');
+      } else {
+        setBotStatus('♟ Bot played ' + mv.san + ' — Your turn!');
+        if(State.coachMode==='coached') setTimeout(()=>fetchCoachMessage('nudge'), 400);
+      }
       checkBotGameOver();
     }
   }catch(e){ setBotStatus('Connection error. Your turn!'); }
@@ -1335,6 +1349,8 @@ function setBotStatus(msg){ document.getElementById('bot-status').textContent = 
 function checkBotGameOver(){
   if(!BotState.game.game_over()) return;
   BotState.gameActive = false;
+  enableCoachButtons(false);
+  setCoachMessage('Game over! Review the game below and use the Copy PGN button to analyse it in the Analyze tab.', '');
   let result = '';
   if(BotState.game.in_checkmate()){
     const winner = BotState.game.turn() === 'w' ? 'Black' : 'White';
@@ -1730,6 +1746,97 @@ function showPremiumStep(idx){
   document.getElementById('prem-lesson-text').textContent = steps[idx].text;
   document.querySelectorAll('.premium-lesson-step').forEach((el,i)=>{
     el.classList.toggle('active', i===idx);
+  });
+}
+
+
+
+/* ── Coach Page ───────────────────────────────────────────────────────────── */
+function setBotMode(mode){
+  State.coachMode = mode;
+  document.getElementById('mode-coached').classList.toggle('active', mode==='coached');
+  document.getElementById('mode-free').classList.toggle('active', mode==='free');
+  const panel = document.getElementById('coach-panel');
+  if(panel) panel.style.opacity = mode==='coached' ? '1' : '0.4';
+  const msg = document.getElementById('coach-message');
+  if(msg) msg.textContent = mode==='coached' 
+    ? 'Start a new game — I will coach you through every position based on your weakness profile.'
+    : 'Free play mode — no hints. Just play your best chess.';
+}
+
+function initCoachPage(){
+  // Reuse existing initBotPage but point to new page elements
+  if(!document.getElementById('bot-board')) return;
+  if(BotState.board) return;
+  BotState.board = Chessboard('bot-board', {
+    position: 'start',
+    draggable: true,
+    pieceTheme: PIECE_THEME,
+    onDrop: handleBotDrop,
+    onSnapEnd: ()=>{ if(BotState.game) BotState.board.position(BotState.game.fen()); },
+    onSquareClick: handleBotSquareClick,
+    onMouseoverSquare: sq=>{
+      if(BotState.selectedSquare||!BotState.game||BotState.game.turn()!==BotState.playerColor[0]) return;
+      const p = BotState.game.get(sq);
+      if(p && p.color===BotState.playerColor[0]){
+        const el = document.querySelector('#bot-board .square-'+sq);
+        if(el) el.style.boxShadow = 'inset 0 0 0 3px rgba(0,212,255,.6)';
+      }
+    },
+    onMouseoutSquare: sq=>{
+      if(BotState.selectedSquare===sq) return;
+      const el = document.querySelector('#bot-board .square-'+sq);
+      if(el) el.style.boxShadow = '';
+    }
+  });
+  if(State.analysisData){
+    BotState.weaknesses = (State.analysisData.top_weaknesses||[]).map(([n])=>n);
+  }
+}
+
+async function fetchCoachMessage(type='nudge'){
+  if(!BotState.game || !BotState.gameActive) return;
+  if(State.coachMode !== 'coached') return;
+  const fen = BotState.game.fen();
+  try{
+    const r = await fetch('/coach-position', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({fen, weaknesses: BotState.weaknesses, type}),
+      credentials:'include'
+    });
+    const d = await r.json();
+    setCoachMessage(d.message, d.warning ? 'warning' : type==='hint'?'hint':'');
+    updateEvalBar(d.eval || 0);
+  }catch(e){}
+}
+
+function setCoachMessage(msg, style=''){
+  const box = document.getElementById('coach-message');
+  if(!box) return;
+  box.textContent = msg;
+  box.className = 'coach-message-box' + (style ? ' '+style : '');
+  document.getElementById('coach-status-label').textContent = 'Watching your position...';
+}
+
+function updateEvalBar(evalPawns){
+  const bar = document.getElementById('eval-bar');
+  const num = document.getElementById('eval-num');
+  if(!bar||!num) return;
+  // Convert eval to percentage (0-100), 50 = equal
+  const pct = Math.max(5, Math.min(95, 50 + evalPawns * 8));
+  bar.style.width = pct + '%';
+  num.textContent = (evalPawns >= 0 ? '+' : '') + evalPawns;
+  num.style.color = evalPawns > 0.5 ? 'var(--green)' : evalPawns < -0.5 ? 'var(--red)' : 'var(--cyan)';
+}
+
+function askCoach(type){
+  fetchCoachMessage(type);
+}
+
+function enableCoachButtons(on){
+  ['hint-btn-coach','explain-btn-coach'].forEach(id=>{
+    const btn = document.getElementById(id);
+    if(btn) btn.disabled = !on;
   });
 }
 
