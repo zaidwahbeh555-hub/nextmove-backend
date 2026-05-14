@@ -967,6 +967,104 @@ def cancel_subscription():
         return jsonify({"error": f"Could not create portal: {e}"}), 500
 
 
+
+@app.route("/coach-position", methods=["POST"])
+def coach_position():
+    """Real-time coaching for a position during a bot game."""
+    data = request.get_json(silent=True) or {}
+    fen        = data.get("fen", "")
+    weaknesses = data.get("weaknesses", [])
+    request_type = data.get("type", "nudge")  # nudge | hint | explain
+
+    sf = find_stockfish()
+    if not sf or not fen:
+        return jsonify({"message": "Play on!", "eval": 0})
+
+    try:
+        board = chess.Board(fen)
+    except Exception:
+        return jsonify({"message": "Play on!", "eval": 0})
+
+    try:
+        with chess.engine.SimpleEngine.popen_uci(sf) as engine:
+            info = engine.analyse(board, chess.engine.Limit(depth=12))
+            score = info["score"].white().score(mate_score=10000) or 0
+            best_pv = info.get("pv", [])
+            best_move = board.san(best_pv[0]) if best_pv and best_pv[0] in board.legal_moves else None
+
+            eval_pawns = round(score / 100, 1)
+            turn = "White" if board.turn == chess.WHITE else "Black"
+            player_turn = board.turn
+
+            # Build personalised coaching message
+            message = ""
+            warning = ""
+
+            # Check for hanging pieces
+            for sq in chess.SQUARES:
+                piece = board.piece_at(sq)
+                if piece and piece.color == player_turn:
+                    if board.is_attacked_by(not player_turn, sq):
+                        attackers = board.attackers(not player_turn, sq)
+                        defenders = board.attackers(player_turn, sq)
+                        if len(list(attackers)) > len(list(defenders)):
+                            warning = f"⚠️ Your {piece.piece_type.name.lower() if hasattr(piece.piece_type, 'name') else 'piece'} on {chess.square_name(sq)} looks vulnerable!"
+                            break
+
+            # Personalised nudge based on weaknesses
+            nudges = []
+            if "Hanging piece" in weaknesses:
+                nudges.append("Scan: are all your pieces safe?")
+            if "King safety issue" in weaknesses and not board.has_castling_rights(player_turn):
+                nudges.append("Is your king safe?")
+            if "Missed tactic" in weaknesses:
+                nudges.append("Any checks, captures or threats available?")
+
+            if request_type == "nudge":
+                if warning:
+                    message = warning
+                elif nudges:
+                    message = f"💭 {nudges[0]}"
+                else:
+                    adv = abs(eval_pawns)
+                    if eval_pawns > 1.5: message = "✅ You're winning — keep it clean, don't give it away."
+                    elif eval_pawns < -1.5: message = "💪 You're behind — look for counterplay and complications."
+                    else: message = "⚖️ Position is balanced — every move counts here."
+
+            elif request_type == "hint":
+                if warning:
+                    message = warning + " Fix this first."
+                elif best_move:
+                    # Give a directional hint, not the exact move
+                    piece = board.piece_at(chess.parse_square(best_pv[0].uci()[:2])) if best_pv else None
+                    if piece:
+                        message = f"💡 Consider moving your {chess.piece_name(piece.piece_type)} — it can do something useful here."
+                    else:
+                        message = "💡 Look for a forcing move — check, capture, or threat."
+                else:
+                    message = "💡 Improve your worst-placed piece."
+
+            elif request_type == "explain":
+                adv = abs(eval_pawns)
+                who = "White" if eval_pawns > 0 else "Black"
+                message = f"📊 Eval: {'+' if eval_pawns >= 0 else ''}{eval_pawns} ({who} is {'slightly ' if adv < 1 else ''}{'better' if adv < 2 else 'much better' if adv < 4 else 'winning'}). "
+                if warning:
+                    message += warning
+                elif nudges:
+                    message += " | ".join(nudges)
+                elif best_move:
+                    message += f"Engine likes {best_move} here."
+
+            return jsonify({
+                "message": message,
+                "eval": eval_pawns,
+                "warning": bool(warning),
+                "best_move": best_move if request_type == "explain" else None,
+            })
+
+    except Exception as e:
+        return jsonify({"message": "Think carefully before moving.", "eval": 0})
+
 @app.route("/health")
 def health():
     sf=find_stockfish()
