@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ChessForge — Chess Analysis</title>
+<title>ChessForge — Your Personal Chess Coach</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
 <link rel="stylesheet" href="/static/css/style.css">
 </head>
@@ -15,7 +15,7 @@
 <div id="auth-overlay" class="auth-overlay hidden">
   <div class="auth-modal">
     <div class="auth-logo"><span class="logo-icon">⬡</span> Chess<strong>Forge</strong></div>
-    <p class="auth-tagline">Pattern-based chess improvement platform</p>
+    <p class="auth-tagline">Your personal chess coach — every move, every game</p>
     <div class="auth-tabs">
       <button class="auth-tab active" data-auth="login">Sign In</button>
       <button class="auth-tab" data-auth="register">Create Account</button>
@@ -37,34 +37,8 @@
   </div>
 </div>
 
-<!-- SIDEBAR -->
-<nav class="sidebar">
-  <div class="sidebar-logo"><span class="logo-icon">⬡</span> Chess<strong>Forge</strong></div>
-  <div class="sidebar-user">
-    <div class="user-avatar" id="user-avatar">?</div>
-    <div><div class="user-name" id="user-name">Guest</div><div class="user-xp-label" id="user-xp-label">0 XP</div></div>
-  </div>
-  <ul class="nav-links">
-    <li><a href="#" class="nav-link active" data-page="analyze">📊 Analyze</a></li>
-    <li><a href="#" class="nav-link" data-page="replay">🎬 Replay</a></li>
-    <li><a href="#" class="nav-link" data-page="puzzles">🧩 Puzzles</a></li>
-    <li><a href="#" class="nav-link" data-page="lessons">📚 Lessons</a></li>
-    <li><a href="#" class="nav-link" data-page="progress">📈 Progress</a></li>
-    <li><a href="#" class="nav-link" data-page="bot">🤖 Play Bot</a></li>
-  </ul>
-  <div class="sidebar-bottom">
-    <div class="xp-row"><span class="xp-label">XP</span><span id="xp-count">0</span></div>
-    <div class="xp-bar"><div class="xp-fill" id="xp-fill"></div></div>
-    <button class="upgrade-btn" id="upgrade-btn" onclick="goToPro()">⚡ Upgrade to Pro</button>
-    <button class="theme-btn" id="theme-btn" onclick="toggleThemePanel()">🎨 Theme</button>
-    <a href="https://chessforge.org" class="home-btn">← Back to Homepage</a>
-    <button class="logout-btn" id="logout-btn">Sign Out</button>
-  </div>
-</nav>
-
-<!-- Theme Panel -->
+<!-- THEME PANEL -->
 <div id="theme-panel" class="theme-panel hidden">
-  <div class="theme-title">Choose Theme</div>
   <div class="theme-toggle-row">
     <span class="theme-toggle-label">🌙 Dark mode</span>
     <label class="toggle-switch">
@@ -76,14 +50,14 @@
   <div class="theme-options">
     <button class="theme-opt active" data-theme="cyan" onclick="setTheme('cyan')"><span style="background:#00d4ff"></span>Cyan</button>
     <button class="theme-opt" data-theme="blue" onclick="setTheme('blue')"><span style="background:#4a9eff"></span>Blue</button>
-    <button class="theme-opt" data-theme="purple" onclick="setTheme('purple')"><span style="background:#a855f7"></span>Purple</button>
-    <button class="theme-opt" data-theme="green" onclick="setTheme('green')"><span style="background:#2ed573"></span>Green</button>
-    <button class="theme-opt" data-theme="red" onclick="setTheme('red')"><span style="background:#ff4757"></span>Red</button>
-    <button class="theme-opt" data-theme="gold" onclick="setTheme('gold')"><span style="background:#ffd32a"></span>Gold</button>
+    <button class="theme-opt" data-theme="purple" onclick="setTheme('purple')"><span style="background:#b388ff"></span>Purple</button>
+    <button class="theme-opt" data-theme="green" onclick="setTheme('green')"><span style="background:#00e676"></span>Green</button>
+    <button class="theme-opt" data-theme="red" onclick="setTheme('red')"><span style="background:#ff4466"></span>Red</button>
+    <button class="theme-opt" data-theme="gold" onclick="setTheme('gold')"><span style="background:#ffd740"></span>Gold</button>
   </div>
 </div>
 
-<!-- Tutorial Overlay -->
+<!-- TUTORIAL -->
 <div id="tutorial-overlay" class="tutorial-overlay hidden">
   <div class="tutorial-box" id="tutorial-box">
     <div class="tutorial-step-label">Step <span id="t-step-num">1</span> of <span id="t-step-total">5</span></div>
@@ -96,11 +70,94 @@
   </div>
 </div>
 
+<!-- SIDEBAR -->
+<nav class="sidebar">
+  <div class="sidebar-logo"><span class="logo-icon">⬡</span> Chess<strong>Forge</strong></div>
+  <div class="sidebar-user">
+    <div class="user-avatar" id="user-avatar">?</div>
+    <div><div class="user-name" id="user-name">Guest</div><div class="user-xp-label" id="user-xp-label">0 XP</div></div>
+  </div>
+  <ul class="nav-links">
+    <li><a href="#" class="nav-link active" data-page="coach">🎓 Play & Coach</a></li>
+    <li><a href="#" class="nav-link" data-page="analyze">📊 Analyze</a></li>
+    <li><a href="#" class="nav-link" data-page="replay">🎬 Replay</a></li>
+    <li><a href="#" class="nav-link" data-page="puzzles">🧩 Puzzles</a></li>
+    <li><a href="#" class="nav-link" data-page="progress">📈 Progress</a></li>
+    <li><a href="#" class="nav-link" data-page="lessons">📚 Lessons</a></li>
+  </ul>
+  <div class="sidebar-bottom">
+    <div class="xp-row"><span class="xp-label">XP</span><span id="xp-count">0</span></div>
+    <div class="xp-bar"><div class="xp-fill" id="xp-fill"></div></div>
+    <button class="upgrade-btn" id="upgrade-btn" onclick="goToPro()">⚡ Upgrade to Pro</button>
+    <button class="theme-btn" id="theme-btn" onclick="toggleThemePanel()">🎨 Theme</button>
+    <a href="https://chessforge.org" class="home-btn">← Homepage</a>
+    <button class="logout-btn" id="logout-btn">Sign Out</button>
+  </div>
+</nav>
+
 <!-- MAIN -->
 <div class="main-wrap">
 
-<!-- ANALYZE -->
-<div class="page active" id="page-analyze">
+<!-- ═══ COACH / PLAY PAGE (MAIN) ════════════════════════════════════════════ -->
+<div class="page active" id="page-coach">
+  <div class="page-header">
+    <h1>Play & Get Coached</h1>
+    <p>Your coach knows your weaknesses — guided every move, or just play free</p>
+  </div>
+  <div class="bot-layout">
+    <!-- Left: Board -->
+    <div class="bot-main">
+      <div class="bot-mode-selector">
+        <button class="bot-mode-btn active" id="mode-coached" onclick="setBotMode('coached')">🎓 Coached Mode</button>
+        <button class="bot-mode-btn" id="mode-free" onclick="setBotMode('free')">⚡ Free Play</button>
+      </div>
+      <div style="display:flex;gap:.8rem;align-items:center;flex-wrap:wrap">
+        <select id="bot-color" class="bot-select">
+          <option value="white">Play as White</option>
+          <option value="black">Play as Black</option>
+        </select>
+        <button class="btn-cyan" onclick="startBotGame()" style="width:auto;margin-top:0">New Game ▶</button>
+      </div>
+      <div id="bot-board" style="width:480px;max-width:100%"></div>
+      <div class="bot-status-box" id="bot-status">Choose a mode and click New Game to start!</div>
+    </div>
+    <!-- Right: Coach Panel -->
+    <div class="coach-panel" id="coach-panel">
+      <div class="card" style="margin-bottom:0">
+        <div class="coach-header">
+          <div class="coach-avatar">🧠</div>
+          <div>
+            <div class="coach-name">ChessForge Coach</div>
+            <div class="coach-status" id="coach-status-label">Waiting for game...</div>
+          </div>
+        </div>
+        <div style="margin-top:1rem">
+          <div class="eval-bar-wrap" style="margin-bottom:.8rem">
+            <span class="eval-label">Eval</span>
+            <div class="eval-bar-bg"><div class="eval-bar-fill" id="eval-bar" style="width:50%"></div></div>
+            <span class="eval-num" id="eval-num">0.0</span>
+          </div>
+          <div class="coach-message-box" id="coach-message">Your coach will appear here once you start a game in Coached Mode.</div>
+          <div class="coach-buttons" style="margin-top:.7rem" id="coach-btns">
+            <button class="coach-btn" id="hint-btn-coach" onclick="askCoach('hint')" disabled>💡 Hint</button>
+            <button class="coach-btn" id="explain-btn-coach" onclick="askCoach('explain')" disabled>📊 Explain</button>
+          </div>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:0">
+        <div class="card-label">Move History</div>
+        <div id="bot-move-history" class="move-history-box"></div>
+      </div>
+      <div class="card hidden" id="bot-review-card" style="margin-bottom:0">
+        <div class="card-label">Game Review</div>
+        <div id="bot-review-content"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ ANALYZE ══════════════════════════════════════════════════════════════ -->
+<div class="page" id="page-analyze">
   <div class="page-header"><h1>Analyze My Games</h1><p>Paste your PGN — we detect your patterns and build your personalised training plan</p></div>
   <div class="card" id="step1-card">
     <div class="step-label">Step 1 — Paste Your Game</div>
@@ -108,12 +165,8 @@
       <button class="tab active" data-tab="paste">Paste PGN</button>
       <button class="tab" data-tab="upload">Upload File</button>
     </div>
-    <div id="tab-paste" class="tab-panel active">
-      <textarea id="pgn-text" placeholder="Paste your Chess.com or Lichess PGN here..."></textarea>
-    </div>
-    <div id="tab-upload" class="tab-panel">
-      <label class="file-drop"><input type="file" id="pgn-file" accept=".pgn"><span class="drop-icon">📂</span><span class="drop-text">Click or drag a .pgn file</span><span id="file-name" class="drop-name"></span></label>
-    </div>
+    <div id="tab-paste" class="tab-panel active"><textarea id="pgn-text" placeholder="Paste your Chess.com or Lichess PGN here..."></textarea></div>
+    <div id="tab-upload" class="tab-panel"><label class="file-drop"><input type="file" id="pgn-file" accept=".pgn"><span class="drop-icon">📂</span><span class="drop-text">Click or drag a .pgn file</span><span id="file-name" class="drop-name"></span></label></div>
     <button class="btn-cyan" id="parse-btn"><span id="parse-btn-text">Load Game →</span><div class="spinner" id="parse-spinner"></div></button>
     <div id="parse-error" class="error-box hidden"></div>
   </div>
@@ -124,7 +177,7 @@
     <div class="game-info-row" id="game-info-row"></div>
   </div>
   <div class="card hidden" id="step3-card">
-    <div class="step-label">Analysing your game…</div>
+    <div class="step-label">Analysing...</div>
     <div class="analysis-progress"><div class="analysis-spinner"></div><div><div class="analysis-title">Running Stockfish at depth 16</div><div class="analysis-sub">This takes 1–2 minutes per game</div></div></div>
   </div>
   <div id="results" class="hidden">
@@ -153,7 +206,7 @@
       <div id="training-inline-list"></div>
       <div class="upgrade-inline hidden" id="upgrade-training-prompt">
         <div class="upgrade-inline-content">
-          <div><strong>⚡ Unlock unlimited analysis</strong><p>Free plan: 1 game/day. Upgrade to Pro for unlimited games, deeper insights, and faster improvement.</p></div>
+          <div><strong>⚡ Unlock unlimited analysis</strong><p>Free plan: 1 game/day. Upgrade to Pro for unlimited games and deeper insights.</p></div>
           <button class="btn-cyan" style="width:auto;margin-top:0;white-space:nowrap" onclick="goToPro()">Upgrade to Pro →</button>
         </div>
       </div>
@@ -161,14 +214,13 @@
     <div class="action-row">
       <button class="btn-cyan" id="go-replay-btn" style="display:none">🎬 Replay Game</button>
       <button class="btn-outline" id="go-lessons-btn" style="display:none">📚 My Lessons</button>
-
     </div>
   </div>
 </div>
 
-<!-- REPLAY -->
+<!-- ═══ REPLAY ═══════════════════════════════════════════════════════════════ -->
 <div class="page" id="page-replay">
-  <div class="page-header"><h1>Game Replay</h1><p>← → arrow keys · blunders pause automatically for critical moment training</p></div>
+  <div class="page-header"><h1>Game Replay</h1><p>← → arrow keys · blunders pause for critical moment training</p></div>
   <div class="replay-layout">
     <div class="replay-left">
       <div id="replay-board" style="width:480px;max-width:100%"></div>
@@ -177,7 +229,7 @@
         <button class="ctrl-btn" id="r-prev">◀</button>
         <button class="ctrl-btn" id="r-next">▶</button>
         <button class="ctrl-btn" id="r-end">⏭</button>
-        <button class="ctrl-btn" onclick="skipToNextBlunder()" title="Skip to next blunder" style="color:var(--red);border-color:var(--red)">⚡ Next Blunder</button>
+        <button class="ctrl-btn" onclick="skipToNextBlunder()" style="color:var(--red);border-color:var(--red)">⚡ Next Blunder</button>
       </div>
       <div class="replay-info-box"><div id="replay-move-label">No game loaded — analyse a game first.</div></div>
     </div>
@@ -194,9 +246,9 @@
     <h2 class="critical-title">Stop and Think</h2>
     <p class="critical-question"><span id="critical-side"></span> to move — what should happen here?</p>
     <div class="critical-prompts">
-      <div class="critical-prompt">🔍 Scan every piece — is anything hanging or undefended?</div>
-      <div class="critical-prompt">🧠 What is your opponent threatening on their next move?</div>
-      <div class="critical-prompt">⚖️ Before moving — does this move create any new weaknesses?</div>
+      <div class="critical-prompt">🔍 Scan every piece — anything hanging?</div>
+      <div class="critical-prompt">🧠 What is your opponent threatening?</div>
+      <div class="critical-prompt">⚖️ Does your move create new weaknesses?</div>
     </div>
     <p class="critical-played">You played: <strong id="critical-move-played"></strong></p>
     <div class="critical-actions">
@@ -210,9 +262,9 @@
   </div>
 </div>
 
-<!-- PUZZLES -->
+<!-- ═══ PUZZLES ═══════════════════════════════════════════════════════════════ -->
 <div class="page" id="page-puzzles">
-  <div class="page-header"><h1>Your Puzzles</h1><p>Real positions from your actual blunders — drag pieces to solve</p></div>
+  <div class="page-header"><h1>Your Puzzles</h1><p>Positions from your actual blunders — click piece to select, click target to move</p></div>
   <div id="no-puzzles" class="empty-state"><div class="empty-icon">🧩</div><h3>No puzzles yet</h3><p>Analyse a game first!</p><button class="btn-outline" onclick="showPage('analyze')">Analyse a Game →</button></div>
   <div id="puzzle-area" class="hidden">
     <div class="two-col">
@@ -233,16 +285,7 @@
   </div>
 </div>
 
-<!-- LESSONS -->
-<div class="page" id="page-lessons">
-  <div class="page-header"><h1>Lessons</h1><p>30 in-depth lessons · sorted by your biggest weaknesses</p></div>
-  <div class="lessons-layout">
-    <div id="lessons-sidebar" class="lessons-sidebar"></div>
-    <div id="lesson-content" class="lesson-content"><div class="empty-state"><div class="empty-icon">📚</div><h3>Select a lesson</h3><p>Sorted by what you need most based on your games.</p></div></div>
-  </div>
-</div>
-
-<!-- PROGRESS -->
+<!-- ═══ PROGRESS ══════════════════════════════════════════════════════════════ -->
 <div class="page" id="page-progress">
   <div class="page-header"><h1>Your Progress</h1><p>Track your improvement over time</p></div>
   <div id="progress-guest" class="empty-state hidden"><div class="empty-icon">📈</div><h3>Create an account to track progress</h3><p>Sign in to save games and track improvement.</p><button class="btn-cyan" onclick="showAuthModal()">Create Account →</button></div>
@@ -257,49 +300,19 @@
   </div>
 </div>
 
-<!-- BOT PAGE -->
-<div class="page" id="page-bot">
-  <div class="page-header"><h1>Play Against Bot</h1><p>The bot targets your specific weaknesses — it knows what you struggle with</p></div>
-  <div class="bot-layout">
-    <div class="bot-left">
-      <div id="bot-board" style="width:480px;max-width:100%"></div>
-      <div class="bot-controls">
-        <select id="bot-color" class="bot-select">
-          <option value="white">Play as White</option>
-          <option value="black">Play as Black</option>
-        </select>
-        <button class="btn-cyan" onclick="startBotGame()" style="width:auto;margin-top:0">New Game</button>
-      </div>
-      <div class="bot-status-box" id="bot-status">Click "New Game" to start!</div>
-    </div>
-    <div class="bot-right">
-      <div class="card">
-        <div class="card-label">Bot Intelligence</div>
-        <div class="bot-info" id="bot-info">
-          <div class="bot-avatar">🤖</div>
-          <div class="bot-name">ChessForge Bot</div>
-          <div class="bot-desc">I study your mistake patterns and play to expose them. Every game teaches you something.</div>
-        </div>
-        <div id="bot-weakness-targets" class="bot-targets hidden">
-          <div class="card-label" style="margin-top:1rem">Targeting Your Weaknesses</div>
-          <div id="bot-target-list"></div>
-        </div>
-      </div>
-      <div class="card" style="margin-top:1rem" id="bot-move-history-card">
-        <div class="card-label">Move History</div>
-        <div id="bot-move-history" class="bot-move-history"></div>
-      </div>
-      <div class="card hidden" id="bot-review-card" style="margin-top:1rem">
-        <div class="card-label">Post-Game Review</div>
-        <div id="bot-review-content"></div>
-      </div>
-    </div>
+<!-- ═══ LESSONS ═══════════════════════════════════════════════════════════════ -->
+<div class="page" id="page-lessons">
+  <div class="page-header"><h1>Lessons</h1><p>30 lessons · your personal lesson at the top based on your games</p></div>
+  <div class="lessons-layout">
+    <div id="lessons-sidebar" class="lessons-sidebar"></div>
+    <div id="lesson-content" class="lesson-content"><div class="empty-state"><div class="empty-icon">📚</div><h3>Select a lesson</h3><p>Sorted by your biggest weaknesses.</p></div></div>
   </div>
 </div>
 
-</div>
+</div><!-- /main-wrap -->
 
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css"></script>
 <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
 <script src="/static/js/main.js"></script>
