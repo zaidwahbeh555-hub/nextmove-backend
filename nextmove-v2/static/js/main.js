@@ -1865,3 +1865,9 @@ function enableCoachButtons(on){
 })();
 
 checkSession().then(handleURLParams);
+
+// Init coach page on first load (since it's the default active page)
+setTimeout(()=>{
+  try { initCoachPage(); } catch(e) { console.error('Coach init error:', e); }
+  setBotMode('coached');
+}, 300);
