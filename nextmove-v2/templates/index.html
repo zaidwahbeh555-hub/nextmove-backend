@@ -99,58 +99,116 @@
 
 <!-- ═══ COACH / PLAY PAGE (MAIN) ════════════════════════════════════════════ -->
 <div class="page active" id="page-coach">
-  <div class="page-header">
-    <h1>Play with Your Personal Coach</h1>
-    <p>Real-time guidance — your coach knows your weaknesses and helps you avoid them, move by move</p>
-  </div>
-  <div class="bot-layout">
-    <!-- Left: Board -->
-    <div class="bot-main">
-      <div class="bot-mode-selector">
-        <button class="bot-mode-btn active" id="mode-coached" onclick="setBotMode('coached')">🎓 Coached Mode</button>
-        <button class="bot-mode-btn" id="mode-free" onclick="setBotMode('free')">⚡ Free Play</button>
-      </div>
-      <div style="display:flex;gap:.8rem;align-items:center;flex-wrap:wrap">
-        <select id="bot-color" class="bot-select">
-          <option value="white">Play as White</option>
-          <option value="black">Play as Black</option>
-        </select>
-        <button class="btn-cyan" onclick="startBotGame()" style="width:auto;margin-top:0">New Game ▶</button>
-      </div>
-      <div id="bot-board" style="width:480px;max-width:100%"></div>
-      <div class="bot-status-box" id="bot-status">Choose a mode and click New Game to start!</div>
+  <div class="page-header gm-header">
+    <div>
+      <h1>Play with Your Grandmaster Coach</h1>
+      <p>A coach sits beside you, asks questions, points at the board, and walks through every position.</p>
     </div>
-    <!-- Right: Coach Panel -->
-    <div class="coach-panel" id="coach-panel">
-      <div class="card" style="margin-bottom:0">
-        <div class="coach-header">
-          <div class="coach-avatar">🧠</div>
-          <div>
-            <div class="coach-name">ChessForge Coach</div>
-            <div class="coach-status" id="coach-status-label">Waiting for game...</div>
-          </div>
+    <div class="gm-header-badge"><span class="gm-dot"></span> Live coaching</div>
+  </div>
+  <div class="gm-layout">
+    <!-- Left: Board with overlay -->
+    <div class="gm-main">
+      <div class="gm-toolbar">
+        <div class="gm-mode-selector">
+          <button class="gm-mode-btn active" id="mode-coached" onclick="setBotMode('coached')"><span>🎓</span> Coached</button>
+          <button class="gm-mode-btn" id="mode-free" onclick="setBotMode('free')"><span>⚡</span> Free Play</button>
         </div>
-        <div style="margin-top:1rem">
-          <div class="eval-bar-wrap" style="margin-bottom:.8rem">
-            <span class="eval-label">Eval</span>
-            <div class="eval-bar-bg"><div class="eval-bar-fill" id="eval-bar" style="width:50%"></div></div>
-            <span class="eval-num" id="eval-num">0.0</span>
-          </div>
-          <div class="coach-message-box" id="coach-message">Your coach will appear here once you start a game in Coached Mode.</div>
-          <div class="coach-buttons" style="margin-top:.7rem" id="coach-btns">
-            <button class="coach-btn" id="hint-btn-coach" onclick="askCoach('hint')" disabled>💡 Hint</button>
-            <button class="coach-btn" id="explain-btn-coach" onclick="askCoach('explain')" disabled>📊 Explain</button>
-          </div>
+        <div class="gm-controls">
+          <select id="bot-color" class="gm-select">
+            <option value="white">Play White</option>
+            <option value="black">Play Black</option>
+          </select>
+          <button class="gm-start-btn" onclick="startBotGame()">New Game ▶</button>
         </div>
       </div>
-      <div class="card" style="margin-bottom:0">
-        <div class="card-label">Move History</div>
-        <div id="bot-move-history" class="move-history-box"></div>
+      <div class="gm-board-wrap">
+        <div id="bot-board" class="gm-board"></div>
+        <svg class="gm-overlay" id="gm-overlay" viewBox="0 0 800 800" preserveAspectRatio="none">
+          <defs>
+            <marker id="arrow-head" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M0,0 L10,5 L0,10 Z" fill="currentColor"/>
+            </marker>
+          </defs>
+          <g id="overlay-highlights"></g>
+          <g id="overlay-arrows"></g>
+        </svg>
       </div>
-      <div class="card hidden" id="bot-review-card" style="margin-bottom:0">
-        <div class="card-label">Game Review</div>
+      <div class="gm-status-box" id="bot-status">Choose a mode and click New Game to start.</div>
+    </div>
+
+    <!-- Right: Coach Panel (rebuilt) -->
+    <div class="gm-side" id="coach-panel">
+      <div class="gm-coach-card">
+        <div class="gm-coach-head">
+          <div class="gm-avatar"><span>♛</span></div>
+          <div class="gm-coach-meta">
+            <div class="gm-coach-name">GM Forge</div>
+            <div class="gm-coach-status" id="coach-status-label">Awaiting your move…</div>
+          </div>
+          <div class="gm-eval-mini">
+            <span class="gm-eval-num" id="eval-num">0.0</span>
+          </div>
+        </div>
+        <div class="gm-eval-bar-wrap">
+          <div class="gm-eval-bar-bg"><div class="gm-eval-bar-fill" id="eval-bar" style="width:50%"></div></div>
+        </div>
+        <div class="gm-coach-body">
+          <div class="gm-coach-thinking hidden" id="coach-thinking"><span class="gm-dot-pulse"></span><span class="gm-dot-pulse"></span><span class="gm-dot-pulse"></span> thinking…</div>
+          <ul class="gm-question-list" id="coach-questions"><li class="gm-q-empty">Start a game in Coached mode and I'll guide you through every move.</li></ul>
+          <div class="gm-feedback hidden" id="coach-feedback"></div>
+        </div>
+        <div class="gm-coach-actions">
+          <button class="gm-action-btn hint" id="hint-btn-coach" onclick="askCoach('hint')" disabled>💡 Hint</button>
+          <button class="gm-action-btn explain" id="explain-btn-coach" onclick="askCoach('explain')" disabled>📊 Explain</button>
+          <button class="gm-action-btn quiz" id="quiz-btn-coach" onclick="askCoach('quiz')" disabled>🎯 Quiz Me</button>
+        </div>
+      </div>
+
+      <div class="gm-history-card">
+        <div class="gm-card-label">Move History</div>
+        <div id="bot-move-history" class="gm-move-history"></div>
+      </div>
+
+      <div class="gm-history-card hidden" id="bot-review-card">
+        <div class="gm-card-label">Game Review</div>
         <div id="bot-review-content"></div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- MCQ Modal -->
+<div id="mcq-modal" class="mcq-modal hidden">
+  <div class="mcq-inner">
+    <div class="mcq-badge"><span>🎯</span> Quick check</div>
+    <h2 class="mcq-question" id="mcq-question">Which move is best?</h2>
+    <div class="mcq-options" id="mcq-options"></div>
+    <div class="mcq-explanation hidden" id="mcq-explanation"></div>
+    <div class="mcq-footer">
+      <button class="gm-action-btn ghost" onclick="closeMCQ()">Skip</button>
+      <button class="gm-action-btn primary hidden" id="mcq-continue" onclick="closeMCQ()">Continue →</button>
+    </div>
+  </div>
+</div>
+
+<!-- Post-Game Review Modal -->
+<div id="postgame-modal" class="mcq-modal hidden">
+  <div class="mcq-inner postgame-inner">
+    <div class="mcq-badge"><span>📊</span> Game Review</div>
+    <h2 class="mcq-question" id="postgame-title">Analyzing your game with Stockfish…</h2>
+    <div id="postgame-loading" class="postgame-loading">
+      <div class="postgame-spinner"></div>
+      <p>Reviewing every player move at depth 10. ~10–25 seconds.</p>
+    </div>
+    <div id="postgame-results" class="hidden">
+      <div class="postgame-summary" id="postgame-summary"></div>
+      <div class="postgame-mistakes" id="postgame-mistakes"></div>
+      <p class="postgame-cta-note">We turned your biggest mistakes into puzzles — train them now and stop repeating them.</p>
+    </div>
+    <div class="mcq-footer">
+      <button class="gm-action-btn ghost" onclick="closePostgame()">Close</button>
+      <button class="gm-action-btn primary hidden" id="postgame-train-btn" onclick="trainPostgamePuzzles()">🧩 Train These Positions →</button>
     </div>
   </div>
 </div>
