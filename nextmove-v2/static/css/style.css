@@ -379,3 +379,205 @@ textarea:focus{border-color:var(--cyan);box-shadow:0 0 0 3px var(--cyan-dim)}
 [data-theme="red"]{--cyan:#ff4466;--cyan-dim:rgba(255,68,102,.1);--cyan-glow:rgba(255,68,102,.2)}
 [data-theme="gold"]{--cyan:#ffd740;--cyan-dim:rgba(255,215,64,.1);--cyan-glow:rgba(255,215,64,.2)}
 [data-light="1"]{--bg:#f5f5f7;--bg2:#ffffff;--bg3:#f0f0f5;--bg4:#e5e5ee;--border:#dddde8;--border2:#ccccd8;--text:#1a1a2e;--muted:#888899;--muted2:#666677}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GM COACH — modern, integrated UI for the Play & Coach page
+   ═══════════════════════════════════════════════════════════════════════════ */
+.gm-header{display:flex;align-items:flex-end;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:1.4rem}
+.gm-header h1{font-size:1.9rem;font-weight:800;letter-spacing:-.03em;background:linear-gradient(135deg,var(--cyan),var(--purple));-webkit-background-clip:text;background-clip:text;color:transparent}
+.gm-header p{color:var(--muted2);margin-top:.35rem;font-size:.95rem;max-width:560px}
+.gm-header-badge{display:inline-flex;align-items:center;gap:.45rem;background:var(--bg3);border:1px solid var(--border2);padding:.45rem .9rem;border-radius:var(--r-full);font-size:.78rem;color:var(--muted2);font-weight:600}
+.gm-dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:gm-pulse 1.6s infinite}
+@keyframes gm-pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+.gm-layout{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:1.4rem;align-items:start}
+@media(max-width:1180px){.gm-layout{grid-template-columns:1fr}}
+
+.gm-main{display:flex;flex-direction:column;gap:1rem;min-width:0}
+
+.gm-toolbar{display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r-lg);padding:.7rem .9rem}
+.gm-mode-selector{display:flex;background:var(--bg3);border-radius:var(--r-full);padding:.3rem;gap:.25rem}
+.gm-mode-btn{display:inline-flex;align-items:center;gap:.4rem;background:transparent;border:none;color:var(--muted2);padding:.5rem 1rem;border-radius:var(--r-full);cursor:pointer;font-size:.85rem;font-weight:600;font-family:'Inter',sans-serif;transition:all var(--trans)}
+.gm-mode-btn.active{background:var(--cyan);color:#000;box-shadow:0 4px 14px var(--cyan-glow)}
+.gm-mode-btn span{font-size:1rem}
+.gm-controls{display:flex;gap:.6rem;align-items:center}
+.gm-select{background:var(--bg3);border:1px solid var(--border2);color:var(--text);font-family:'Inter',sans-serif;font-size:.85rem;padding:.55rem .85rem;border-radius:var(--r-md);font-weight:500;outline:none;cursor:pointer}
+.gm-start-btn{background:linear-gradient(135deg,var(--cyan),var(--purple));color:#000;border:none;padding:.6rem 1.4rem;border-radius:var(--r-md);font-weight:700;font-size:.9rem;cursor:pointer;font-family:'Inter',sans-serif;box-shadow:0 4px 16px var(--cyan-glow);transition:transform var(--trans)}
+.gm-start-btn:hover{transform:translateY(-1px)}
+
+.gm-board-wrap{position:relative;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r-lg);padding:1rem;box-shadow:var(--shadow)}
+.gm-board{width:100%;max-width:560px;margin:0 auto}
+.gm-overlay{position:absolute;left:1rem;top:1rem;right:1rem;bottom:1rem;pointer-events:none;width:calc(100% - 2rem);height:calc(100% - 2rem);max-width:560px;margin:0 auto;z-index:5}
+.gm-overlay svg{display:block}
+.overlay-arrow{stroke-width:14;fill:none;stroke-linecap:round;opacity:.85;filter:drop-shadow(0 2px 6px rgba(0,0,0,.4))}
+.overlay-highlight{stroke-width:6;fill:rgba(255,255,255,.03);opacity:.95;filter:drop-shadow(0 0 8px currentColor)}
+.overlay-hand{font-size:42px;animation:gm-bob 1.2s ease-in-out infinite}
+@keyframes gm-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+
+.gm-status-box{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r-md);padding:.85rem 1.1rem;color:var(--muted2);font-size:.92rem;font-weight:500}
+
+/* ── Coach Panel ──────────────────────────────────────────────────────────── */
+.gm-side{display:flex;flex-direction:column;gap:1rem;position:sticky;top:1rem}
+.gm-coach-card{background:linear-gradient(180deg,var(--bg2),var(--bg3));border:1px solid var(--border2);border-radius:var(--r-lg);padding:1.1rem;box-shadow:var(--shadow),inset 0 1px 0 rgba(255,255,255,.04)}
+.gm-coach-head{display:flex;align-items:center;gap:.75rem;margin-bottom:.85rem}
+.gm-avatar{width:46px;height:46px;border-radius:var(--r-md);background:linear-gradient(135deg,var(--cyan),var(--purple));display:flex;align-items:center;justify-content:center;font-size:1.4rem;color:#000;flex-shrink:0;box-shadow:0 4px 12px var(--cyan-glow)}
+.gm-coach-meta{flex:1;min-width:0}
+.gm-coach-name{font-weight:800;font-size:.98rem;letter-spacing:-.01em}
+.gm-coach-status{font-size:.74rem;color:var(--muted2);margin-top:.1rem}
+.gm-eval-mini{background:var(--bg3);border:1px solid var(--border2);padding:.4rem .65rem;border-radius:var(--r-md);font-weight:800;font-size:.85rem;font-variant-numeric:tabular-nums;min-width:54px;text-align:center}
+.gm-eval-num{color:var(--cyan)}
+.gm-eval-bar-wrap{margin-bottom:.85rem}
+.gm-eval-bar-bg{background:var(--bg4);height:6px;border-radius:var(--r-full);overflow:hidden}
+.gm-eval-bar-fill{background:linear-gradient(90deg,var(--cyan),var(--purple));height:100%;transition:width .4s cubic-bezier(.4,0,.2,1);border-radius:var(--r-full)}
+
+.gm-coach-body{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r-md);padding:.9rem;min-height:130px;max-height:380px;overflow-y:auto}
+.gm-coach-body::-webkit-scrollbar{width:6px}
+.gm-coach-body::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+.gm-question-list{list-style:none;display:flex;flex-direction:column;gap:.55rem}
+.gm-question-list li{background:var(--bg2);border:1px solid var(--border);border-left:3px solid var(--cyan);padding:.65rem .8rem;border-radius:var(--r-sm);font-size:.86rem;line-height:1.5;animation:gm-slide-in .4s ease-out}
+.gm-question-list li.gm-q-empty{border-left-color:var(--border2);color:var(--muted2);font-style:italic}
+@keyframes gm-slide-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+
+.gm-feedback{margin-top:.6rem;padding:.7rem .85rem;border-radius:var(--r-sm);font-size:.86rem;line-height:1.5;border-left:3px solid var(--cyan);background:var(--cyan-dim);animation:gm-slide-in .4s ease-out}
+.gm-feedback.best{border-left-color:var(--green);background:rgba(0,230,118,.08)}
+.gm-feedback.ok{border-left-color:var(--cyan);background:var(--cyan-dim)}
+.gm-feedback.inaccuracy{border-left-color:var(--yellow);background:rgba(255,215,64,.08)}
+.gm-feedback.mistake{border-left-color:var(--orange);background:rgba(255,112,67,.1)}
+.gm-feedback.blunder{border-left-color:var(--red);background:rgba(255,68,102,.12)}
+
+.gm-coach-thinking{display:flex;align-items:center;gap:.35rem;color:var(--muted2);font-size:.78rem;padding:.4rem 0;margin-bottom:.4rem}
+.gm-dot-pulse{width:6px;height:6px;border-radius:50%;background:var(--cyan);animation:gm-pulse-dot 1s infinite ease-in-out}
+.gm-dot-pulse:nth-child(2){animation-delay:.15s}
+.gm-dot-pulse:nth-child(3){animation-delay:.3s}
+@keyframes gm-pulse-dot{0%,100%{opacity:.3;transform:scale(.85)}50%{opacity:1;transform:scale(1.1)}}
+
+.gm-coach-actions{display:flex;gap:.5rem;margin-top:.9rem;flex-wrap:wrap}
+.gm-action-btn{flex:1;min-width:90px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:.6rem .7rem;border-radius:var(--r-md);font-weight:600;font-size:.82rem;cursor:pointer;font-family:'Inter',sans-serif;transition:all var(--trans)}
+.gm-action-btn:hover:not(:disabled){background:var(--bg4);transform:translateY(-1px)}
+.gm-action-btn:disabled{opacity:.35;cursor:not-allowed}
+.gm-action-btn.hint{border-color:rgba(255,215,64,.4)}
+.gm-action-btn.hint:hover:not(:disabled){background:rgba(255,215,64,.1)}
+.gm-action-btn.explain{border-color:rgba(0,212,255,.4)}
+.gm-action-btn.explain:hover:not(:disabled){background:var(--cyan-dim)}
+.gm-action-btn.quiz{border-color:rgba(179,136,255,.4)}
+.gm-action-btn.quiz:hover:not(:disabled){background:rgba(179,136,255,.1)}
+.gm-action-btn.primary{background:linear-gradient(135deg,var(--cyan),var(--purple));color:#000;border:none;font-weight:700;box-shadow:0 4px 14px var(--cyan-glow)}
+.gm-action-btn.primary:hover:not(:disabled){transform:translateY(-1px)}
+.gm-action-btn.ghost{background:transparent;color:var(--muted2)}
+
+.gm-history-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r-lg);padding:1rem}
+.gm-card-label{font-size:.72rem;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:.65rem}
+.gm-move-history{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r-md);padding:.55rem;font-family:'JetBrains Mono','SF Mono',monospace;font-size:.82rem;max-height:200px;overflow-y:auto;min-height:60px}
+.gm-move-history::-webkit-scrollbar{width:6px}
+.gm-move-history::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+
+/* Existing bot-move-item / bot-row classes still work — keep compatible */
+.bot-move-item{display:grid;grid-template-columns:32px 1fr 1fr;gap:.4rem;padding:.25rem .35rem;border-radius:6px;align-items:center}
+.bot-move-item:hover{background:var(--bg4)}
+.bot-move-num{color:var(--muted);font-size:.78rem}
+.bot-move-w,.bot-move-b{color:var(--text);font-weight:600}
+
+/* ── MCQ Modal ────────────────────────────────────────────────────────────── */
+.mcq-modal{position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:9998;display:flex;align-items:center;justify-content:center;padding:1rem;backdrop-filter:blur(10px);animation:gm-fade .25s ease-out}
+.mcq-modal.hidden{display:none}
+@keyframes gm-fade{from{opacity:0}to{opacity:1}}
+.mcq-inner{background:linear-gradient(180deg,var(--bg2),var(--bg3));border:1px solid var(--border2);border-radius:var(--r-xl);padding:2rem;max-width:520px;width:100%;box-shadow:var(--shadow),0 0 60px rgba(0,212,255,.18);animation:gm-pop .35s cubic-bezier(.34,1.56,.64,1)}
+.postgame-inner{max-width:640px}
+@keyframes gm-pop{from{opacity:0;transform:scale(.92) translateY(20px)}to{opacity:1;transform:scale(1) translateY(0)}}
+.mcq-badge{display:inline-flex;align-items:center;gap:.4rem;background:var(--cyan-dim);color:var(--cyan);padding:.35rem .85rem;border-radius:var(--r-full);font-size:.74rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin-bottom:.85rem}
+.mcq-question{font-size:1.3rem;font-weight:800;line-height:1.35;margin-bottom:1.2rem;letter-spacing:-.01em}
+.mcq-options{display:flex;flex-direction:column;gap:.55rem;margin-bottom:1rem}
+.mcq-option{display:flex;align-items:center;gap:.7rem;background:var(--bg3);border:1.5px solid var(--border2);border-radius:var(--r-md);padding:.85rem 1rem;cursor:pointer;font-family:'JetBrains Mono','SF Mono',monospace;font-size:.92rem;font-weight:600;color:var(--text);transition:all var(--trans);text-align:left}
+.mcq-option:hover{border-color:var(--cyan);background:var(--cyan-dim);transform:translateX(2px)}
+.mcq-option .mcq-letter{width:26px;height:26px;border-radius:50%;background:var(--bg4);display:inline-flex;align-items:center;justify-content:center;font-size:.78rem;font-weight:700;color:var(--muted2);flex-shrink:0}
+.mcq-option.correct{border-color:var(--green);background:rgba(0,230,118,.12);color:var(--green)}
+.mcq-option.correct .mcq-letter{background:var(--green);color:#000}
+.mcq-option.wrong{border-color:var(--red);background:rgba(255,68,102,.12);color:var(--red)}
+.mcq-option.wrong .mcq-letter{background:var(--red);color:#000}
+.mcq-option.locked{pointer-events:none}
+.mcq-explanation{background:var(--bg3);border-left:3px solid var(--cyan);padding:.8rem 1rem;border-radius:var(--r-sm);font-size:.86rem;line-height:1.55;color:var(--muted2);margin-bottom:1rem}
+.mcq-footer{display:flex;justify-content:space-between;gap:.6rem;margin-top:.4rem}
+
+/* ── Post-game ───────────────────────────────────────────────────────────── */
+.postgame-loading{display:flex;flex-direction:column;align-items:center;gap:1rem;padding:2rem 0;color:var(--muted2);font-size:.88rem;text-align:center}
+.postgame-spinner{width:48px;height:48px;border:4px solid var(--border2);border-top-color:var(--cyan);border-radius:50%;animation:gm-spin 1s linear infinite}
+@keyframes gm-spin{to{transform:rotate(360deg)}}
+.postgame-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:.6rem;margin-bottom:1rem}
+.postgame-stat{background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r-md);padding:.7rem;text-align:center}
+.postgame-stat .n{font-size:1.4rem;font-weight:800;line-height:1}
+.postgame-stat .l{font-size:.7rem;color:var(--muted2);margin-top:.35rem;text-transform:uppercase;letter-spacing:.04em;font-weight:600}
+.postgame-stat.blunder .n{color:var(--red)}
+.postgame-stat.mistake .n{color:var(--orange)}
+.postgame-stat.inaccuracy .n{color:var(--yellow)}
+.postgame-stat.ok .n{color:var(--green)}
+.postgame-mistakes{max-height:240px;overflow-y:auto;display:flex;flex-direction:column;gap:.5rem;margin-bottom:.9rem}
+.postgame-mistakes::-webkit-scrollbar{width:6px}
+.postgame-mistakes::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+.postgame-row{display:grid;grid-template-columns:48px 1fr auto;gap:.7rem;align-items:center;background:var(--bg3);border:1px solid var(--border);border-left:3px solid var(--border2);border-radius:var(--r-sm);padding:.6rem .8rem;font-size:.85rem}
+.postgame-row.blunder{border-left-color:var(--red)}
+.postgame-row.mistake{border-left-color:var(--orange)}
+.postgame-row.inaccuracy{border-left-color:var(--yellow)}
+.postgame-row .pg-move{font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--muted2)}
+.postgame-row .pg-detail{font-family:'JetBrains Mono',monospace}
+.postgame-row .pg-detail .played{color:var(--red);font-weight:700}
+.postgame-row .pg-detail .best{color:var(--green);font-weight:700}
+.postgame-row .pg-drop{font-size:.72rem;color:var(--muted2);font-weight:600}
+.postgame-cta-note{font-size:.8rem;color:var(--muted2);text-align:center;line-height:1.5}
+
+/* ── Light theme tweaks ──────────────────────────────────────────────────── */
+[data-light="1"] .gm-coach-body,
+[data-light="1"] .gm-move-history{background:#fafafe}
+[data-light="1"] .gm-question-list li{background:#ffffff}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MODERN CHESSBOARD — overrides chessboard.js defaults for a crisp dark look
+   ═══════════════════════════════════════════════════════════════════════════ */
+#bot-board, #puzzle-board, #replay-board{width:100%;max-width:560px;margin:0 auto;border-radius:14px;overflow:hidden;box-shadow:0 18px 50px rgba(0,0,0,.5),0 0 0 1px var(--border2),0 0 60px rgba(0,212,255,.05)}
+#bot-board .board-b72b1,
+#puzzle-board .board-b72b1,
+#replay-board .board-b72b1{border:none;border-radius:14px;overflow:hidden}
+
+/* Square colors — modern dark slate with cool accent */
+#bot-board .white-1e1d7,
+#puzzle-board .white-1e1d7,
+#replay-board .white-1e1d7{background-color:#d6dbe3 !important;color:#1d2330 !important}
+#bot-board .black-3c85d,
+#puzzle-board .black-3c85d,
+#replay-board .black-3c85d{background-color:#5a6b85 !important;color:#d6dbe3 !important}
+[data-light="1"] #bot-board .white-1e1d7,
+[data-light="1"] #puzzle-board .white-1e1d7,
+[data-light="1"] #replay-board .white-1e1d7{background-color:#edf0f5 !important}
+[data-light="1"] #bot-board .black-3c85d,
+[data-light="1"] #puzzle-board .black-3c85d,
+[data-light="1"] #replay-board .black-3c85d{background-color:#7d8aa0 !important}
+
+/* Coordinate labels — subtle, modern */
+#bot-board .notation-322f9,
+#puzzle-board .notation-322f9,
+#replay-board .notation-322f9{font-family:'Inter',sans-serif !important;font-size:10px !important;font-weight:600 !important;letter-spacing:.04em;opacity:.55;padding:3px 5px !important}
+
+/* Smooth piece motion — chessboard.js uses inline transitions; reinforce */
+#bot-board .piece-417db,
+#puzzle-board .piece-417db,
+#replay-board .piece-417db{filter:drop-shadow(0 3px 4px rgba(0,0,0,.35));transition:filter .15s ease, transform .15s ease;will-change:transform}
+#bot-board .piece-417db:hover,
+#puzzle-board .piece-417db:hover{filter:drop-shadow(0 5px 8px rgba(0,0,0,.55)) brightness(1.06);transform:translateY(-1px) scale(1.02)}
+
+/* ── Move indicators (when piece is selected) ─────────────────────────────── */
+.cf-move-dot{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:30%;height:30%;border-radius:50%;background:radial-gradient(circle, rgba(0,212,255,.55) 0%, rgba(0,212,255,.35) 60%, rgba(0,212,255,0) 70%);pointer-events:none;z-index:8;animation:cf-dot-in .18s ease-out}
+.cf-move-ring{position:absolute;inset:5%;border:5px solid rgba(255,68,102,.85);border-radius:50%;pointer-events:none;z-index:8;box-sizing:border-box;animation:cf-ring-in .18s ease-out;background:radial-gradient(circle, transparent 55%, rgba(255,68,102,.18) 65%, transparent 70%)}
+.cf-selected{box-shadow:inset 0 0 0 5px rgba(0,212,255,.7), inset 0 0 22px rgba(0,212,255,.35) !important;background-image:radial-gradient(circle at center, rgba(0,212,255,.18), transparent 60%) !important}
+.cf-last-move{box-shadow:inset 0 0 0 3px rgba(255,215,64,.45) !important;background-image:linear-gradient(rgba(255,215,64,.16), rgba(255,215,64,.16)) !important}
+.cf-check{box-shadow:inset 0 0 0 4px rgba(255,68,102,.8), inset 0 0 30px rgba(255,68,102,.5) !important;animation:cf-check-pulse 1.4s infinite ease-in-out}
+
+@keyframes cf-dot-in{from{transform:translate(-50%,-50%) scale(.2);opacity:0}to{transform:translate(-50%,-50%) scale(1);opacity:1}}
+@keyframes cf-ring-in{from{transform:scale(.7);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes cf-check-pulse{0%,100%{box-shadow:inset 0 0 0 4px rgba(255,68,102,.85), inset 0 0 30px rgba(255,68,102,.55)}50%{box-shadow:inset 0 0 0 4px rgba(255,68,102,.55), inset 0 0 18px rgba(255,68,102,.3)}}
+
+/* On hover, show a subtle ring around hovered own-piece */
+.cf-hover-piece{box-shadow:inset 0 0 0 3px rgba(0,212,255,.45) !important}
+
+/* Squares need relative positioning for absolute dots */
+#bot-board .square-55d63,
+#puzzle-board .square-55d63,
+#replay-board .square-55d63{position:relative;transition:background-color .12s ease, box-shadow .14s ease}
