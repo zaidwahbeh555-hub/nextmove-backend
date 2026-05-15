@@ -1065,6 +1065,395 @@ def coach_position():
     except Exception as e:
         return jsonify({"message": "Think carefully before moving.", "eval": 0})
 
+# ── GM Coach helpers ───────────────────────────────────────────────────────────
+PIECE_NAMES = {chess.PAWN:"pawn",chess.KNIGHT:"knight",chess.BISHOP:"bishop",chess.ROOK:"rook",chess.QUEEN:"queen",chess.KING:"king"}
+PIECE_VALS  = {chess.PAWN:1,chess.KNIGHT:3,chess.BISHOP:3,chess.ROOK:5,chess.QUEEN:9,chess.KING:99}
+
+def piece_label(piece):
+    if not piece: return "piece"
+    return PIECE_NAMES.get(piece.piece_type,"piece")
+
+def find_loose_pieces(board, color):
+    """Pieces of `color` where attackers > defenders, or the cheapest attacker is worth less than the piece."""
+    out = []
+    for sq in chess.SQUARES:
+        p = board.piece_at(sq)
+        if not p or p.color != color or p.piece_type == chess.KING: continue
+        attackers = list(board.attackers(not color, sq))
+        if not attackers: continue
+        defenders = list(board.attackers(color, sq))
+        if len(attackers) > len(defenders):
+            out.append((sq, p)); continue
+        min_att_vals = [PIECE_VALS.get(board.piece_at(a).piece_type, 9) for a in attackers if board.piece_at(a)]
+        if min_att_vals and min(min_att_vals) < PIECE_VALS.get(p.piece_type, 9):
+            out.append((sq, p))
+    return out
+
+def classify_move_severity(drop_cp):
+    if drop_cp >= 300: return "blunder"
+    if drop_cp >= 150: return "mistake"
+    if drop_cp >= 60:  return "inaccuracy"
+    if drop_cp >= 20:  return "ok"
+    return "best"
+
+def build_arrow(move, color="#ff7043"):
+    if not move: return None
+    u = move.uci()
+    return {"from": u[:2], "to": u[2:4], "color": color}
+
+def square_highlight(sq, color, label=""):
+    return {"square": chess.square_name(sq), "color": color, "label": label}
+
+def analyse_pv(engine, board, depth=12, multipv=3):
+    """Return list of dicts: [{move, san, score_cp, pv_san}] best first."""
+    try:
+        info = engine.analyse(board, chess.engine.Limit(depth=depth), multipv=multipv)
+    except Exception:
+        return []
+    items = info if isinstance(info, list) else [info]
+    out = []
+    for i in items:
+        pv = i.get("pv", [])
+        if not pv: continue
+        mv = pv[0]
+        try: san = board.san(mv)
+        except Exception: san = mv.uci()
+        cp = None
+        sc = i.get("score")
+        if sc is not None:
+            cp = sc.white().score(mate_score=10000)
+        try:
+            tmp = board.copy(); sans=[]
+            for m in pv[:4]:
+                if m in tmp.legal_moves: sans.append(tmp.san(m)); tmp.push(m)
+            pv_san = " ".join(sans)
+        except Exception:
+            pv_san = san
+        out.append({"move": mv, "san": san, "score_cp": cp, "pv_san": pv_san})
+    return out
+
+def build_socratic_question(board, weaknesses, last_bot_san, top_lines):
+    player_turn = board.turn
+    nudges, arrows, highlights = [], [], []
+
+    if last_bot_san:
+        nudges.append(f"Opponent just played {last_bot_san}. Pause — what does that piece attack now? What did it leave behind?")
+
+    my_loose = find_loose_pieces(board, player_turn)
+    if my_loose:
+        sq, p = my_loose[0]
+        nudges.append(f"⚠️ Look at your {piece_label(p)} on {chess.square_name(sq)} — count attackers vs defenders before anything else.")
+        highlights.append(square_highlight(sq, "#ff4d4d", "vulnerable"))
+
+    opp_loose = find_loose_pieces(board, not player_turn)
+    if opp_loose:
+        sq, p = opp_loose[0]
+        nudges.append(f"👀 Their {piece_label(p)} on {chess.square_name(sq)} looks loose. Can you win it — or use the threat?")
+        highlights.append(square_highlight(sq, "#26d07c", "target"))
+
+    if board.has_castling_rights(player_turn) and board.fullmove_number > 8 and not my_loose:
+        nudges.append("Your king is still uncastled past move 8 — is that really safe right now?")
+
+    if board.is_check():
+        nudges.append("You're in check. First priority: king to safety. List your three legal options before moving.")
+
+    if top_lines:
+        best = top_lines[0]
+        cp = best.get("score_cp") or 0
+        sign = 1 if player_turn == chess.WHITE else -1
+        my_cp = cp * sign
+        if len(top_lines) >= 2:
+            second_cp = (top_lines[1].get("score_cp") or 0) * sign
+            if (my_cp - second_cp) >= 120:
+                nudges.append("💡 There's one clearly best move here — concrete, not vague. Scan checks, captures and threats.")
+                arrows.append(build_arrow(best["move"], "#26d07c"))
+
+    if "Hanging piece" in weaknesses and not my_loose:
+        nudges.append("Your pattern: hanging pieces. Run LPDO — point at every piece, confirm it's defended.")
+    if "Missed tactic" in weaknesses:
+        nudges.append("Your pattern: missed tactics. Three questions every move — checks? captures? threats?")
+    if "Early queen development" in weaknesses and board.fullmove_number < 10:
+        for sq in chess.SQUARES:
+            p = board.piece_at(sq)
+            if p and p.color == player_turn and p.piece_type == chess.QUEEN and sq not in (chess.D1, chess.D8):
+                nudges.append("Your queen is out early. Every time you defend it, your opponent develops for free.")
+                break
+
+    if not nudges:
+        nudges.append("Quiet position. Which is your worst-placed piece? What's the plan for the next 3 moves?")
+
+    return {"questions": nudges[:4], "arrows": arrows, "highlights": highlights}
+
+def generate_distractors(board, best_move, top_lines):
+    distractors = []
+    for ln in top_lines[1:]:
+        if ln["move"] != best_move and ln["san"] not in distractors:
+            distractors.append(ln["san"])
+        if len(distractors) >= 2: break
+    legal = list(board.legal_moves); random.shuffle(legal)
+    for m in legal:
+        if m == best_move: continue
+        try: san = board.san(m)
+        except Exception: continue
+        if san in distractors: continue
+        if board.is_capture(m) or board.gives_check(m):
+            distractors.append(san)
+        if len(distractors) >= 3: break
+    for m in legal:
+        if m == best_move: continue
+        try: san = board.san(m)
+        except Exception: continue
+        if san not in distractors:
+            distractors.append(san)
+        if len(distractors) >= 3: break
+    return distractors[:3]
+
+def maybe_build_mcq(board, top_lines):
+    if len(top_lines) < 2: return None
+    best, second = top_lines[0], top_lines[1]
+    cp1 = best.get("score_cp") or 0
+    cp2 = second.get("score_cp") or 0
+    sign = 1 if board.turn == chess.WHITE else -1
+    gap = (cp1 - cp2) * sign
+    if gap < 100: return None
+    distractors = generate_distractors(board, best["move"], top_lines)
+    options = [best["san"]] + distractors
+    random.shuffle(options)
+    correct_index = options.index(best["san"])
+    return {
+        "question": "Which move is best in this position?",
+        "options": options,
+        "correct_index": correct_index,
+        "explanation": f"Best is {best['san']} — engine line: {best['pv_san']}.",
+    }
+
+@app.route("/coach-question", methods=["POST"])
+def coach_question():
+    """Socratic GM-style prompt + visual arrows for the current position."""
+    data = request.get_json(silent=True) or {}
+    fen = data.get("fen","")
+    weaknesses = data.get("weaknesses", [])
+    last_bot_san = data.get("last_bot_san", "")
+    sf = find_stockfish()
+    if not sf or not fen:
+        return jsonify({"questions":["Take your time."],"arrows":[],"highlights":[],"eval":0,"mcq":None})
+    try: board = chess.Board(fen)
+    except Exception:
+        return jsonify({"questions":["(Position unreadable)"],"arrows":[],"highlights":[],"eval":0,"mcq":None})
+    try:
+        with chess.engine.SimpleEngine.popen_uci(sf) as engine:
+            engine.configure({"Threads":1,"Hash":32})
+            top_lines = analyse_pv(engine, board, depth=11, multipv=3)
+        sc = (top_lines[0].get("score_cp") if top_lines else 0) or 0
+        eval_pawns = round(sc/100, 1)
+        socratic = build_socratic_question(board, weaknesses, last_bot_san, top_lines)
+        mcq = maybe_build_mcq(board, top_lines)
+        return jsonify({
+            "questions": socratic["questions"],
+            "arrows": socratic["arrows"],
+            "highlights": socratic["highlights"],
+            "eval": eval_pawns,
+            "best_move_san": top_lines[0]["san"] if top_lines else None,
+            "mcq": mcq,
+            "turn": "white" if board.turn == chess.WHITE else "black",
+        })
+    except Exception:
+        return jsonify({"questions":["Stay calm — what is your opponent threatening?"],"arrows":[],"highlights":[],"eval":0,"mcq":None})
+
+@app.route("/coach-move-feedback", methods=["POST"])
+def coach_move_feedback():
+    """Analyse the move the player just played. Returns severity + arrows + commentary + optional MCQ."""
+    data = request.get_json(silent=True) or {}
+    fen_before = data.get("fen_before","")
+    san_played = data.get("san_played","")
+    weaknesses = data.get("weaknesses", [])
+    sf = find_stockfish()
+    if not sf or not fen_before or not san_played:
+        return jsonify({"severity":"ok","commentary":"Keep playing.","arrows":[],"highlights":[]})
+    try:
+        board = chess.Board(fen_before)
+        move = board.parse_san(san_played)
+    except Exception:
+        return jsonify({"severity":"ok","commentary":"Keep playing.","arrows":[],"highlights":[]})
+    player_color = board.turn
+    try:
+        with chess.engine.SimpleEngine.popen_uci(sf) as engine:
+            engine.configure({"Threads":1,"Hash":32})
+            top_before = analyse_pv(engine, board, depth=12, multipv=2)
+            score_before = (top_before[0].get("score_cp") if top_before else 0) or 0
+            best_move = top_before[0]["move"] if top_before else None
+            best_san = top_before[0]["san"] if top_before else None
+            best_pv = top_before[0]["pv_san"] if top_before else ""
+            board2 = board.copy(); board2.push(move)
+            info_after = engine.analyse(board2, chess.engine.Limit(depth=12))
+            score_after = info_after["score"].white().score(mate_score=10000) or 0
+            opp_san = None; opp_best = None
+            try:
+                opp_pv = info_after.get("pv",[])
+                opp_best = opp_pv[0] if opp_pv else None
+                if opp_best and opp_best in board2.legal_moves:
+                    opp_san = board2.san(opp_best)
+            except Exception: pass
+
+        if player_color == chess.WHITE:
+            drop = max(score_before - score_after, 0)
+        else:
+            drop = max(score_after - score_before, 0)
+        severity = classify_move_severity(drop)
+
+        arrows, highlights, parts = [], [], []
+        if severity == "best":
+            parts.append(f"✅ Excellent — {san_played} was the engine's top move.")
+            if best_pv: parts.append(f"Line: {best_pv}.")
+        elif severity == "ok":
+            parts.append(f"👍 {san_played} is solid.")
+            if best_san and best_san != san_played:
+                parts.append(f"Engine's slight preference: {best_san}.")
+        elif severity == "inaccuracy":
+            parts.append(f"🟡 Inaccuracy — {san_played} gives back a small edge.")
+            if best_san:
+                parts.append(f"Stronger was {best_san} ({best_pv}). Look again — see why?")
+                arrows.append(build_arrow(best_move, "#f4c542"))
+        elif severity == "mistake":
+            parts.append(f"❌ Mistake — {san_played} costs about {drop//100}.{(drop%100)//10} pawns.")
+            if best_san:
+                parts.append(f"The position needed {best_san}. Engine line: {best_pv}.")
+                arrows.append(build_arrow(best_move, "#ff9800"))
+            if opp_san:
+                parts.append(f"Your opponent will now play {opp_san} — that's the trouble.")
+        elif severity == "blunder":
+            parts.append(f"🛑 Blunder — {san_played} loses {drop//100}+ pawns.")
+            if best_san:
+                parts.append(f"You needed {best_san} ({best_pv}).")
+                arrows.append(build_arrow(best_move, "#ff4444"))
+            if opp_san:
+                parts.append(f"Opponent will punish with {opp_san}.")
+            if "Hanging piece" in weaknesses:
+                parts.append("Pattern check: LPDO — was every one of your pieces defended before you moved?")
+            elif "Missed tactic" in weaknesses:
+                parts.append("Pattern check: did you scan checks, captures and threats before committing?")
+
+        mcq = None
+        if severity in ("blunder","mistake") and top_before and best_san:
+            distractors = generate_distractors(board, best_move, top_before)
+            options = [best_san] + distractors
+            random.shuffle(options)
+            correct_index = options.index(best_san)
+            mcq = {
+                "question": f"You played {san_played}. What was the better move?",
+                "options": options,
+                "correct_index": correct_index,
+                "explanation": f"Best was {best_san}. Engine line: {best_pv}.",
+            }
+
+        return jsonify({
+            "severity": severity,
+            "drop_cp": int(drop),
+            "eval_after": round(score_after/100, 1),
+            "best_move_san": best_san,
+            "best_pv": best_pv,
+            "commentary": " ".join(parts),
+            "arrows": arrows,
+            "highlights": highlights,
+            "mcq": mcq,
+            "opp_best_san": opp_san,
+        })
+    except Exception:
+        return jsonify({"severity":"ok","commentary":"(Analysis hiccup) Keep playing.","arrows":[],"highlights":[]})
+
+@app.route("/analyze-bot-game", methods=["POST"])
+def analyze_bot_game():
+    """Quick post-game review of a bot game. Returns mistakes + auto-generated puzzles from THIS game."""
+    data = request.get_json(silent=True) or {}
+    pgn = data.get("pgn","").strip()
+    player_color = (data.get("player_color","") or "").strip().lower()
+    if player_color not in ("white","black"):
+        return jsonify({"error":"player_color must be white or black"}), 400
+    if not pgn: return jsonify({"error":"PGN required"}), 400
+    sf = find_stockfish()
+    if not sf: return jsonify({"error":"Engine unavailable"}), 500
+    try:
+        game = chess.pgn.read_game(io.StringIO(pgn))
+        if not game: return jsonify({"error":"Could not parse PGN"}), 400
+    except Exception:
+        return jsonify({"error":"Bad PGN"}), 400
+
+    board = game.board()
+    player_mistakes, move_reviews = [], []
+    POST_DEPTH = 10
+    try:
+        with chess.engine.SimpleEngine.popen_uci(sf) as engine:
+            engine.configure({"Threads":2,"Hash":64})
+            for ply, move in enumerate(game.mainline_moves()):
+                side = "white" if board.turn == chess.WHITE else "black"
+                fen_before = board.fen()
+                is_player = (side == player_color)
+                if is_player:
+                    info_b = engine.analyse(board, chess.engine.Limit(depth=POST_DEPTH))
+                    sb = info_b["score"].white().score(mate_score=10000) or 0
+                    pv = info_b.get("pv",[])
+                    best_san, best_pv = None, ""
+                    if pv and pv[0] in board.legal_moves:
+                        best_san = board.san(pv[0])
+                        try:
+                            tmp = board.copy(); sans=[]
+                            for m in pv[:4]:
+                                if m in tmp.legal_moves: sans.append(tmp.san(m)); tmp.push(m)
+                            best_pv = " ".join(sans)
+                        except Exception: best_pv = best_san
+                    san_played = board.san(move)
+                    board.push(move)
+                    info_a = engine.analyse(board, chess.engine.Limit(depth=POST_DEPTH))
+                    sa = info_a["score"].white().score(mate_score=10000) or 0
+                    drop = (sb - sa) if side=="white" else (sa - sb)
+                    drop = max(int(drop), 0)
+                    sev = classify_move_severity(drop)
+                    move_reviews.append({
+                        "ply": ply, "move_number": ply//2+1, "side": side,
+                        "san": san_played, "severity": sev, "drop_cp": drop,
+                        "best_move": best_san, "best_pv": best_pv,
+                        "fen_before": fen_before,
+                    })
+                    if sev in ("blunder","mistake","inaccuracy"):
+                        player_mistakes.append({
+                            "ply": ply, "move_number": ply//2+1,
+                            "san": san_played, "severity": sev, "drop_cp": drop,
+                            "best_move": best_san, "best_pv": best_pv,
+                            "fen_before": fen_before, "side": side,
+                        })
+                else:
+                    board.push(move)
+    except Exception as e:
+        return jsonify({"error":f"Engine error: {e}"}), 500
+
+    sorted_m = sorted(player_mistakes, key=lambda m: -m["drop_cp"])
+    puzzles = []
+    for m in sorted_m[:8]:
+        if not m["best_move"]: continue
+        puzzles.append({
+            "fen": m["fen_before"],
+            "solution": m["best_move"],
+            "move_played": m["san"],
+            "phase": get_phase(m["move_number"]),
+            "pattern": "From your game",
+            "drop_cp": m["drop_cp"],
+            "side": m["side"],
+            "threat_desc": f"In your game you played {m['san']}. Engine wanted {m['best_move']} ({m['best_pv']}).",
+            "from_bot_game": True,
+        })
+
+    counts = {"blunder":0,"mistake":0,"inaccuracy":0,"ok":0,"best":0}
+    for r in move_reviews: counts[r["severity"]] = counts.get(r["severity"],0)+1
+
+    return jsonify({
+        "ok": True,
+        "move_reviews": move_reviews,
+        "mistakes": sorted_m,
+        "puzzles": puzzles,
+        "counts": counts,
+        "total_player_moves": len(move_reviews),
+    })
+
 @app.route("/health")
 def health():
     sf=find_stockfish()
