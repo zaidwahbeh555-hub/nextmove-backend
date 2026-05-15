@@ -1225,25 +1225,29 @@ function startBotGame(){
   BotState.moveHistory = [];
   BotState.gameActive = true;
   BotState.thinking = false;
+  BotState.lastBotSan = '';
+  BotState.lastPlayerMove = null;
+  BotState.lastBotMove = null;
   BotState.board.orientation(BotState.playerColor);
   BotState.board.position('start', false);
   document.getElementById('bot-move-history').innerHTML = '';
   document.getElementById('bot-review-card').classList.add('hidden');
+  BoardOverlay.setOrientation(BotState.playerColor);
+  setTimeout(()=>BoardOverlay.syncSize(), 80);
+  BoardOverlay.clear();
+  Coach.reset();
   const estElo = getEloFromAnalysis();
-  const eloStr = estElo ? ` (~${estElo} ELO)` : '';
-  setBotStatus('Game started!' + eloStr + ' ' + (BotState.playerColor==='white' ? 'You play White — make your move!' : 'You play Black — bot is thinking...'));
+  const eloStr = estElo ? ` · ~${estElo} ELO` : '';
+  setBotStatus('Game on' + eloStr + (BotState.playerColor==='white' ? ' — you play White, make your move!' : ' — you play Black, bot is moving…'));
   enableCoachButtons(true);
   if(State.coachMode==='coached'){
-    setCoachMessage('Game started! I am watching your position...', '');
-    document.getElementById('coach-status-label').textContent = 'Active';
+    Coach.setStatus('Watching the board');
+    Coach.renderQuestions(['Game on. Take your time before every move — I\'ll be asking questions and pointing things out.']);
+    // If player to move first (white), kick off coach question immediately
+    if(BotState.playerColor === 'white'){
+      setTimeout(()=>Coach.afterBotMove(''), 350);
+    }
   }
-  // Update bot info card
-  const botDesc = document.querySelector('.bot-desc');
-  if(botDesc) botDesc.textContent = estElo ? 
-    'Playing at approximately ' + estElo + ' ELO — calibrated from your analysed games. I will target your specific weaknesses.' :
-    'Analyse a game first so I can calibrate to your level.';
-
-  // If player is black, bot plays first
   if(BotState.playerColor === 'black'){
     setTimeout(makeBotMove, 800);
   }
@@ -1252,50 +1256,114 @@ function startBotGame(){
 function handleBotSquareClick(square){
   if(!BotState.gameActive || BotState.thinking) return;
   if(BotState.game.turn() !== BotState.playerColor[0]) return;
-  clearBotHighlights();
   const piece = BotState.game.get(square);
-  if(BotState.selectedSquare === square){ BotState.selectedSquare = null; return; }
-  if(BotState.selectedSquare){
-    const src = BotState.selectedSquare; BotState.selectedSquare = null;
-    const mv = BotState.game.move({from:src, to:square, promotion:'q'});
-    if(mv){ BotState.board.position(BotState.game.fen()); addBotMove(mv.san, src+square); checkBotGameOver(); if(!BotState.game.game_over()) setTimeout(makeBotMove, 600); }
-    else if(piece && piece.color === BotState.playerColor[0]){ BotState.selectedSquare = square; highlightBotMoves(square); }
+  // Same square clicked → deselect
+  if(BotState.selectedSquare === square){
+    BotState.selectedSquare = null;
+    clearBotHighlights(); paintLastMove();
     return;
   }
-  if(piece && piece.color === BotState.playerColor[0]){ BotState.selectedSquare = square; highlightBotMoves(square); }
+  // We have a selection and clicked a target
+  if(BotState.selectedSquare){
+    const src = BotState.selectedSquare;
+    const mv = BotState.game.move({from:src, to:square, promotion:'q'});
+    if(mv){
+      BotState.selectedSquare = null;
+      const fenBefore = (function(){ const t=new Chess(); t.load(BotState.game.fen()); t.undo(); return t.fen(); })();
+      ChessSFX.playMove(mv);
+      BotState.board.position(BotState.game.fen());
+      BotState.lastPlayerMove = {from: src, to: square};
+      clearBotHighlights(); paintLastMove();
+      addBotMove(mv.san, src+square);
+      BoardOverlay.clear();
+      if(State.coachMode==='coached') Coach.afterPlayerMove(fenBefore, mv.san);
+      checkBotGameOver();
+      if(!BotState.game.game_over()) setTimeout(makeBotMove, State.coachMode==='coached' ? 1200 : 600);
+      return;
+    }
+    // Not a legal move — if clicked own piece, switch selection
+    if(piece && piece.color === BotState.playerColor[0]){
+      BotState.selectedSquare = square;
+      clearBotHighlights(); paintLastMove();
+      highlightBotMoves(square);
+      ChessSFX.playSelect();
+      return;
+    }
+    // Clicked empty/enemy square that's not a legal target → just deselect
+    BotState.selectedSquare = null;
+    clearBotHighlights(); paintLastMove();
+    return;
+  }
+  // No prior selection — select if it's our piece
+  if(piece && piece.color === BotState.playerColor[0]){
+    BotState.selectedSquare = square;
+    clearBotHighlights(); paintLastMove();
+    highlightBotMoves(square);
+    ChessSFX.playSelect();
+  }
 }
 
 function highlightBotMoves(square){
   const moves = BotState.game.moves({square, verbose:true});
-  document.querySelectorAll(`#bot-board [data-square="${square}"]`).forEach(el=>el.style.boxShadow='inset 0 0 0 4px rgba(0,212,255,.9)');
+  // Selected square ring
+  document.querySelectorAll(`#bot-board [data-square="${square}"]`).forEach(el=>el.classList.add('cf-selected'));
   moves.forEach(m=>{
     document.querySelectorAll(`#bot-board [data-square="${m.to}"]`).forEach(el=>{
-      const dot = document.createElement('div');
-      dot.className = 'bot-dot';
-      dot.style.cssText = 'position:absolute;width:30%;height:30%;background:rgba(0,212,255,.5);border-radius:50%;top:35%;left:35%;pointer-events:none;z-index:10';
-      el.style.position = 'relative'; el.appendChild(dot);
+      const isCapture = !!BotState.game.get(m.to) || m.flags.includes('e');
+      const mark = document.createElement('div');
+      mark.className = isCapture ? 'cf-move-ring' : 'cf-move-dot';
+      el.appendChild(mark);
     });
   });
 }
 
 function clearBotHighlights(){
-  document.querySelectorAll('#bot-board [data-square]').forEach(el=>el.style.boxShadow='');
-  document.querySelectorAll('.bot-dot').forEach(el=>el.remove());
-  BotState.selectedSquare = null;
+  document.querySelectorAll('#bot-board .cf-selected').forEach(el=>el.classList.remove('cf-selected'));
+  document.querySelectorAll('#bot-board .cf-check').forEach(el=>el.classList.remove('cf-check'));
+  document.querySelectorAll('#bot-board .cf-move-dot, #bot-board .cf-move-ring').forEach(el=>el.remove());
+  // also clear any stale inline boxShadow from older code
+  document.querySelectorAll('#bot-board [data-square]').forEach(el=>{ if(el.style.boxShadow) el.style.boxShadow=''; });
+}
+
+function paintLastMove(){
+  document.querySelectorAll('#bot-board .cf-last-move').forEach(el=>el.classList.remove('cf-last-move'));
+  const m = BotState.lastPlayerMove || BotState.lastBotMove;
+  if(!m) return;
+  document.querySelectorAll(`#bot-board [data-square="${m.from}"], #bot-board [data-square="${m.to}"]`).forEach(el=>el.classList.add('cf-last-move'));
+  // King-in-check glow
+  if(BotState.game && BotState.game.in_check()){
+    const turn = BotState.game.turn();
+    // Find king square of side to move
+    for(const f of 'abcdefgh'){
+      for(let r=1;r<=8;r++){
+        const sq = f+r;
+        const p = BotState.game.get(sq);
+        if(p && p.type==='k' && p.color===turn){
+          document.querySelectorAll(`#bot-board [data-square="${sq}"]`).forEach(el=>el.classList.add('cf-check'));
+        }
+      }
+    }
+  }
 }
 
 function handleBotDrop(src, tgt){
   if(!BotState.gameActive || BotState.thinking) return 'snapback';
   if(BotState.game.turn() !== BotState.playerColor[0]) return 'snapback';
-  clearBotHighlights();
+  const fenBefore = BotState.game.fen();
   const mv = BotState.game.move({from:src, to:tgt, promotion:'q'});
   if(!mv) return 'snapback';
+  ChessSFX.playMove(mv);
+  BotState.selectedSquare = null;
+  BotState.lastPlayerMove = {from: src, to: tgt};
+  clearBotHighlights(); paintLastMove();
+  BoardOverlay.clear();
   addBotMove(mv.san, src+tgt);
+  if(State.coachMode==='coached'){
+    Coach.afterPlayerMove(fenBefore, mv.san);
+  }
   checkBotGameOver();
   if(!BotState.game.game_over()){
-    // Get coach message for position after player move
-    if(State.coachMode==='coached') setTimeout(()=>fetchCoachMessage('nudge'), 300);
-    setTimeout(makeBotMove, 800);
+    setTimeout(makeBotMove, State.coachMode==='coached' ? 1200 : 700);
   }
 }
 
@@ -1314,14 +1382,20 @@ async function makeBotMove(){
     if(d.error || !d.move){ setBotStatus('Bot error — your turn!'); BotState.thinking=false; return; }
     const mv = BotState.game.move({from:d.move.slice(0,2), to:d.move.slice(2,4), promotion:'q'});
     if(mv){
-      BotState.board.position(BotState.game.fen(), false);
+      BotState.board.position(BotState.game.fen(), true);
+      ChessSFX.playMove(mv);
       addBotMove(mv.san, d.move, true);
+      BotState.lastBotSan = mv.san;
+      BotState.lastBotMove = {from: d.move.slice(0,2), to: d.move.slice(2,4)};
+      BotState.lastPlayerMove = null; // bot move takes precedence visually
+      setTimeout(()=>paintLastMove(), 220);
       if(d.in_check){
         setBotStatus('♟ Bot played ' + mv.san + ' — You are in CHECK!');
-        if(State.coachMode==='coached') setCoachMessage('⚠️ You are in check! Deal with it before anything else.', 'warning');
       } else {
-        setBotStatus('♟ Bot played ' + mv.san + ' — Your turn!');
-        if(State.coachMode==='coached') setTimeout(()=>fetchCoachMessage('nudge'), 400);
+        setBotStatus('♟ Bot played ' + mv.san + ' — Your turn.');
+      }
+      if(State.coachMode==='coached' && !BotState.game.game_over()){
+        setTimeout(()=>Coach.afterBotMove(mv.san), 350);
       }
       checkBotGameOver();
     }
@@ -1350,16 +1424,22 @@ function checkBotGameOver(){
   if(!BotState.game.game_over()) return;
   BotState.gameActive = false;
   enableCoachButtons(false);
-  setCoachMessage('Game over! Review the game below and use the Copy PGN button to analyse it in the Analyze tab.', '');
+  BoardOverlay.clear();
   let result = '';
   if(BotState.game.in_checkmate()){
     const winner = BotState.game.turn() === 'w' ? 'Black' : 'White';
     const playerWon = (winner === 'White' && BotState.playerColor === 'white') || (winner === 'Black' && BotState.playerColor === 'black');
-    result = playerWon ? '🎉 You won by checkmate!' : '😔 Bot won by checkmate. Review the game and analyse where it went wrong.';
+    result = playerWon ? '🎉 You won by checkmate!' : '😔 Bot won by checkmate.';
   } else if(BotState.game.in_stalemate()){ result = '½ Stalemate — draw!'; }
   else if(BotState.game.in_draw()){ result = '½ Draw!'; }
   setBotStatus(result);
+  Coach.setStatus('Game over');
+  Coach.renderQuestions(['Game over. Click "Train These Positions" when the review finishes — those puzzles come from THIS game.']);
   showBotReview();
+  // Auto-launch post-game review
+  if(State.coachMode==='coached'){
+    setTimeout(()=>runPostgameReview(), 600);
+  }
 }
 
 function getBotPGN(){
@@ -1757,87 +1837,460 @@ function setBotMode(mode){
   document.getElementById('mode-coached').classList.toggle('active', mode==='coached');
   document.getElementById('mode-free').classList.toggle('active', mode==='free');
   const panel = document.getElementById('coach-panel');
-  if(panel) panel.style.opacity = mode==='coached' ? '1' : '0.4';
-  const msg = document.getElementById('coach-message');
-  if(msg) msg.textContent = mode==='coached' 
-    ? 'Start a new game — I will coach you through every position based on your weakness profile.'
-    : 'Free play mode — no hints. Just play your best chess.';
+  if(panel) panel.style.opacity = mode==='coached' ? '1' : '0.55';
+  Coach.renderQuestions([
+    mode==='coached'
+      ? 'Coached mode active. I\'ll ask questions and point at the board on every move.'
+      : 'Free play mode — no hints. Just play your best chess.'
+  ]);
 }
 
 function initCoachPage(){
-  // Reuse existing initBotPage but point to new page elements
   if(!document.getElementById('bot-board')) return;
   if(BotState.board) return;
   BotState.board = Chessboard('bot-board', {
     position: 'start',
     draggable: true,
     pieceTheme: PIECE_THEME,
+    moveSpeed: 180,
+    snapSpeed: 80,
+    snapbackSpeed: 140,
+    appearSpeed: 140,
+    onDragStart: (src, piece)=>{
+      if(!BotState.gameActive || BotState.thinking) return false;
+      if(BotState.game.turn() !== BotState.playerColor[0]) return false;
+      if(piece[0] !== BotState.playerColor[0]) return false;
+      BotState.selectedSquare = src;
+      clearBotHighlights(); paintLastMove();
+      highlightBotMoves(src);
+    },
     onDrop: handleBotDrop,
-    onSnapEnd: ()=>{ if(BotState.game) BotState.board.position(BotState.game.fen()); },
+    onSnapEnd: ()=>{ if(BotState.game) BotState.board.position(BotState.game.fen()); paintLastMove(); },
     onSquareClick: handleBotSquareClick,
     onMouseoverSquare: sq=>{
-      if(BotState.selectedSquare||!BotState.game||BotState.game.turn()!==BotState.playerColor[0]) return;
+      if(BotState.selectedSquare || !BotState.gameActive) return;
+      if(BotState.game.turn() !== BotState.playerColor[0]) return;
       const p = BotState.game.get(sq);
-      if(p && p.color===BotState.playerColor[0]){
-        const el = document.querySelector('#bot-board .square-'+sq);
-        if(el) el.style.boxShadow = 'inset 0 0 0 3px rgba(0,212,255,.6)';
+      if(p && p.color === BotState.playerColor[0]){
+        document.querySelectorAll(`#bot-board [data-square="${sq}"]`).forEach(el=>el.classList.add('cf-hover-piece'));
       }
     },
     onMouseoutSquare: sq=>{
-      if(BotState.selectedSquare===sq) return;
-      const el = document.querySelector('#bot-board .square-'+sq);
-      if(el) el.style.boxShadow = '';
+      document.querySelectorAll(`#bot-board [data-square="${sq}"]`).forEach(el=>el.classList.remove('cf-hover-piece'));
     }
   });
   if(State.analysisData){
     BotState.weaknesses = (State.analysisData.top_weaknesses||[]).map(([n])=>n);
   }
+  BoardOverlay.init('bot-board','gm-overlay');
+  window.addEventListener('resize', ()=>{ BoardOverlay.repaint(); if(BotState.board) BotState.board.resize(); });
 }
 
-async function fetchCoachMessage(type='nudge'){
-  if(!BotState.game || !BotState.gameActive) return;
-  if(State.coachMode !== 'coached') return;
-  const fen = BotState.game.fen();
-  try{
-    const r = await fetch('/coach-position', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({fen, weaknesses: BotState.weaknesses, type}),
-      credentials:'include'
-    });
-    const d = await r.json();
-    setCoachMessage(d.message, d.warning ? 'warning' : type==='hint'?'hint':'');
-    updateEvalBar(d.eval || 0);
-  }catch(e){}
-}
-
-function setCoachMessage(msg, style=''){
-  const box = document.getElementById('coach-message');
-  if(!box) return;
-  box.textContent = msg;
-  box.className = 'coach-message-box' + (style ? ' '+style : '');
-  document.getElementById('coach-status-label').textContent = 'Watching your position...';
-}
+/* ── Chessboard SFX (Web Audio — no asset needed) ─────────────────────────── */
+const ChessSFX = (function(){
+  let ctx=null, enabled=true;
+  function getCtx(){
+    if(!ctx){
+      try{ ctx = new (window.AudioContext || window.webkitAudioContext)(); }catch(e){ ctx=null; }
+    }
+    return ctx;
+  }
+  function tone(freq, duration, type='sine', gainV=0.08, attack=0.005, decay=null){
+    if(!enabled) return;
+    const c = getCtx(); if(!c) return;
+    try{
+      const o = c.createOscillator();
+      const g = c.createGain();
+      o.type = type;
+      o.frequency.setValueAtTime(freq, c.currentTime);
+      g.gain.setValueAtTime(0, c.currentTime);
+      g.gain.linearRampToValueAtTime(gainV, c.currentTime + attack);
+      g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + duration);
+      o.connect(g).connect(c.destination);
+      o.start(); o.stop(c.currentTime + duration + 0.02);
+    }catch(e){}
+  }
+  function noiseBurst(duration=0.05, gainV=0.06){
+    if(!enabled) return;
+    const c = getCtx(); if(!c) return;
+    try{
+      const bufferSize = Math.floor(c.sampleRate * duration);
+      const buf = c.createBuffer(1, bufferSize, c.sampleRate);
+      const data = buf.getChannelData(0);
+      for(let i=0;i<bufferSize;i++){ data[i] = (Math.random()*2-1) * (1 - i/bufferSize); }
+      const src = c.createBufferSource();
+      src.buffer = buf;
+      const g = c.createGain();
+      g.gain.setValueAtTime(gainV, c.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + duration);
+      const bp = c.createBiquadFilter();
+      bp.type = 'bandpass'; bp.frequency.value = 1200; bp.Q.value = 0.7;
+      src.connect(bp).connect(g).connect(c.destination);
+      src.start();
+    }catch(e){}
+  }
+  function playMove(mv){
+    // chess.js move object: flags string. 'c' capture, 'e' en-passant, 'k'/'q' castle, '+'/# from move object via in_check()
+    const flags = mv && mv.flags ? mv.flags : '';
+    const isCapture = flags.includes('c') || flags.includes('e');
+    const isCastle  = flags.includes('k') || flags.includes('q');
+    const checkmate = BotState.game && BotState.game.in_checkmate && BotState.game.in_checkmate();
+    const check     = !checkmate && BotState.game && BotState.game.in_check && BotState.game.in_check();
+    if(checkmate){ tone(220, 0.5, 'sawtooth', 0.1); setTimeout(()=>tone(165, 0.7, 'sawtooth', 0.1), 120); return; }
+    if(isCapture){ noiseBurst(0.07, 0.09); tone(380, 0.08, 'square', 0.05); }
+    else if(isCastle){ tone(520, 0.06, 'triangle', 0.07); setTimeout(()=>tone(700, 0.08, 'triangle', 0.06), 70); }
+    else { noiseBurst(0.035, 0.06); tone(540, 0.045, 'sine', 0.04); }
+    if(check) setTimeout(()=>tone(880, 0.16, 'triangle', 0.07), 90);
+  }
+  function playSelect(){ tone(720, 0.025, 'sine', 0.02); }
+  function playWrong(){ tone(180, 0.18, 'sawtooth', 0.06); }
+  function playWin(){ tone(660, 0.12, 'triangle', 0.08); setTimeout(()=>tone(880, 0.14, 'triangle', 0.08), 120); setTimeout(()=>tone(1100, 0.2, 'triangle', 0.08), 260); }
+  return {playMove, playSelect, playWrong, playWin, setEnabled:(v)=>enabled=!!v};
+})();
 
 function updateEvalBar(evalPawns){
   const bar = document.getElementById('eval-bar');
   const num = document.getElementById('eval-num');
   if(!bar||!num) return;
-  // Convert eval to percentage (0-100), 50 = equal
   const pct = Math.max(5, Math.min(95, 50 + evalPawns * 8));
   bar.style.width = pct + '%';
   num.textContent = (evalPawns >= 0 ? '+' : '') + evalPawns;
   num.style.color = evalPawns > 0.5 ? 'var(--green)' : evalPawns < -0.5 ? 'var(--red)' : 'var(--cyan)';
 }
 
-function askCoach(type){
-  fetchCoachMessage(type);
-}
-
 function enableCoachButtons(on){
-  ['hint-btn-coach','explain-btn-coach'].forEach(id=>{
+  ['hint-btn-coach','explain-btn-coach','quiz-btn-coach'].forEach(id=>{
     const btn = document.getElementById(id);
     if(btn) btn.disabled = !on;
   });
+}
+
+/* ── Board Overlay (arrows + highlights) ──────────────────────────────────── */
+const BoardOverlay = (function(){
+  let boardEl=null, svgEl=null, arrowsG=null, highlightsG=null;
+  let flipped=false;
+  const fileToX = (f,size)=> (flipped ? 7-f : f) * (size/8) + (size/16);
+  const rankToY = (r,size)=> (flipped ? r : 7-r) * (size/8) + (size/16);
+  const squareToXY = (sq, size)=>{
+    const f = sq.charCodeAt(0) - 97;
+    const r = parseInt(sq[1],10) - 1;
+    return [fileToX(f,size), rankToY(r,size)];
+  };
+  function init(boardId, overlayId){
+    boardEl = document.getElementById(boardId);
+    svgEl   = document.getElementById(overlayId);
+    if(!svgEl) return;
+    arrowsG = document.getElementById('overlay-arrows');
+    highlightsG = document.getElementById('overlay-highlights');
+    syncSize();
+  }
+  function syncSize(){
+    if(!boardEl||!svgEl) return;
+    const board = boardEl.querySelector('.board-b72b1') || boardEl.querySelector('table') || boardEl;
+    if(!board) return;
+    const rect = board.getBoundingClientRect();
+    const wrap = boardEl.parentElement;
+    if(!wrap) return;
+    const wrapRect = wrap.getBoundingClientRect();
+    svgEl.style.left = (rect.left - wrapRect.left) + 'px';
+    svgEl.style.top  = (rect.top - wrapRect.top) + 'px';
+    svgEl.style.width  = rect.width + 'px';
+    svgEl.style.height = rect.height + 'px';
+    svgEl.setAttribute('viewBox','0 0 800 800');
+  }
+  function setOrientation(color){ flipped = (color === 'black'); repaint(); }
+  let lastArrows=[], lastHighlights=[];
+  function drawArrows(arrows){
+    lastArrows = arrows || [];
+    if(!arrowsG) return;
+    arrowsG.innerHTML = '';
+    const size = 800;
+    (arrows||[]).forEach(a=>{
+      if(!a||!a.from||!a.to) return;
+      const [x1,y1] = squareToXY(a.from,size);
+      const [x2,y2] = squareToXY(a.to,size);
+      // Trim end so arrowhead doesn't cover the target square
+      const dx=x2-x1, dy=y2-y1, len=Math.sqrt(dx*dx+dy*dy);
+      const tx = x2 - (dx/len)*22, ty = y2 - (dy/len)*22;
+      const ns='http://www.w3.org/2000/svg';
+      const line = document.createElementNS(ns,'line');
+      line.setAttribute('x1',x1); line.setAttribute('y1',y1);
+      line.setAttribute('x2',tx); line.setAttribute('y2',ty);
+      line.setAttribute('class','overlay-arrow');
+      line.setAttribute('stroke',a.color||'#ff7043');
+      line.setAttribute('marker-end','url(#arrow-head)');
+      line.style.color = a.color || '#ff7043';
+      arrowsG.appendChild(line);
+    });
+  }
+  function drawHighlights(highlights){
+    lastHighlights = highlights || [];
+    if(!highlightsG) return;
+    highlightsG.innerHTML = '';
+    const size = 800, sq = size/8;
+    (highlights||[]).forEach(h=>{
+      if(!h||!h.square) return;
+      const [cx,cy] = squareToXY(h.square,size);
+      const ns='http://www.w3.org/2000/svg';
+      const circle = document.createElementNS(ns,'circle');
+      circle.setAttribute('cx',cx); circle.setAttribute('cy',cy);
+      circle.setAttribute('r', sq*0.42);
+      circle.setAttribute('class','overlay-highlight');
+      circle.setAttribute('stroke', h.color||'#26d07c');
+      circle.style.color = h.color||'#26d07c';
+      circle.setAttribute('fill','transparent');
+      highlightsG.appendChild(circle);
+      // Pointing hand pseudo-pointer above square
+      if(h.label === 'target' || h.label === 'vulnerable'){
+        const txt = document.createElementNS(ns,'text');
+        txt.setAttribute('x', cx);
+        txt.setAttribute('y', cy - sq*0.55);
+        txt.setAttribute('text-anchor','middle');
+        txt.setAttribute('class','overlay-hand');
+        txt.textContent = '👉';
+        highlightsG.appendChild(txt);
+      }
+    });
+  }
+  function clear(){ drawArrows([]); drawHighlights([]); }
+  function repaint(){ syncSize(); drawArrows(lastArrows); drawHighlights(lastHighlights); }
+  return {init,drawArrows,drawHighlights,clear,setOrientation,repaint,syncSize};
+})();
+
+/* ── GM Coach module ──────────────────────────────────────────────────────── */
+const Coach = (function(){
+  let inFlight = false;
+  function setStatus(t){
+    const el = document.getElementById('coach-status-label');
+    if(el) el.textContent = t;
+  }
+  function setThinking(on){
+    const el = document.getElementById('coach-thinking');
+    if(el) el.classList.toggle('hidden', !on);
+  }
+  function renderQuestions(qs){
+    const ul = document.getElementById('coach-questions');
+    if(!ul) return;
+    if(!qs || !qs.length){ ul.innerHTML = '<li class="gm-q-empty">…</li>'; return; }
+    ul.innerHTML = qs.map(q=>`<li>${esc(q)}</li>`).join('');
+  }
+  function renderFeedback(text, severity){
+    const fb = document.getElementById('coach-feedback');
+    if(!fb) return;
+    if(!text){ fb.classList.add('hidden'); fb.textContent=''; return; }
+    fb.textContent = text;
+    fb.className = 'gm-feedback ' + (severity||'');
+    fb.classList.remove('hidden');
+  }
+  function reset(){
+    renderQuestions(['Watching the board…']);
+    renderFeedback('', '');
+    BoardOverlay.clear();
+    setThinking(false);
+  }
+  async function afterBotMove(lastBotSan){
+    if(State.coachMode !== 'coached') return;
+    if(!BotState.game || !BotState.gameActive) return;
+    if(BotState.game.turn() !== BotState.playerColor[0]) return;
+    setStatus('Looking at the position');
+    setThinking(true);
+    BoardOverlay.setOrientation(BotState.playerColor);
+    try{
+      const r = await fetch('/coach-question', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({fen: BotState.game.fen(), weaknesses: BotState.weaknesses, last_bot_san: lastBotSan||''}),
+        credentials:'include'
+      });
+      const d = await r.json();
+      renderQuestions(d.questions || []);
+      renderFeedback('', '');
+      BoardOverlay.drawArrows(d.arrows||[]);
+      BoardOverlay.drawHighlights(d.highlights||[]);
+      updateEvalBar(d.eval||0);
+      setStatus('Your turn — what\'s the plan?');
+      // Auto-open MCQ for clearly best move
+      if(d.mcq){ Coach._latestMCQ = d.mcq; MCQ.open(d.mcq); }
+    }catch(e){
+      renderQuestions(['(Coach connection hiccup — keep playing.)']);
+    }
+    setThinking(false);
+  }
+  async function afterPlayerMove(fenBefore, sanPlayed){
+    if(State.coachMode !== 'coached') return;
+    setStatus('Reviewing your move');
+    setThinking(true);
+    try{
+      const r = await fetch('/coach-move-feedback', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({fen_before: fenBefore, san_played: sanPlayed, weaknesses: BotState.weaknesses}),
+        credentials:'include'
+      });
+      const d = await r.json();
+      renderFeedback(d.commentary || '', d.severity || '');
+      BoardOverlay.drawArrows(d.arrows||[]);
+      BoardOverlay.drawHighlights(d.highlights||[]);
+      updateEvalBar(d.eval_after||0);
+      if(d.severity === 'blunder' || d.severity === 'mistake'){
+        setStatus(d.severity==='blunder'?'Blunder spotted':'Mistake — let\'s learn');
+        if(d.mcq) setTimeout(()=>MCQ.open(d.mcq, sanPlayed), 600);
+      } else if(d.severity === 'best') setStatus('Top move ✓');
+      else if(d.severity === 'inaccuracy') setStatus('Slight inaccuracy');
+      else setStatus('Solid move');
+    }catch(e){
+      renderFeedback('(Could not analyse — keep playing.)','');
+    }
+    setThinking(false);
+  }
+  async function ask(type){
+    if(!BotState.gameActive) return;
+    setThinking(true);
+    if(type === 'quiz'){
+      // Force-build a quick MCQ from current position via coach-question
+      try{
+        const r = await fetch('/coach-question', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({fen: BotState.game.fen(), weaknesses: BotState.weaknesses, last_bot_san: BotState.lastBotSan||''}),
+          credentials:'include'
+        });
+        const d = await r.json();
+        if(d.mcq) MCQ.open(d.mcq);
+        else renderFeedback('No clear quiz move here — position is balanced.','ok');
+      }catch(e){}
+      setThinking(false);
+      return;
+    }
+    // hint / explain — fall back to coach-position (lighter response)
+    try{
+      const r = await fetch('/coach-position', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({fen: BotState.game.fen(), weaknesses: BotState.weaknesses, type}),
+        credentials:'include'
+      });
+      const d = await r.json();
+      renderFeedback(d.message || '', type==='hint'?'inaccuracy':'ok');
+      updateEvalBar(d.eval||0);
+    }catch(e){}
+    setThinking(false);
+  }
+  return {afterBotMove, afterPlayerMove, ask, reset, renderQuestions, renderFeedback, setStatus, setThinking};
+})();
+
+function askCoach(type){ Coach.ask(type); }
+
+/* ── MCQ Modal ────────────────────────────────────────────────────────────── */
+const MCQ = (function(){
+  let current = null;
+  function open(mcq, contextSan){
+    if(!mcq || !mcq.options) return;
+    current = mcq;
+    document.getElementById('mcq-question').textContent = mcq.question || 'Which move is best?';
+    const wrap = document.getElementById('mcq-options');
+    wrap.innerHTML = '';
+    const letters = ['A','B','C','D','E','F'];
+    mcq.options.forEach((opt,i)=>{
+      const btn = document.createElement('button');
+      btn.className = 'mcq-option';
+      btn.innerHTML = `<span class="mcq-letter">${letters[i]||(i+1)}</span><span>${esc(opt)}</span>`;
+      btn.onclick = ()=>answer(i, btn);
+      wrap.appendChild(btn);
+    });
+    document.getElementById('mcq-explanation').classList.add('hidden');
+    document.getElementById('mcq-continue').classList.add('hidden');
+    document.getElementById('mcq-modal').classList.remove('hidden');
+  }
+  function answer(idx, btn){
+    if(!current) return;
+    const opts = document.querySelectorAll('.mcq-option');
+    opts.forEach(o=>o.classList.add('locked'));
+    if(idx === current.correct_index){
+      btn.classList.add('correct');
+    } else {
+      btn.classList.add('wrong');
+      opts[current.correct_index].classList.add('correct');
+    }
+    const exp = document.getElementById('mcq-explanation');
+    exp.textContent = current.explanation || '';
+    exp.classList.remove('hidden');
+    document.getElementById('mcq-continue').classList.remove('hidden');
+  }
+  function close(){
+    document.getElementById('mcq-modal').classList.add('hidden');
+    current = null;
+  }
+  return {open, close};
+})();
+function closeMCQ(){ MCQ.close(); }
+
+/* ── Post-Game Review ─────────────────────────────────────────────────────── */
+let _postgamePuzzles = [];
+async function runPostgameReview(){
+  const modal = document.getElementById('postgame-modal');
+  if(!modal) return;
+  modal.classList.remove('hidden');
+  document.getElementById('postgame-loading').classList.remove('hidden');
+  document.getElementById('postgame-results').classList.add('hidden');
+  document.getElementById('postgame-train-btn').classList.add('hidden');
+  document.getElementById('postgame-title').textContent = 'Analyzing your game with Stockfish…';
+  const pgn = getBotPGN();
+  try{
+    const r = await fetch('/analyze-bot-game', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({pgn, player_color: BotState.playerColor}),
+      credentials:'include'
+    });
+    const d = await r.json();
+    if(d.error){
+      document.getElementById('postgame-title').textContent = 'Review failed: ' + d.error;
+      document.getElementById('postgame-loading').classList.add('hidden');
+      return;
+    }
+    renderPostgameResults(d);
+  }catch(e){
+    document.getElementById('postgame-title').textContent = 'Review failed — try again later.';
+    document.getElementById('postgame-loading').classList.add('hidden');
+  }
+}
+
+function renderPostgameResults(d){
+  document.getElementById('postgame-loading').classList.add('hidden');
+  document.getElementById('postgame-results').classList.remove('hidden');
+  const c = d.counts || {};
+  const title = (d.mistakes && d.mistakes.length)
+    ? `${d.mistakes.length} thing${d.mistakes.length===1?'':'s'} to fix in this game`
+    : 'Clean game — no major mistakes!';
+  document.getElementById('postgame-title').textContent = title;
+  document.getElementById('postgame-summary').innerHTML = `
+    <div class="postgame-stat blunder"><div class="n">${c.blunder||0}</div><div class="l">Blunders</div></div>
+    <div class="postgame-stat mistake"><div class="n">${c.mistake||0}</div><div class="l">Mistakes</div></div>
+    <div class="postgame-stat inaccuracy"><div class="n">${c.inaccuracy||0}</div><div class="l">Inaccuracies</div></div>
+    <div class="postgame-stat ok"><div class="n">${(c.ok||0)+(c.best||0)}</div><div class="l">Solid</div></div>`;
+  const list = document.getElementById('postgame-mistakes');
+  list.innerHTML = (d.mistakes||[]).slice(0,8).map(m=>`
+    <div class="postgame-row ${esc(m.severity)}">
+      <div class="pg-move">${m.move_number}.${m.side==='black'?'..':''}</div>
+      <div class="pg-detail"><span class="played">${esc(m.san)}</span> → engine: <span class="best">${esc(m.best_move||'?')}</span></div>
+      <div class="pg-drop">−${(m.drop_cp/100).toFixed(1)}</div>
+    </div>`).join('') || '<div style="color:var(--muted2);font-size:.88rem">No mistakes detected — well played!</div>';
+  _postgamePuzzles = d.puzzles || [];
+  if(_postgamePuzzles.length){
+    document.getElementById('postgame-train-btn').classList.remove('hidden');
+  }
+}
+
+function closePostgame(){ document.getElementById('postgame-modal').classList.add('hidden'); }
+
+function trainPostgamePuzzles(){
+  if(!_postgamePuzzles.length){ closePostgame(); return; }
+  State.puzzles = _postgamePuzzles.slice();
+  State.puzzleIdx = 0;
+  State.puzzleCorrect = 0;
+  State.puzzleWrong = 0;
+  document.getElementById('puzzle-total').textContent = State.puzzles.length;
+  // Show puzzle area, hide empty state
+  const np = document.getElementById('no-puzzles'); if(np) np.classList.add('hidden');
+  const pa = document.getElementById('puzzle-area'); if(pa) pa.classList.remove('hidden');
+  closePostgame();
+  showPage('puzzles');
 }
 
 
