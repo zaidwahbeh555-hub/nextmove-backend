@@ -133,6 +133,13 @@
           <g id="overlay-highlights"></g>
           <g id="overlay-arrows"></g>
         </svg>
+        <div class="gm-board-lock hidden" id="board-lock">
+          <div class="gm-lock-inner">
+            <div class="gm-lock-icon">👆</div>
+            <div class="gm-lock-title">Coach is asking — answer first</div>
+            <div class="gm-lock-sub">No skipping. Pick the move you think is best.</div>
+          </div>
+        </div>
       </div>
       <div class="gm-status-box" id="bot-status">Choose a mode and click New Game to start.</div>
     </div>
@@ -155,7 +162,9 @@
         </div>
         <div class="gm-coach-body">
           <div class="gm-coach-thinking hidden" id="coach-thinking"><span class="gm-dot-pulse"></span><span class="gm-dot-pulse"></span><span class="gm-dot-pulse"></span> thinking…</div>
-          <ul class="gm-question-list" id="coach-questions"><li class="gm-q-empty">Start a game in Coached mode and I'll guide you through every move.</li></ul>
+          <div class="gm-position-badge hidden" id="coach-position-badge"></div>
+          <div class="gm-theory hidden" id="coach-theory"></div>
+          <ul class="gm-question-list" id="coach-questions"><li class="gm-q-empty">Start a game in Coached mode and I'll walk you through every position.</li></ul>
           <div class="gm-feedback hidden" id="coach-feedback"></div>
         </div>
         <div class="gm-coach-actions">
@@ -178,15 +187,15 @@
   </div>
 </div>
 
-<!-- MCQ Modal -->
-<div id="mcq-modal" class="mcq-modal hidden">
+<!-- MCQ Modal — force engagement, no skip -->
+<div id="mcq-modal" class="mcq-modal mcq-force hidden">
   <div class="mcq-inner">
-    <div class="mcq-badge"><span>🎯</span> Quick check</div>
+    <div class="mcq-badge"><span>🎯</span> Coach is asking</div>
     <h2 class="mcq-question" id="mcq-question">Which move is best?</h2>
     <div class="mcq-options" id="mcq-options"></div>
+    <div class="mcq-must-answer" id="mcq-must-answer">👇 Pick an answer to continue — no skipping.</div>
     <div class="mcq-explanation hidden" id="mcq-explanation"></div>
-    <div class="mcq-footer">
-      <button class="gm-action-btn ghost" onclick="closeMCQ()">Skip</button>
+    <div class="mcq-footer mcq-footer-centered">
       <button class="gm-action-btn primary hidden" id="mcq-continue" onclick="closeMCQ()">Continue →</button>
     </div>
   </div>
