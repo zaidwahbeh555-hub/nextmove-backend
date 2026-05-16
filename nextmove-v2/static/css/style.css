@@ -581,3 +581,49 @@ textarea:focus{border-color:var(--cyan);box-shadow:0 0 0 3px var(--cyan-dim)}
 #bot-board .square-55d63,
 #puzzle-board .square-55d63,
 #replay-board .square-55d63{position:relative;transition:background-color .12s ease, box-shadow .14s ease}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GM COACH v2 — Force engagement, theory chips, position badge, board lock
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Position-type badge above questions */
+.gm-position-badge{display:inline-flex;align-items:center;gap:.4rem;background:linear-gradient(135deg, rgba(0,212,255,.15), rgba(179,136,255,.15));border:1px solid rgba(0,212,255,.3);color:var(--cyan);padding:.35rem .75rem;border-radius:var(--r-full);font-size:.72rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin-bottom:.65rem;animation:gm-slide-in .4s ease-out}
+.gm-position-badge.opening{background:linear-gradient(135deg, rgba(255,215,64,.15), rgba(255,112,67,.15));border-color:rgba(255,215,64,.35);color:var(--yellow)}
+.gm-position-badge.tactical,
+.gm-position-badge.critical_decision{background:linear-gradient(135deg, rgba(255,68,102,.15), rgba(255,112,67,.15));border-color:rgba(255,68,102,.35);color:var(--red)}
+.gm-position-badge.endgame{background:linear-gradient(135deg, rgba(179,136,255,.15), rgba(0,212,255,.15));border-color:rgba(179,136,255,.35);color:var(--purple)}
+
+/* Theory chips (opening name, themes) */
+.gm-theory{display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:.7rem;animation:gm-slide-in .4s ease-out}
+.gm-chip{display:inline-flex;align-items:center;gap:.35rem;background:var(--bg2);border:1px solid var(--border2);padding:.3rem .65rem;border-radius:var(--r-full);font-size:.74rem;font-weight:600;color:var(--muted2)}
+.gm-chip.opening{border-color:rgba(255,215,64,.4);color:var(--yellow);background:rgba(255,215,64,.05)}
+.gm-chip.theme{border-color:rgba(0,212,255,.35);color:var(--cyan);background:var(--cyan-dim)}
+.gm-chip-icon{font-size:.85rem}
+
+/* Speech-bubble feel for questions */
+.gm-question-list li{position:relative}
+.gm-question-list li::before{content:'';position:absolute;left:-6px;top:14px;width:8px;height:8px;background:var(--bg2);border-left:1px solid var(--border);border-bottom:1px solid var(--border);border-bottom-left-radius:2px;transform:rotate(45deg)}
+.gm-question-list li.gm-q-empty::before{display:none}
+
+/* Board lock overlay — force engagement */
+.gm-board-lock{position:absolute;inset:1rem;border-radius:14px;background:rgba(7,7,13,.78);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:20;animation:gm-fade .25s ease-out;cursor:not-allowed;pointer-events:auto}
+.gm-board-lock.hidden{display:none}
+.gm-lock-inner{text-align:center;padding:2rem;max-width:90%;animation:gm-pop .35s cubic-bezier(.34,1.56,.64,1)}
+.gm-lock-icon{font-size:3rem;animation:gm-bob 1.2s ease-in-out infinite;margin-bottom:.4rem}
+.gm-lock-title{font-size:1.1rem;font-weight:800;color:var(--text);margin-bottom:.35rem;letter-spacing:-.01em}
+.gm-lock-sub{font-size:.85rem;color:var(--muted2)}
+
+/* MCQ — force engagement variant */
+.mcq-modal.mcq-force{cursor:default}
+.mcq-must-answer{background:rgba(255,68,102,.08);border:1px dashed rgba(255,68,102,.35);border-radius:var(--r-sm);padding:.55rem .85rem;font-size:.78rem;color:var(--red);text-align:center;font-weight:600;margin-bottom:1rem;animation:gm-pulse-soft 1.8s infinite ease-in-out}
+.mcq-must-answer.hidden{display:none}
+@keyframes gm-pulse-soft{0%,100%{opacity:.7}50%{opacity:1}}
+.mcq-footer-centered{justify-content:center}
+
+/* Feedback bubble: more "speech" feel */
+.gm-feedback{position:relative}
+.gm-feedback::before{content:'';position:absolute;left:-6px;top:14px;width:8px;height:8px;background:inherit;border-left:inherit;border-bottom:inherit;transform:rotate(45deg)}
+
+/* When coach is "speaking", subtly glow the avatar */
+.gm-avatar.speaking{animation:gm-avatar-glow 1.4s infinite ease-in-out}
+@keyframes gm-avatar-glow{0%,100%{box-shadow:0 4px 12px var(--cyan-glow)}50%{box-shadow:0 4px 22px var(--cyan-glow), 0 0 32px var(--cyan-glow)}}
