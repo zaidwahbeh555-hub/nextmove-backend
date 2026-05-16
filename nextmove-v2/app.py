@@ -1065,9 +1065,131 @@ def coach_position():
     except Exception as e:
         return jsonify({"message": "Think carefully before moving.", "eval": 0})
 
-# ── GM Coach helpers ───────────────────────────────────────────────────────────
+# ── GM Coach helpers (v2 — Grandmaster mode) ──────────────────────────────────
 PIECE_NAMES = {chess.PAWN:"pawn",chess.KNIGHT:"knight",chess.BISHOP:"bishop",chess.ROOK:"rook",chess.QUEEN:"queen",chess.KING:"king"}
 PIECE_VALS  = {chess.PAWN:1,chess.KNIGHT:3,chess.BISHOP:3,chess.ROOK:5,chess.QUEEN:9,chess.KING:99}
+
+# Hardcoded opening book — match by longest move-sequence prefix.
+OPENING_BOOK = [
+    (["e4"], "King's Pawn Opening", "Claiming the center with the most direct pawn. Opens lines for the queen and bishop — classical and aggressive."),
+    (["e4","e5"], "Open Game", "Both sides claim the center. Expect sharp tactical play — knights come out first."),
+    (["e4","e5","Nf3"], "King's Knight Opening", "Develop the knight, attack the e5 pawn, prepare castling. Classical opening principles in action."),
+    (["e4","e5","Nf3","Nc6"], "Open Game (Knights)", "Both knights to their best squares. Now choose: Italian (Bc4), Spanish (Bb5), or Scotch (d4)?"),
+    (["e4","e5","Nf3","Nc6","Bc4"], "Italian Game", "The Italian — your bishop eyes f7, the weakest square in Black's camp. Sharp attacking ideas lurk. Greco was analysing this in 1620."),
+    (["e4","e5","Nf3","Nc6","Bb5"], "Ruy Lopez", "The Spanish — the bishop pressures the knight defending e5. Carlsen and Kasparov built careers on this. Deep, strategic, long-term."),
+    (["e4","e5","Nf3","Nc6","d4"], "Scotch Game", "Aggressive central push — opens lines immediately for active piece play. Kasparov revived it in the 90s."),
+    (["e4","e5","Nf3","Nc6","Nc3"], "Three Knights", "Symmetric development. Solid but a bit quiet. Black often goes ...Nf6 for the Four Knights."),
+    (["e4","e5","Nf3","Nf6"], "Petroff Defence", "Counter-attack instead of defend. The hallmark of modern elite play — Karpov and Caruana love it. Solid as a rock."),
+    (["e4","c5"], "Sicilian Defence", "The most popular reply to 1.e4. Black fights for the center asymmetrically — expect imbalance, complexity, counter-punches. Don't try to be tidy."),
+    (["e4","c5","Nf3"], "Open Sicilian", "White prepares d4 to blow open the position. This is sharpest Sicilian territory."),
+    (["e4","c5","Nf3","d6"], "Sicilian (Najdorf/Dragon zone)", "Najdorf or Dragon waits in the wings — both Fischer's favourite. Razor-sharp opening prep matters here."),
+    (["e4","e6"], "French Defence", "Solid but somewhat passive. Black builds a pawn chain and waits to break with ...c5 or ...f6. Watch out — the light-squared bishop is often the problem piece."),
+    (["e4","c6"], "Caro-Kann Defence", "Classical and rock-solid. Black prepares ...d5 without blocking the bishop like the French does. Karpov's weapon of choice."),
+    (["e4","d5"], "Scandinavian Defence", "Direct — challenges e4 immediately. Loses a tempo recovering the queen but simplifies White's options."),
+    (["e4","Nf6"], "Alekhine's Defence", "Provoke pawns forward, then attack them. Hypermodern in concept."),
+    (["e4","g6"], "Modern Defence", "Hypermodern fianchetto setup. Let White build the center, then strike at it."),
+    (["d4"], "Queen's Pawn Opening", "The strategic, slower-burn alternative to 1.e4. Often leads to closed positions and long-term planning."),
+    (["d4","d5"], "Closed Game", "Symmetric d-pawns. White will look for c4 to challenge the center."),
+    (["d4","d5","c4"], "Queen's Gambit", "White offers the c-pawn for central control. Almost always declined — accepting it loses time and a tempo."),
+    (["d4","d5","c4","e6"], "Queen's Gambit Declined", "Solid, classical. Black builds a fortress and waits for the right break."),
+    (["d4","d5","c4","c6"], "Slav Defence", "Defend d5 without blocking the c8-bishop. Solid and flexible — favoured by many world champions."),
+    (["d4","Nf6"], "Indian Defence", "Delay ...d5 and develop pieces first. Hypermodern philosophy — let the center come to you."),
+    (["d4","Nf6","c4","g6"], "King's Indian Defence", "Black's fianchetto. Let White build the big center, then strike with ...e5 or ...c5 and storm the king. Kasparov's weapon."),
+    (["d4","Nf6","c4","e6"], "Indian Setup (Nimzo/Queen's Indian zone)", "Pure strategy — Nimzo or Queen's Indian. Pin the knight, control e4, win without firework."),
+    (["d4","Nf6","c4","e6","Nc3","Bb4"], "Nimzo-Indian Defence", "Pin the knight, threaten to double White's c-pawns. Aron Nimzowitsch's signature — strategy in its purest form."),
+    (["d4","f5"], "Dutch Defence", "Aggressive — fight for e4 immediately. Risky but ambitious. Creates kingside attacking chances at the cost of king safety."),
+    (["c4"], "English Opening", "Flank attack on the center. Flexible — transposes into many systems. Botvinnik's favourite."),
+    (["Nf3"], "Réti Opening", "Hypermodern: develop first, choose structure later. Loads of transpositions possible."),
+]
+# Sort by sequence length DESCENDING so longest match wins
+OPENING_BOOK.sort(key=lambda x: -len(x[0]))
+
+def detect_opening(san_moves):
+    """Return (name, theme) for the longest matching prefix in OPENING_BOOK, or (None, None)."""
+    if not san_moves: return None, None
+    for seq, name, theme in OPENING_BOOK:
+        if len(seq) > len(san_moves): continue
+        if list(san_moves[:len(seq)]) == seq:
+            return name, theme
+    return None, None
+
+VOICE_OPEN = ["Watch this.", "Notice —", "Look closely.", "Here's the thing.", "Quick question.", "Let me ask you —", "OK, pay attention.", "Pause.", "Stop. Look.", "Right —"]
+VOICE_GOOD = ["Clean.", "Yes — that's it.", "I'd play that too.", "Solid.", "Exactly the move.", "Spot on.", "That's the engine line.", "Beautiful."]
+VOICE_BAD  = ["Wait, hold on.", "Hmm — careful.", "Stop. We need to talk about this.", "OK that's a problem.", "No — let's look at this again."]
+VOICE_TACTIC = ["There's something concrete here.", "Calculate carefully.", "A tactic is on the board — find it.", "Pieces are tangled — there's a punishment available.", "This screams tactic."]
+VOICE_POS  = ["Quiet position. Strategic decision.", "No fireworks — just good positioning.", "Improve your worst piece.", "Think long-term here.", "Slow chess. Best move? Best piece?"]
+VOICE_CRIT = ["Now this is the critical moment.", "Whole game turns on the next move.", "Don't rush this one.", "Critical decision — pick carefully.", "This is the moment."]
+
+def piece_label(piece):
+    if not piece: return "piece"
+    return PIECE_NAMES.get(piece.piece_type,"piece")
+
+def total_non_king_material(board):
+    total = 0
+    for sq in chess.SQUARES:
+        p = board.piece_at(sq)
+        if p and p.piece_type != chess.KING:
+            total += PIECE_VALS.get(p.piece_type, 0)
+    return total
+
+def classify_position_type(board, eval_pawns, fullmove):
+    """Return 'opening' | 'tactical' | 'positional' | 'endgame' | 'critical_decision'."""
+    if fullmove <= 10: return "opening"
+    mat = total_non_king_material(board)
+    if mat <= 24: return "endgame"
+    if abs(eval_pawns) >= 2.5: return "critical_decision"
+    return "positional"
+
+def detect_themes(board, player_color):
+    """Detect a few simple strategic themes. Returns list of short strings."""
+    themes = []
+    # Opposite-side castling — kings on opposite wings
+    wk_sq = board.king(chess.WHITE); bk_sq = board.king(chess.BLACK)
+    if wk_sq is not None and bk_sq is not None:
+        wf = chess.square_file(wk_sq); bf = chess.square_file(bk_sq)
+        if (wf >= 5 and bf <= 2) or (wf <= 2 and bf >= 5):
+            themes.append("Opposite-side castling — race to attack.")
+    # Open file (no pawns on any rank)
+    open_files = []
+    for f in range(8):
+        has_pawn = False
+        for r in range(8):
+            sq = chess.square(f, r)
+            p = board.piece_at(sq)
+            if p and p.piece_type == chess.PAWN:
+                has_pawn = True; break
+        if not has_pawn:
+            open_files.append("abcdefgh"[f])
+    if open_files:
+        themes.append(f"Open {'file' if len(open_files)==1 else 'files'}: {', '.join(open_files)} — rook territory.")
+    # Bishop pair imbalance
+    w_bishops = len(board.pieces(chess.BISHOP, chess.WHITE))
+    b_bishops = len(board.pieces(chess.BISHOP, chess.BLACK))
+    if w_bishops == 2 and b_bishops < 2:
+        themes.append("White has the bishop pair.")
+    elif b_bishops == 2 and w_bishops < 2:
+        themes.append("Black has the bishop pair.")
+    # Passed pawn — for the player to move
+    for color in (chess.WHITE, chess.BLACK):
+        for sq in board.pieces(chess.PAWN, color):
+            f = chess.square_file(sq); r = chess.square_rank(sq)
+            blocked = False
+            for nf in (f-1, f, f+1):
+                if nf < 0 or nf > 7: continue
+                rng = range(r+1, 8) if color == chess.WHITE else range(0, r)
+                for nr in rng:
+                    p = board.piece_at(chess.square(nf, nr))
+                    if p and p.piece_type == chess.PAWN and p.color != color:
+                        blocked = True; break
+                if blocked: break
+            if not blocked:
+                side = "White" if color == chess.WHITE else "Black"
+                themes.append(f"{side} has a passed {chess.square_name(sq)[0]}-pawn — push it.")
+                break  # one passed pawn callout per side
+    return themes[:3]
+
+def gm_phrase(pool):
+    return random.choice(pool) if pool else ""
 
 def piece_label(piece):
     if not piece: return "piece"
@@ -1132,31 +1254,40 @@ def analyse_pv(engine, board, depth=12, multipv=3):
         out.append({"move": mv, "san": san, "score_cp": cp, "pv_san": pv_san})
     return out
 
-def build_socratic_question(board, weaknesses, last_bot_san, top_lines):
+def build_socratic_question(board, weaknesses, last_bot_san, top_lines, played_moves=None, opening_name=None, opening_theme=None, position_type="positional", themes=None):
+    """GM-style coaching: conversational, theory-aware, deep. Returns dict with questions, arrows, highlights."""
     player_turn = board.turn
     nudges, arrows, highlights = [], [], []
+    themes = themes or []
 
+    # 1) Opening teaching (only in opening phase)
+    if position_type == "opening" and opening_name:
+        nudges.append(f"📖 We're in the {opening_name}. {opening_theme}")
+        nudges.append("Opening rule: develop knights before bishops, castle by move 8, don't move the same piece twice. Which piece is your worst-developed right now?")
+
+    # 2) Opponent's last move — Socratic challenge
     if last_bot_san:
-        nudges.append(f"Opponent just played {last_bot_san}. Pause — what does that piece attack now? What did it leave behind?")
+        nudges.append(f"{gm_phrase(VOICE_OPEN)} Opponent played {last_bot_san}. Ask yourself three things — what does it attack now, what did it leave undefended, and is it a threat or a setup?")
 
+    # 3) Check — top priority
+    if board.is_check():
+        nudges.append("⚠️ You're in check. King to safety FIRST. List your legal options — block, capture, move — then pick the safest.")
+
+    # 4) My loose pieces (defensive scan)
     my_loose = find_loose_pieces(board, player_turn)
     if my_loose:
         sq, p = my_loose[0]
-        nudges.append(f"⚠️ Look at your {piece_label(p)} on {chess.square_name(sq)} — count attackers vs defenders before anything else.")
+        nudges.append(f"⚠️ Your {piece_label(p)} on {chess.square_name(sq)} looks vulnerable. Count attackers vs defenders. If attackers outnumber, you must move, defend, or trade — NOW.")
         highlights.append(square_highlight(sq, "#ff4d4d", "vulnerable"))
 
+    # 5) Opponent's loose pieces (offensive scan)
     opp_loose = find_loose_pieces(board, not player_turn)
-    if opp_loose:
+    if opp_loose and not my_loose:
         sq, p = opp_loose[0]
-        nudges.append(f"👀 Their {piece_label(p)} on {chess.square_name(sq)} looks loose. Can you win it — or use the threat?")
+        nudges.append(f"👀 Their {piece_label(p)} on {chess.square_name(sq)} is loose. Can you win it — or use the threat of taking it to do something even bigger?")
         highlights.append(square_highlight(sq, "#26d07c", "target"))
 
-    if board.has_castling_rights(player_turn) and board.fullmove_number > 8 and not my_loose:
-        nudges.append("Your king is still uncastled past move 8 — is that really safe right now?")
-
-    if board.is_check():
-        nudges.append("You're in check. First priority: king to safety. List your three legal options before moving.")
-
+    # 6) Tactical / concrete move available
     if top_lines:
         best = top_lines[0]
         cp = best.get("score_cp") or 0
@@ -1164,24 +1295,45 @@ def build_socratic_question(board, weaknesses, last_bot_san, top_lines):
         my_cp = cp * sign
         if len(top_lines) >= 2:
             second_cp = (top_lines[1].get("score_cp") or 0) * sign
-            if (my_cp - second_cp) >= 120:
-                nudges.append("💡 There's one clearly best move here — concrete, not vague. Scan checks, captures and threats.")
+            gap = my_cp - second_cp
+            if gap >= 150:
+                nudges.append(f"💡 {gm_phrase(VOICE_TACTIC)} One move stands clearly above the rest. Scan: checks first, then captures, then threats. Find it before moving.")
                 arrows.append(build_arrow(best["move"], "#26d07c"))
+            elif gap >= 60 and position_type == "critical_decision":
+                nudges.append(f"{gm_phrase(VOICE_CRIT)} The engine has a slight preference — but the real lesson is the plan. Why does this move work?")
 
-    if "Hanging piece" in weaknesses and not my_loose:
-        nudges.append("Your pattern: hanging pieces. Run LPDO — point at every piece, confirm it's defended.")
-    if "Missed tactic" in weaknesses:
-        nudges.append("Your pattern: missed tactics. Three questions every move — checks? captures? threats?")
+    # 7) Position-type framing
+    if position_type == "endgame":
+        nudges.append("🏁 Endgame. Activate the king — it's a fighting piece now, not a target. Push passed pawns. Trade pieces (not pawns) if ahead.")
+    elif position_type == "critical_decision" and not my_loose and not board.is_check():
+        nudges.append(f"{gm_phrase(VOICE_CRIT)} Eval is decisive — converting matters more than finding fireworks. Simplify when ahead, complicate when behind.")
+    elif position_type == "positional" and not opp_loose and not my_loose:
+        nudges.append(f"{gm_phrase(VOICE_POS)} Three questions — which is your worst piece, where does it want to be, how do you get it there?")
+
+    # 8) Theme callouts (open files, bishop pair, etc.)
+    for th in themes:
+        nudges.append(f"🎯 {th}")
+
+    # 9) King safety reminders
+    if board.has_castling_rights(player_turn) and board.fullmove_number > 8 and not my_loose:
+        nudges.append("You're past move 8 and still uncastled. Is there a concrete reason? If not — castle this move.")
+
+    # 10) Weakness-specific personalised lines
+    if "Hanging piece" in weaknesses and not my_loose and board.fullmove_number > 5:
+        nudges.append("Your pattern: hanging pieces. LPDO — Loose Pieces Drop Off. Point at each of your pieces, confirm it's defended.")
+    if "Missed tactic" in weaknesses and not opp_loose:
+        nudges.append("Your pattern: missed tactics. Every move, scan checks → captures → threats. In that order.")
     if "Early queen development" in weaknesses and board.fullmove_number < 10:
         for sq in chess.SQUARES:
             p = board.piece_at(sq)
             if p and p.color == player_turn and p.piece_type == chess.QUEEN and sq not in (chess.D1, chess.D8):
-                nudges.append("Your queen is out early. Every time you defend it, your opponent develops for free.")
+                nudges.append("Your queen is out early — every defence costs you a tempo while opponent develops for free.")
                 break
 
     if not nudges:
-        nudges.append("Quiet position. Which is your worst-placed piece? What's the plan for the next 3 moves?")
+        nudges.append(f"{gm_phrase(VOICE_POS)} Position is calm. What does the position WANT? Improve your worst piece.")
 
+    # Cap to 4 questions — too many is noise
     return {"questions": nudges[:4], "arrows": arrows, "highlights": highlights}
 
 def generate_distractors(board, best_move, top_lines):
@@ -1208,46 +1360,75 @@ def generate_distractors(board, best_move, top_lines):
         if len(distractors) >= 3: break
     return distractors[:3]
 
-def maybe_build_mcq(board, top_lines):
+def maybe_build_mcq(board, top_lines, position_type="positional", force=False):
+    """Build a forced-engagement MCQ. With force=True, always returns one (used on blunders).
+    Otherwise requires a meaningful gap (150cp) to avoid spamming."""
     if len(top_lines) < 2: return None
     best, second = top_lines[0], top_lines[1]
     cp1 = best.get("score_cp") or 0
     cp2 = second.get("score_cp") or 0
     sign = 1 if board.turn == chess.WHITE else -1
     gap = (cp1 - cp2) * sign
-    if gap < 100: return None
+    if not force and gap < 150: return None
     distractors = generate_distractors(board, best["move"], top_lines)
     options = [best["san"]] + distractors
     random.shuffle(options)
     correct_index = options.index(best["san"])
+    # Choose question framing based on position type
+    qmap = {
+        "tactical": "There's a tactic here. Which move wins?",
+        "critical_decision": "Critical moment — which move keeps you in control?",
+        "endgame": "Endgame technique — what's the precise move?",
+        "opening": "Opening principles — which move is correct here?",
+        "positional": "Quiet position — which move improves the most?",
+    }
     return {
-        "question": "Which move is best in this position?",
+        "question": qmap.get(position_type, "Which move is best in this position?"),
         "options": options,
         "correct_index": correct_index,
         "explanation": f"Best is {best['san']} — engine line: {best['pv_san']}.",
+        "force": True,  # frontend uses this to lock the board
     }
 
 @app.route("/coach-question", methods=["POST"])
 def coach_question():
-    """Socratic GM-style prompt + visual arrows for the current position."""
+    """GM-style coaching prompt with theory, themes, position-typing, and forced-engagement MCQ on critical positions."""
     data = request.get_json(silent=True) or {}
     fen = data.get("fen","")
     weaknesses = data.get("weaknesses", [])
     last_bot_san = data.get("last_bot_san", "")
+    played_moves = data.get("played_moves", []) or []  # list of SAN strings
     sf = find_stockfish()
+    fallback = {"questions":["Take your time."],"arrows":[],"highlights":[],"eval":0,"mcq":None,"position_type":"positional","opening":None,"themes":[],"theory":[]}
     if not sf or not fen:
-        return jsonify({"questions":["Take your time."],"arrows":[],"highlights":[],"eval":0,"mcq":None})
+        return jsonify(fallback)
     try: board = chess.Board(fen)
     except Exception:
-        return jsonify({"questions":["(Position unreadable)"],"arrows":[],"highlights":[],"eval":0,"mcq":None})
+        return jsonify(fallback)
     try:
         with chess.engine.SimpleEngine.popen_uci(sf) as engine:
             engine.configure({"Threads":1,"Hash":32})
             top_lines = analyse_pv(engine, board, depth=11, multipv=3)
         sc = (top_lines[0].get("score_cp") if top_lines else 0) or 0
         eval_pawns = round(sc/100, 1)
-        socratic = build_socratic_question(board, weaknesses, last_bot_san, top_lines)
-        mcq = maybe_build_mcq(board, top_lines)
+        opening_name, opening_theme = detect_opening(played_moves)
+        position_type = classify_position_type(board, eval_pawns, board.fullmove_number)
+        themes = detect_themes(board, board.turn)
+        socratic = build_socratic_question(
+            board, weaknesses, last_bot_san, top_lines,
+            played_moves=played_moves, opening_name=opening_name, opening_theme=opening_theme,
+            position_type=position_type, themes=themes,
+        )
+        # Build theory chips
+        theory = []
+        if opening_name:
+            theory.append({"type":"opening","label":opening_name,"note":opening_theme or ""})
+        for th in themes:
+            theory.append({"type":"theme","label":th,"note":""})
+        # Decide if we force an MCQ — yes on critical/tactical with clear best move
+        force_mcq = position_type in ("tactical","critical_decision") and len(top_lines) >= 2
+        mcq = maybe_build_mcq(board, top_lines, position_type=position_type, force=False)
+        # Don't fire MCQ if no clear best move (gap < 150) — let player move freely
         return jsonify({
             "questions": socratic["questions"],
             "arrows": socratic["arrows"],
@@ -1255,27 +1436,33 @@ def coach_question():
             "eval": eval_pawns,
             "best_move_san": top_lines[0]["san"] if top_lines else None,
             "mcq": mcq,
+            "position_type": position_type,
+            "opening": {"name": opening_name, "theme": opening_theme} if opening_name else None,
+            "themes": themes,
+            "theory": theory,
             "turn": "white" if board.turn == chess.WHITE else "black",
         })
-    except Exception:
-        return jsonify({"questions":["Stay calm — what is your opponent threatening?"],"arrows":[],"highlights":[],"eval":0,"mcq":None})
+    except Exception as e:
+        return jsonify(fallback)
 
 @app.route("/coach-move-feedback", methods=["POST"])
 def coach_move_feedback():
-    """Analyse the move the player just played. Returns severity + arrows + commentary + optional MCQ."""
+    """Analyse the move the player just played. Silent on routine moves; speaks (with forced MCQ) on blunders & mistakes."""
     data = request.get_json(silent=True) or {}
     fen_before = data.get("fen_before","")
     san_played = data.get("san_played","")
     weaknesses = data.get("weaknesses", [])
+    played_moves = data.get("played_moves", []) or []
     sf = find_stockfish()
     if not sf or not fen_before or not san_played:
-        return jsonify({"severity":"ok","commentary":"Keep playing.","arrows":[],"highlights":[]})
+        return jsonify({"severity":"ok","commentary":"","arrows":[],"highlights":[],"silent":True})
     try:
         board = chess.Board(fen_before)
         move = board.parse_san(san_played)
     except Exception:
-        return jsonify({"severity":"ok","commentary":"Keep playing.","arrows":[],"highlights":[]})
+        return jsonify({"severity":"ok","commentary":"","arrows":[],"highlights":[],"silent":True})
     player_color = board.turn
+    fullmove = board.fullmove_number
     try:
         with chess.engine.SimpleEngine.popen_uci(sf) as engine:
             engine.configure({"Threads":1,"Hash":32})
@@ -1287,7 +1474,7 @@ def coach_move_feedback():
             board2 = board.copy(); board2.push(move)
             info_after = engine.analyse(board2, chess.engine.Limit(depth=12))
             score_after = info_after["score"].white().score(mate_score=10000) or 0
-            opp_san = None; opp_best = None
+            opp_san = None
             try:
                 opp_pv = info_after.get("pv",[])
                 opp_best = opp_pv[0] if opp_pv else None
@@ -1295,44 +1482,77 @@ def coach_move_feedback():
                     opp_san = board2.san(opp_best)
             except Exception: pass
 
-        if player_color == chess.WHITE:
-            drop = max(score_before - score_after, 0)
-        else:
-            drop = max(score_after - score_before, 0)
+        drop = max((score_before - score_after) if player_color == chess.WHITE else (score_after - score_before), 0)
         severity = classify_move_severity(drop)
 
+        # Opening teaching: if we just entered the book or transitioned
+        opening_name, opening_theme = detect_opening(played_moves + [san_played])
+        opening_was, _ = detect_opening(played_moves)
+        new_opening = opening_name and (opening_name != opening_was)
+
+        # ── Decide whether to SPEAK ──
+        # Always speak on: blunder, mistake, inaccuracy
+        # Speak occasionally on: best move with new opening info, opening transition
+        # Stay silent on: routine "ok" or "best" moves in middlegame
+        should_speak = severity in ("blunder","mistake","inaccuracy")
+        if severity == "best" and new_opening:
+            should_speak = True
+        if severity == "ok" and fullmove < 8 and new_opening:
+            should_speak = True
+
         arrows, highlights, parts = [], [], []
+
+        if not should_speak:
+            return jsonify({
+                "severity": severity,
+                "drop_cp": int(drop),
+                "eval_after": round(score_after/100, 1),
+                "best_move_san": best_san,
+                "best_pv": best_pv,
+                "commentary": "",
+                "arrows": [], "highlights": [],
+                "mcq": None,
+                "silent": True,
+                "opening": {"name": opening_name, "theme": opening_theme} if opening_name else None,
+            })
+
+        # Voice
         if severity == "best":
-            parts.append(f"✅ Excellent — {san_played} was the engine's top move.")
-            if best_pv: parts.append(f"Line: {best_pv}.")
+            parts.append(f"✅ {gm_phrase(VOICE_GOOD)} {san_played} was the top move.")
+            if new_opening: parts.append(f"📖 We've entered the {opening_name}. {opening_theme}")
+            if best_pv: parts.append(f"Continuation: {best_pv}.")
         elif severity == "ok":
-            parts.append(f"👍 {san_played} is solid.")
+            if new_opening:
+                parts.append(f"📖 {gm_phrase(VOICE_GOOD)} {san_played} keeps us in the {opening_name}. {opening_theme}")
+            else:
+                parts.append(f"👍 {san_played} is playable.")
             if best_san and best_san != san_played:
                 parts.append(f"Engine's slight preference: {best_san}.")
         elif severity == "inaccuracy":
-            parts.append(f"🟡 Inaccuracy — {san_played} gives back a small edge.")
+            parts.append(f"🟡 {gm_phrase(VOICE_BAD)} {san_played} gives back a small edge.")
             if best_san:
-                parts.append(f"Stronger was {best_san} ({best_pv}). Look again — see why?")
+                parts.append(f"Cleaner: {best_san} ({best_pv}). Look at the line — see why it's stronger?")
                 arrows.append(build_arrow(best_move, "#f4c542"))
         elif severity == "mistake":
-            parts.append(f"❌ Mistake — {san_played} costs about {drop//100}.{(drop%100)//10} pawns.")
+            parts.append(f"❌ {gm_phrase(VOICE_BAD)} {san_played} costs about {drop//100}.{(drop%100)//10} pawns.")
             if best_san:
                 parts.append(f"The position needed {best_san}. Engine line: {best_pv}.")
                 arrows.append(build_arrow(best_move, "#ff9800"))
             if opp_san:
-                parts.append(f"Your opponent will now play {opp_san} — that's the trouble.")
+                parts.append(f"Now your opponent gets {opp_san} — that's exactly the punishment you missed.")
         elif severity == "blunder":
-            parts.append(f"🛑 Blunder — {san_played} loses {drop//100}+ pawns.")
+            parts.append(f"🛑 {gm_phrase(VOICE_BAD)} {san_played} is a blunder — drops {drop//100}+ pawns.")
             if best_san:
                 parts.append(f"You needed {best_san} ({best_pv}).")
                 arrows.append(build_arrow(best_move, "#ff4444"))
             if opp_san:
-                parts.append(f"Opponent will punish with {opp_san}.")
+                parts.append(f"Watch — opponent will punish with {opp_san}.")
             if "Hanging piece" in weaknesses:
-                parts.append("Pattern check: LPDO — was every one of your pieces defended before you moved?")
+                parts.append("This is your pattern. LPDO — was every piece defended before you moved?")
             elif "Missed tactic" in weaknesses:
-                parts.append("Pattern check: did you scan checks, captures and threats before committing?")
+                parts.append("This is your pattern. Checks → captures → threats. In that order. Every move.")
 
+        # Forced MCQ on every blunder + mistake
         mcq = None
         if severity in ("blunder","mistake") and top_before and best_san:
             distractors = generate_distractors(board, best_move, top_before)
@@ -1340,10 +1560,11 @@ def coach_move_feedback():
             random.shuffle(options)
             correct_index = options.index(best_san)
             mcq = {
-                "question": f"You played {san_played}. What was the better move?",
+                "question": f"You played {san_played}. What was the right move?",
                 "options": options,
                 "correct_index": correct_index,
-                "explanation": f"Best was {best_san}. Engine line: {best_pv}.",
+                "explanation": f"Best was {best_san}. Engine line: {best_pv}." + (f" Your opponent's threat: {opp_san}." if opp_san else ""),
+                "force": True,
             }
 
         return jsonify({
@@ -1356,10 +1577,12 @@ def coach_move_feedback():
             "arrows": arrows,
             "highlights": highlights,
             "mcq": mcq,
+            "silent": False,
             "opp_best_san": opp_san,
+            "opening": {"name": opening_name, "theme": opening_theme} if opening_name else None,
         })
     except Exception:
-        return jsonify({"severity":"ok","commentary":"(Analysis hiccup) Keep playing.","arrows":[],"highlights":[]})
+        return jsonify({"severity":"ok","commentary":"","arrows":[],"highlights":[],"silent":True})
 
 @app.route("/analyze-bot-game", methods=["POST"])
 def analyze_bot_game():
