@@ -2401,13 +2401,14 @@ setTimeout(()=>{
    ForgeBoard — clean, custom chessboard (SVG pieces, flat squares, overlays)
    Rules-agnostic: the app supplies legal targets + validates moves via chess.js.
    ═══════════════════════════════════════════════════════════════════════════ */
+const FB_BASE = '<path d="M11.5 41.8 C11 38.5 13 36.3 15.3 35.8 L29.7 35.8 C32 36.3 34 38.5 33.5 41.8 Z"/>';
 const FB_PIECES = {
-  p:'<circle cx="22.5" cy="14" r="6"/><path d="M18.5 24 L26.5 24 L29 40 L16 40 Z"/><rect x="13.5" y="38" width="18" height="4.5" rx="1.5"/>',
-  r:'<path d="M15 20 L30 20 L28.5 39 L16.5 39 Z"/><rect x="13.5" y="16" width="18" height="5"/><rect x="14" y="9" width="4.5" height="5"/><rect x="20.25" y="9" width="4.5" height="5"/><rect x="26.5" y="9" width="4.5" height="5"/><rect x="12" y="38" width="21" height="4.5" rx="1.5"/>',
-  n:'<path d="M12 41 L33 41 C33 32 32 27 28 23 C31 21 31 16 28 13 L29 8 L24.5 11 C22 9 18 9 15 12 C12.5 14.5 11 17 9 18 C7.5 19 7 21 8.5 22 C10 23 12 22 13 21 C13 24 12 27 12.5 31 C12.5 35 12 38 12 41 Z"/><rect x="11" y="38" width="23" height="4.5" rx="1.5"/>',
-  b:'<circle cx="22.5" cy="7.5" r="2.2"/><path d="M22.5 10 C27 14 27.5 20 22.5 25 C17.5 20 18 14 22.5 10 Z"/><path d="M17.5 25 L27.5 25 L29 39 L16 39 Z"/><rect x="13.5" y="38" width="18" height="4.5" rx="1.5"/>',
-  q:'<circle cx="12" cy="15" r="2.4"/><circle cx="22.5" cy="12" r="2.4"/><circle cx="33" cy="15" r="2.4"/><path d="M12 16 L15.5 25 L29.5 25 L33 16 L27.5 21 L22.5 13.5 L17.5 21 Z"/><path d="M15.5 25 L29.5 25 L28 39 L17 39 Z"/><rect x="12" y="38" width="21" height="4.5" rx="1.5"/>',
-  k:'<rect x="21" y="4" width="3" height="9"/><rect x="18" y="7" width="9" height="3"/><path d="M22.5 13 C18 13 15.5 17 17 21 L28 21 C29.5 17 27 13 22.5 13 Z"/><path d="M16.5 22 L28.5 22 L27 39 L18 39 Z"/><rect x="12" y="38" width="21" height="4.5" rx="1.5"/>'
+  p:'<circle cx="22.5" cy="12" r="5"/><path d="M17.5 35 C17.5 26 20.5 20.5 22.5 19 C24.5 20.5 27.5 26 27.5 35 Z"/>'+FB_BASE,
+  r:'<path d="M13 9 L13 15 L32 15 L32 9 L28.3 9 L28.3 11.6 L25.4 11.6 L25.4 9 L19.6 9 L19.6 11.6 L16.7 11.6 L16.7 9 Z"/><path d="M16 15 L29 15 L28 20 L17 20 Z"/><path d="M17 20 C16.5 27 15.5 31 14.5 35 L30.5 35 C29.5 31 28.5 27 28 20 Z"/>'+FB_BASE,
+  n:'<path d="M12 41 L33 41 C33 32 32 27 28 23 C31 21 31 16 28 13 L29 8 L24.5 11 C22 9 18 9 15 12 C12.5 14.5 11 17 9 18 C7.5 19 7 21 8.5 22 C10 23 12 22 13 21 C13 24 12 27 12.5 31 C12.5 35 12 38 12 41 Z"/>'+FB_BASE,
+  b:'<circle cx="22.5" cy="6" r="2.1"/><path d="M22.5 8.5 C27.8 12 28.6 19 24 24 L21 24 C16.4 19 17.2 12 22.5 8.5 Z"/><path d="M16.5 24 L28.5 24 L27.5 26.6 L17.5 26.6 Z"/><path d="M18 28 C17.5 31.5 16.5 33.5 15.5 35.5 L29.5 35.5 C28.5 33.5 27.5 31.5 27 28 Z"/>'+FB_BASE,
+  q:'<circle cx="11" cy="13" r="2.3"/><circle cx="16.75" cy="9.3" r="2.3"/><circle cx="22.5" cy="8.2" r="2.3"/><circle cx="28.25" cy="9.3" r="2.3"/><circle cx="34" cy="13" r="2.3"/><path d="M11 13 L14.5 26 L30.5 26 L34 13 L28.25 18 L22.5 10 L16.75 18 Z"/><path d="M16.5 26.2 L28.5 26.2 L27.5 28.8 L17.5 28.8 Z"/><path d="M15.5 30 C15 32.8 14.3 34 13.3 35.6 L31.7 35.6 C30.7 34 30 32.8 29.5 30 Z"/>'+FB_BASE,
+  k:'<path d="M20.8 4 L24.2 4 L24.2 7 L27.2 7 L27.2 10.3 L24.2 10.3 L24.2 15 L20.8 15 L20.8 10.3 L17.8 10.3 L17.8 7 L20.8 7 Z"/><path d="M22.5 15.5 C18 15.5 15.5 19.5 17.6 23.5 L27.4 23.5 C29.5 19.5 27 15.5 22.5 15.5 Z"/><path d="M16.5 23.6 L28.5 23.6 L27.5 26.2 L17.5 26.2 Z"/><path d="M17.5 29.5 C17 32.5 16 34 15 35.6 L30 35.6 C29 34 28 32.5 27.5 29.5 Z"/>'+FB_BASE
 };
 function fbPieceSVG(type, color){
   return '<svg class="fb-piece '+color+'" viewBox="0 0 45 45">'+FB_PIECES[type.toLowerCase()]+'</svg>';
@@ -2553,12 +2554,9 @@ class ForgeBoard {
       const pt = e.touches ? e.touches[0] : e;
       const sq = squareAt(pt.clientX, pt.clientY);
       if(!sq) return;
+      // Record the press; do NOT change selection here (that happens on click-up
+      // or when a drag actually starts) so a plain click doesn't select-then-toggle-off.
       startSq = sq; moved=false; sx=pt.clientX; sy=pt.clientY;
-      // pre-select to show dots on press
-      const t = this.getTargets(sq);
-      if(t && !(this.selected && (this.getTargets(this.selected)||[]).indexOf(sq)!==-1)){
-        this._select(sq);
-      }
     };
     const move = (e)=>{
       if(!startSq) return;
@@ -2566,6 +2564,9 @@ class ForgeBoard {
       if(!moved){
         if(Math.abs(pt.clientX-sx)+Math.abs(pt.clientY-sy) < THRESH) return;
         moved = true;
+        // A real drag began — select the piece so its move dots show, and lift a ghost.
+        const t = this.getTargets(startSq);
+        if(t) this._select(startSq);
         const pc = this.pos[startSq];
         if(pc){
           ghost = document.createElement('div');
@@ -2583,11 +2584,13 @@ class ForgeBoard {
       const cell = this._cellFor(startSq); if(cell) cell.classList.remove('fb-drag-piece');
       if(ghost){ ghost.remove(); ghost=null; }
       if(moved){
+        // Drag release → drop on target square if legal, else cancel selection.
         const to = squareAt(pt.clientX, pt.clientY);
         const targets = this.getTargets(startSq) || [];
         if(to && targets.indexOf(to)!==-1){ this._tryMove(startSq, to); }
         else { this._deselect(); }
       } else {
+        // Plain click → select / move / deselect, handled in one place.
         this._handleClick(startSq);
       }
       startSq=null; moved=false;
