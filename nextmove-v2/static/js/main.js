@@ -320,6 +320,7 @@ document.getElementById('logout-btn').addEventListener('click',async()=>{
 
 function applySession(d){
   State.loggedIn=true;State.user=d.username;State.plan=d.plan||'free';
+  State.onboarding=d.onboarding||null;
   document.getElementById('user-name').textContent=d.username;
   document.getElementById('user-avatar').textContent=d.username[0].toUpperCase();
   setXP(d.xp||0);
@@ -1569,43 +1570,14 @@ function skipTutorial(){
 
 
 /* ── Onboarding ───────────────────────────────────────────────────────────── */
+// Onboarding is driven by server state (State.onboarding). New users are guided
+// through the calibration flow; existing users are marked complete server-side.
 function checkOnboarding(){
   if(!State.loggedIn) return;
-  const done = localStorage.getItem('cf-onboarding-'+State.user);
-  if(done) return;
-  const analysed = State.analysisData ? 1 : 0;
-  if(analysed < 1){
-    showOnboarding();
+  const ob = State.onboarding;
+  if(ob && ob.new_user && !ob.complete){
+    Onboarding.start();
   }
-}
-
-function showOnboarding(){
-  const existing = document.getElementById('onboarding-overlay');
-  if(existing) return;
-  const div = document.createElement('div');
-  div.id = 'onboarding-overlay';
-  div.className = 'onboarding-overlay';
-  div.innerHTML = `
-    <div class="onboarding-modal">
-      <div class="onboarding-step">Getting Started</div>
-      <div class="onboarding-title">Lets learn your game 🎯</div>
-      <div class="onboarding-desc">
-        To build your personalised training plan, ChessForge needs to analyse a few of your games. The more games you add, the more accurate your pattern detection and Thinking Process Fingerprint become.
-        <br><br>
-        <strong style="color:var(--cyan)">Start by analysing your first game below!</strong> You can do this from the Analyze tab.
-      </div>
-      <div style="display:flex;gap:.8rem;flex-wrap:wrap;justify-content:center">
-        <button class="btn-cyan" onclick="closeOnboarding();showPage('analyze')" style="width:auto">Analyse My First Game →</button>
-        <button class="onboarding-skip" onclick="closeOnboarding()">Skip for now</button>
-      </div>
-    </div>`;
-  document.body.appendChild(div);
-}
-
-function closeOnboarding(){
-  const el = document.getElementById('onboarding-overlay');
-  if(el) el.remove();
-  if(State.user) localStorage.setItem('cf-onboarding-'+State.user, '1');
 }
 
 
@@ -2423,3 +2395,457 @@ setTimeout(()=>{
   try { initCoachPage(); } catch(e) { console.error('Coach init error:', e); }
   setBotMode('coached');
 }, 300);
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ForgeBoard — clean, custom chessboard (SVG pieces, flat squares, overlays)
+   Rules-agnostic: the app supplies legal targets + validates moves via chess.js.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const FB_PIECES = {
+  p:'<circle cx="22.5" cy="14" r="6"/><path d="M18.5 24 L26.5 24 L29 40 L16 40 Z"/><rect x="13.5" y="38" width="18" height="4.5" rx="1.5"/>',
+  r:'<path d="M15 20 L30 20 L28.5 39 L16.5 39 Z"/><rect x="13.5" y="16" width="18" height="5"/><rect x="14" y="9" width="4.5" height="5"/><rect x="20.25" y="9" width="4.5" height="5"/><rect x="26.5" y="9" width="4.5" height="5"/><rect x="12" y="38" width="21" height="4.5" rx="1.5"/>',
+  n:'<path d="M12 41 L33 41 C33 32 32 27 28 23 C31 21 31 16 28 13 L29 8 L24.5 11 C22 9 18 9 15 12 C12.5 14.5 11 17 9 18 C7.5 19 7 21 8.5 22 C10 23 12 22 13 21 C13 24 12 27 12.5 31 C12.5 35 12 38 12 41 Z"/><rect x="11" y="38" width="23" height="4.5" rx="1.5"/>',
+  b:'<circle cx="22.5" cy="7.5" r="2.2"/><path d="M22.5 10 C27 14 27.5 20 22.5 25 C17.5 20 18 14 22.5 10 Z"/><path d="M17.5 25 L27.5 25 L29 39 L16 39 Z"/><rect x="13.5" y="38" width="18" height="4.5" rx="1.5"/>',
+  q:'<circle cx="12" cy="15" r="2.4"/><circle cx="22.5" cy="12" r="2.4"/><circle cx="33" cy="15" r="2.4"/><path d="M12 16 L15.5 25 L29.5 25 L33 16 L27.5 21 L22.5 13.5 L17.5 21 Z"/><path d="M15.5 25 L29.5 25 L28 39 L17 39 Z"/><rect x="12" y="38" width="21" height="4.5" rx="1.5"/>',
+  k:'<rect x="21" y="4" width="3" height="9"/><rect x="18" y="7" width="9" height="3"/><path d="M22.5 13 C18 13 15.5 17 17 21 L28 21 C29.5 17 27 13 22.5 13 Z"/><path d="M16.5 22 L28.5 22 L27 39 L18 39 Z"/><rect x="12" y="38" width="21" height="4.5" rx="1.5"/>'
+};
+function fbPieceSVG(type, color){
+  return '<svg class="fb-piece '+color+'" viewBox="0 0 45 45">'+FB_PIECES[type.toLowerCase()]+'</svg>';
+}
+
+class ForgeBoard {
+  constructor(elId, opts={}){
+    this.el = document.getElementById(elId);
+    if(!this.el) throw new Error('ForgeBoard: no element '+elId);
+    this.orientation = opts.orientation || 'white';
+    this.interactive = opts.interactive !== false;
+    this.onMove = opts.onMove || (()=>false);
+    this.getTargets = opts.getTargets || (()=>null);
+    this.pos = {};              // square -> {type,color}
+    this.selected = null;
+    this.lastMove = null;       // {from,to}
+    this.checkSquare = null;
+    this.dragging = false;
+    this._build();
+  }
+  _build(){
+    this.el.classList.add('fb-board');
+    this.el.innerHTML = '';
+    this.overlay = document.createElement('div');
+    this.overlay.className = 'fb-overlay';
+    this.overlay.innerHTML = '<svg viewBox="0 0 100 100" preserveAspectRatio="none"><g class="fb-hls"></g><g class="fb-arrows"></g></svg><div class="fb-hands"></div>';
+    this._renderSquares();
+    this.el.appendChild(this.overlay);
+    this._bindDrag();
+  }
+  _order(){
+    const files = ['a','b','c','d','e','f','g','h'];
+    const ranks = ['8','7','6','5','4','3','2','1'];
+    const rows = this.orientation==='white' ? ranks : ranks.slice().reverse();
+    const cols = this.orientation==='white' ? files : files.slice().reverse();
+    return {rows, cols};
+  }
+  _renderSquares(){
+    // remove existing squares (keep overlay)
+    this.el.querySelectorAll('.fb-sq').forEach(s=>s.remove());
+    const {rows, cols} = this._order();
+    const frag = document.createDocumentFragment();
+    rows.forEach((rank, ri)=>{
+      cols.forEach((file, ci)=>{
+        const sq = file+rank;
+        const fi = 'abcdefgh'.indexOf(file);
+        const isLight = ((fi + parseInt(rank,10)) % 2) === 0;
+        const cell = document.createElement('div');
+        cell.className = 'fb-sq '+(isLight?'fb-light':'fb-dark');
+        cell.dataset.square = sq;
+        if(this.lastMove && (this.lastMove.from===sq || this.lastMove.to===sq)) cell.classList.add('fb-last');
+        if(this.checkSquare===sq) cell.classList.add('fb-check');
+        if(this.selected===sq) cell.classList.add('fb-selected');
+        const pc = this.pos[sq];
+        if(pc) cell.innerHTML = fbPieceSVG(pc.type, pc.color);
+        // coordinate ticks on edges
+        if(ri===7) cell.insertAdjacentHTML('beforeend','<span class="fb-coord file">'+file+'</span>');
+        if(ci===0) cell.insertAdjacentHTML('beforeend','<span class="fb-coord rank">'+rank+'</span>');
+        frag.appendChild(cell);
+      });
+    });
+    if(this.overlay) this.el.insertBefore(frag, this.overlay);
+    else this.el.appendChild(frag);
+  }
+  setPosition(fen, opts={}){
+    this.pos = {};
+    const placement = (fen||'').split(' ')[0];
+    if(placement){
+      const ranks = placement.split('/');
+      for(let r=0; r<8; r++){
+        const rankNum = 8 - r;
+        let f = 0;
+        for(const ch of ranks[r]){
+          if(/\d/.test(ch)){ f += parseInt(ch,10); }
+          else {
+            const color = ch===ch.toUpperCase() ? 'w' : 'b';
+            const sq = 'abcdefgh'[f] + rankNum;
+            this.pos[sq] = {type: ch.toLowerCase(), color};
+            f++;
+          }
+        }
+      }
+    }
+    if(opts.lastMove) this.lastMove = opts.lastMove;
+    if('checkSquare' in opts) this.checkSquare = opts.checkSquare;
+    this.selected = null;
+    this._renderSquares();
+  }
+  flip(color){ this.orientation = color; this._renderSquares(); }
+  markLast(from,to){ this.lastMove = {from,to}; }
+  setCheck(sq){ this.checkSquare = sq || null; }
+  _cellFor(sq){ return this.el.querySelector('.fb-sq[data-square="'+sq+'"]'); }
+  _clearDots(){ this.el.querySelectorAll('.fb-dot, .fb-ring').forEach(d=>d.remove()); }
+  _select(sq){
+    this.selected = sq;
+    this._clearDots();
+    this.el.querySelectorAll('.fb-selected').forEach(c=>c.classList.remove('fb-selected'));
+    const cell = this._cellFor(sq); if(cell) cell.classList.add('fb-selected');
+    const targets = this.getTargets(sq) || [];
+    targets.forEach(t=>{
+      const tc = this._cellFor(t); if(!tc) return;
+      const capture = !!this.pos[t];
+      const mark = document.createElement('div');
+      mark.className = capture ? 'fb-ring' : 'fb-dot';
+      tc.appendChild(mark);
+    });
+    return targets;
+  }
+  _deselect(){
+    this.selected = null; this._clearDots();
+    this.el.querySelectorAll('.fb-selected').forEach(c=>c.classList.remove('fb-selected'));
+  }
+  _tryMove(from,to){
+    const ok = this.onMove(from, to);
+    this._deselect();
+    return ok;
+  }
+  _handleClick(sq){
+    if(!this.interactive) return;
+    if(this.selected){
+      if(sq===this.selected){ this._deselect(); return; }
+      const targets = this.getTargets(this.selected) || [];
+      if(targets.indexOf(sq) !== -1){ this._tryMove(this.selected, sq); return; }
+      // clicked another own piece?
+      const t = this.getTargets(sq);
+      if(t){ this._select(sq); return; }
+      this._deselect(); return;
+    }
+    const t = this.getTargets(sq);
+    if(t){ this._select(sq); }
+  }
+  _bindDrag(){
+    let startSq=null, moved=false, ghost=null;
+    const THRESH=6; let sx=0, sy=0;
+    const squareAt = (x,y)=>{
+      const el = document.elementFromPoint(x,y);
+      if(!el) return null;
+      const cell = el.closest ? el.closest('.fb-sq') : null;
+      return cell ? cell.dataset.square : null;
+    };
+    const down = (e)=>{
+      if(!this.interactive) return;
+      const pt = e.touches ? e.touches[0] : e;
+      const sq = squareAt(pt.clientX, pt.clientY);
+      if(!sq) return;
+      startSq = sq; moved=false; sx=pt.clientX; sy=pt.clientY;
+      // pre-select to show dots on press
+      const t = this.getTargets(sq);
+      if(t && !(this.selected && (this.getTargets(this.selected)||[]).indexOf(sq)!==-1)){
+        this._select(sq);
+      }
+    };
+    const move = (e)=>{
+      if(!startSq) return;
+      const pt = e.touches ? e.touches[0] : e;
+      if(!moved){
+        if(Math.abs(pt.clientX-sx)+Math.abs(pt.clientY-sy) < THRESH) return;
+        moved = true;
+        const pc = this.pos[startSq];
+        if(pc){
+          ghost = document.createElement('div');
+          ghost.className = 'fb-drag-ghost';
+          ghost.innerHTML = fbPieceSVG(pc.type, pc.color);
+          document.body.appendChild(ghost);
+          const cell = this._cellFor(startSq); if(cell) cell.classList.add('fb-drag-piece');
+        }
+      }
+      if(ghost){ ghost.style.left = pt.clientX+'px'; ghost.style.top = pt.clientY+'px'; e.preventDefault(); }
+    };
+    const up = (e)=>{
+      if(!startSq) return;
+      const pt = e.changedTouches ? e.changedTouches[0] : e;
+      const cell = this._cellFor(startSq); if(cell) cell.classList.remove('fb-drag-piece');
+      if(ghost){ ghost.remove(); ghost=null; }
+      if(moved){
+        const to = squareAt(pt.clientX, pt.clientY);
+        const targets = this.getTargets(startSq) || [];
+        if(to && targets.indexOf(to)!==-1){ this._tryMove(startSq, to); }
+        else { this._deselect(); }
+      } else {
+        this._handleClick(startSq);
+      }
+      startSq=null; moved=false;
+    };
+    this.el.addEventListener('mousedown', down);
+    window.addEventListener('mousemove', move, {passive:false});
+    window.addEventListener('mouseup', up);
+    this.el.addEventListener('touchstart', down, {passive:false});
+    window.addEventListener('touchmove', move, {passive:false});
+    window.addEventListener('touchend', up);
+  }
+  /* ── overlay drawing ── */
+  _xy(sq){
+    const fi = 'abcdefgh'.indexOf(sq[0]);
+    const rk = parseInt(sq[1],10);
+    let col = this.orientation==='white' ? fi : 7-fi;
+    let row = this.orientation==='white' ? 8-rk : rk-1;
+    return {x: col*12.5+6.25, y: row*12.5+6.25};
+  }
+  clearMarks(){
+    const a = this.overlay.querySelector('.fb-arrows'); if(a) a.innerHTML='';
+    const h = this.overlay.querySelector('.fb-hls'); if(h) h.innerHTML='';
+    const hands = this.overlay.querySelector('.fb-hands'); if(hands) hands.innerHTML='';
+  }
+  arrow(from,to,color){
+    color = color || '#26d07c';
+    const g = this.overlay.querySelector('.fb-arrows');
+    const a = this._xy(from), b = this._xy(to);
+    const dx=b.x-a.x, dy=b.y-a.y, len=Math.hypot(dx,dy)||1;
+    const ux=dx/len, uy=dy/len;
+    const ex=b.x-ux*5.5, ey=b.y-uy*5.5;         // shaft end (leave room for head)
+    const hb=4.6;                                 // head size
+    const hx1=ex-ux*hb+(-uy)*hb*0.7, hy1=ey-uy*hb+(ux)*hb*0.7;
+    const hx2=ex-ux*hb-(-uy)*hb*0.7, hy2=ey-uy*hb-(ux)*hb*0.7;
+    const ns='http://www.w3.org/2000/svg';
+    const line=document.createElementNS(ns,'line');
+    line.setAttribute('x1',a.x);line.setAttribute('y1',a.y);line.setAttribute('x2',ex);line.setAttribute('y2',ey);
+    line.setAttribute('class','fb-arrow');line.setAttribute('stroke',color);line.setAttribute('stroke-width','3.4');
+    const head=document.createElementNS(ns,'polygon');
+    head.setAttribute('points',b.x+','+b.y+' '+hx1+','+hy1+' '+hx2+','+hy2);
+    head.setAttribute('fill',color);head.setAttribute('opacity','.9');
+    g.appendChild(line);g.appendChild(head);
+  }
+  highlight(sq,color){
+    color=color||'#26d07c';
+    const g=this.overlay.querySelector('.fb-hls');
+    const c=this._xy(sq);
+    const ns='http://www.w3.org/2000/svg';
+    const circ=document.createElementNS(ns,'circle');
+    circ.setAttribute('cx',c.x);circ.setAttribute('cy',c.y);circ.setAttribute('r','5.4');
+    circ.setAttribute('class','fb-hl');circ.setAttribute('stroke',color);
+    g.appendChild(circ);
+  }
+  point(sq){
+    const hands=this.overlay.querySelector('.fb-hands');
+    const c=this._xy(sq);
+    const hand=document.createElement('div');
+    hand.className='fb-hand';hand.textContent='👆';
+    hand.style.left=c.x+'%';hand.style.top=c.y+'%';
+    hands.appendChild(hand);
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Onboarding — guided first-run flow (Phase 1: Step 1 calibration game)
+   ═══════════════════════════════════════════════════════════════════════════ */
+const Onboarding = {
+  active:false, board:null, game:null, playerColor:'white',
+  perf:[], moveData:[], movesMade:0, thinking:false, estElo:1100,
+
+  start(){
+    if(this.active) return;
+    if(document.getElementById('onb-overlay')) return;
+    this.active = true;
+    document.body.style.overflow='hidden';
+    const ov = document.createElement('div');
+    ov.id='onb-overlay'; ov.className='onb-overlay';
+    ov.innerHTML = `
+      <div class="onb-topbar">
+        <div class="onb-brand"><span class="logo-icon">⬡</span> Chess<strong>Forge</strong></div>
+        <div class="onb-rail" id="onb-rail"></div>
+        <div class="onb-skip-hint">Step 1 of 3</div>
+      </div>
+      <div class="onb-body">
+        <div class="onb-board-col">
+          <div id="onb-board"></div>
+          <div style="display:flex;gap:.7rem;margin-top:1rem;flex-wrap:wrap;align-items:center">
+            <button class="onb-btn ghost" id="onb-finish" disabled onclick="Onboarding.finish()">I'm done — read my level</button>
+            <span id="onb-move-hint" style="font-size:.82rem;color:var(--muted2)">Play at least a few moves so we can read your level.</span>
+          </div>
+        </div>
+        <div class="onb-side" id="onb-side">
+          <div class="onb-eyebrow">Step 1 · Calibration</div>
+          <h1 class="onb-title">First, just <em>play.</em></h1>
+          <p class="onb-desc">No coaching yet — this game is how ChessForge learns <em>your</em> style: the mistakes you repeat, the moments you rush. Play naturally against the bot. It'll quietly tune to your level as you go.</p>
+          <div class="onb-status"><span class="onb-pulse"></span><span id="onb-status-text">Reading your moves…</span></div>
+          <div class="onb-elo-wrap">
+            <div class="onb-elo-label">Estimated level</div>
+            <div class="onb-elo-bar"><div class="onb-elo-fill" id="onb-elo-fill"></div></div>
+            <div class="onb-elo-num" id="onb-elo-num">~1100</div>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    this.renderRail('calibration');
+    this.startCalibration();
+  },
+
+  renderRail(step){
+    const steps = [['calibration','Play'],['review','Review'],['coached','Coached game']];
+    const order = {calibration:0, review:1, coached:2, done:3};
+    const cur = order[step] ?? 0;
+    const rail = document.getElementById('onb-rail');
+    if(!rail) return;
+    rail.innerHTML = steps.map((s,i)=>{
+      const cls = i<cur ? 'done' : (i===cur ? 'active':'');
+      const dot = i<cur ? '✓' : (i+1);
+      const line = i<steps.length-1 ? '<span class="onb-rail-line"></span>' : '';
+      return `<span class="onb-rail-step ${cls}"><span class="onb-rail-dot">${dot}</span><span class="onb-rail-label">${s[1]}</span></span>${line}`;
+    }).join('');
+  },
+
+  startCalibration(){
+    this.game = new Chess();
+    this.playerColor = 'white';
+    this.perf = []; this.moveData = []; this.movesMade = 0; this.thinking=false; this.estElo=1100;
+    this.board = new ForgeBoard('onb-board', {
+      orientation:'white',
+      getTargets:(sq)=>{
+        if(this.thinking) return null;
+        if(this.game.turn() !== this.playerColor[0]) return null;
+        const p = this.game.get(sq);
+        if(!p || p.color !== this.playerColor[0]) return null;
+        return this.game.moves({square:sq, verbose:true}).map(m=>m.to);
+      },
+      onMove:(from,to)=>this.onPlayerMove(from,to),
+    });
+    this.board.setPosition(this.game.fen());
+    this.setStatus('Your move — you play White.');
+  },
+
+  setStatus(t){ const e=document.getElementById('onb-status-text'); if(e) e.textContent=t; },
+
+  onPlayerMove(from,to){
+    if(this.thinking) return false;
+    if(this.game.turn() !== this.playerColor[0]) return false;
+    const fenBefore = this.game.fen();
+    const mv = this.game.move({from,to,promotion:'q'});
+    if(!mv) return false;
+    this.board.setPosition(this.game.fen(), {lastMove:{from,to}, checkSquare:this.kingInCheck()});
+    this.movesMade++;
+    if(this.movesMade>=4){
+      const fb=document.getElementById('onb-finish'); if(fb) fb.disabled=false;
+      const mh=document.getElementById('onb-move-hint'); if(mh) mh.textContent='Keep going, or click "read my level" when ready.';
+    }
+    if(this.game.game_over()){ this.gatherPerf(fenBefore, mv.san); this.end('The game ended — let me read your level.'); return true; }
+    this.thinking = true;
+    this.setStatus('Bot is replying…');
+    setTimeout(()=>this.botMove(), 350);
+    // Gather perf in the background AFTER the bot request is queued, so the
+    // reply isn't stuck behind the heavier analysis on a single worker.
+    setTimeout(()=>this.gatherPerf(fenBefore, mv.san), 1600);
+    return true;
+  },
+
+  kingInCheck(){
+    if(!this.game.in_check()) return null;
+    const turn = this.game.turn();
+    for(const f of 'abcdefgh'){ for(let r=1;r<=8;r++){ const sq=f+r; const p=this.game.get(sq); if(p&&p.type==='k'&&p.color===turn) return sq; } }
+    return null;
+  },
+
+  async gatherPerf(fenBefore, san){
+    try{
+      const r = await fetch('/coach-move-feedback', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({fen_before:fenBefore, san_played:san, weaknesses:[]}),
+        credentials:'include'
+      });
+      const d = await r.json();
+      this.perf.push(typeof d.drop_cp==='number' ? d.drop_cp : 0);
+      this.moveData.push({fen_before:fenBefore, san, severity:d.severity, drop_cp:d.drop_cp, best_move:d.best_move_san, best_pv:d.best_pv});
+    }catch(e){ this.perf.push(0); }
+  },
+
+  async botMove(){
+    if(!this.game || this.game.game_over()){ this.thinking=false; return; }
+    try{
+      const r = await fetch('/bot-move', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({fen:this.game.fen(), perf:this.perf}),
+        credentials:'include'
+      });
+      const d = await r.json();
+      if(d.error || !d.move){ this.thinking=false; this.setStatus('Your move.'); return; }
+      const mv = this.game.move({from:d.move.slice(0,2), to:d.move.slice(2,4), promotion:'q'});
+      if(mv){
+        this.board.setPosition(this.game.fen(), {lastMove:{from:d.move.slice(0,2),to:d.move.slice(2,4)}, checkSquare:this.kingInCheck()});
+        if(typeof d.est_elo==='number') this.updateElo(d.est_elo);
+      }
+      this.thinking=false;
+      if(this.game.game_over()){ this.end('Checkmate — game over. Reading your level…'); return; }
+      this.setStatus(mv && this.game.in_check() ? 'You are in check — your move.' : 'Your move.');
+    }catch(e){ this.thinking=false; this.setStatus('Your move.'); }
+  },
+
+  updateElo(elo){
+    this.estElo = elo;
+    const pct = Math.max(5, Math.min(95, (elo-500)/1500*100));
+    const fill=document.getElementById('onb-elo-fill'); if(fill) fill.style.width=pct+'%';
+    const num=document.getElementById('onb-elo-num'); if(num) num.textContent='~'+elo;
+  },
+
+  finish(){ this.end('Reading your level…'); },
+
+  async end(msg){
+    if(this._ending) return; this._ending = true;
+    this.setStatus(msg||'Reading your level…');
+    // Persist calibration game + advance onboarding. Phase 1 completes here;
+    // the narrated review + coached game arrive in the next update.
+    const pgn = this.game ? this.game.pgn() : '';
+    try{
+      const r = await fetch('/onboarding/advance', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({step:'done', complete:true, calibration_game:{pgn, move_data:this.moveData, est_elo:this.estElo}}),
+        credentials:'include'
+      });
+      const d = await r.json();
+      if(d.onboarding) State.onboarding = d.onboarding;
+    }catch(e){}
+    this.showComplete();
+  },
+
+  showComplete(){
+    const side = document.getElementById('onb-side');
+    const mistakes = this.moveData.filter(m=>m.severity==='blunder'||m.severity==='mistake').length;
+    if(side){
+      side.innerHTML = `
+        <div class="onb-eyebrow">Calibration complete</div>
+        <h1 class="onb-title">Got it. You play at <em>~${this.estElo}.</em></h1>
+        <p class="onb-desc">I watched ${this.movesMade} of your moves${mistakes?` and spotted ${mistakes} costly one${mistakes>1?'s':''}`:''}. Your full <em>Thinking Fingerprint</em> and a live-coached game are landing in the next update — for now, jump in and explore.</p>
+        <button class="onb-btn" onclick="Onboarding.enterApp()">Enter ChessForge →</button>`;
+    }
+    this.renderRail('done');
+    const fb=document.getElementById('onb-finish'); if(fb) fb.style.display='none';
+    const mh=document.getElementById('onb-move-hint'); if(mh) mh.style.display='none';
+  },
+
+  enterApp(){
+    this.close();
+    showPage('coach');
+  },
+
+  close(){
+    this.active=false; this._ending=false;
+    document.body.style.overflow='';
+    const ov=document.getElementById('onb-overlay'); if(ov) ov.remove();
+  }
+};
+window.Onboarding = Onboarding;
