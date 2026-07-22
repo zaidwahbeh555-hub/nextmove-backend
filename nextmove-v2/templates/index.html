@@ -122,21 +122,26 @@
         </div>
       </div>
       <div class="gm-board-wrap">
+        <!-- coach speech bubble, floats over the top of the board -->
+        <div class="coach-speech hidden" id="coach-speech"></div>
         <div id="bot-board" class="gm-board"></div>
-        <svg class="gm-overlay" id="gm-overlay" viewBox="0 0 800 800" preserveAspectRatio="none">
-          <defs>
-            <marker id="arrow-head" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-              <path d="M0,0 L10,5 L0,10 Z" fill="currentColor"/>
-            </marker>
-          </defs>
-          <g id="overlay-highlights"></g>
-          <g id="overlay-arrows"></g>
-        </svg>
         <div class="gm-board-lock hidden" id="board-lock">
           <div class="gm-lock-inner">
             <div class="gm-lock-icon">👆</div>
             <div class="gm-lock-title">Coach is asking — answer first</div>
             <div class="gm-lock-sub">No skipping. Pick the move you think is best.</div>
+          </div>
+        </div>
+        <!-- big red PAUSE overlay when a blunder is about to cost you -->
+        <div class="blunder-pause hidden" id="blunder-pause">
+          <div class="pause-inner">
+            <div class="pause-icon">✋</div>
+            <div class="pause-title">PAUSE — breathe.</div>
+            <p class="pause-text" id="pause-text"></p>
+            <div class="pause-actions">
+              <button class="pause-btn takeback" onclick="pauseTakeBack()">↩ Take it back</button>
+              <button class="pause-btn anyway" onclick="pausePlayAnyway()">Play it anyway →</button>
+            </div>
           </div>
         </div>
       </div>
@@ -330,7 +335,7 @@
 <!-- ═══ PUZZLES ═══════════════════════════════════════════════════════════════ -->
 <div class="page" id="page-puzzles">
   <div class="page-header"><h1>Your Puzzles</h1><p>Positions from your actual blunders — click piece to select, click target to move</p></div>
-  <div id="no-puzzles" class="empty-state"><div class="empty-icon">🧩</div><h3>No puzzles yet</h3><p>Analyse a game first!</p><button class="btn-outline" onclick="showPage('analyze')">Analyse a Game →</button></div>
+  <div id="no-puzzles" class="empty-state"><div class="empty-icon">🧩</div><h3>No puzzles yet</h3><p>Play a coached game — your puzzles are built from the mistakes you make against the bot.</p><button class="btn-outline" onclick="showPage('coach')">Play &amp; Coach →</button></div>
   <div id="puzzle-area" class="hidden">
     <div class="two-col">
       <div>
