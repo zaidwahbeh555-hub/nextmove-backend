@@ -3,9 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ChessForge — Your Personal Chess Coach</title>
+<title>ChessForge — Your Grandmaster Coach</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://api.fontshare.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
 <link rel="stylesheet" href="/static/css/style.css">
 </head>
@@ -79,16 +82,12 @@
   </div>
   <ul class="nav-links">
     <li><a href="#" class="nav-link active" data-page="coach">🎓 Play & Coach</a></li>
-    <li><a href="#" class="nav-link" data-page="analyze">📊 Analyze</a></li>
-    <li><a href="#" class="nav-link" data-page="replay">🎬 Replay</a></li>
     <li><a href="#" class="nav-link" data-page="puzzles">🧩 Puzzles</a></li>
-    <li><a href="#" class="nav-link" data-page="progress">📈 Progress</a></li>
   </ul>
   <div class="sidebar-bottom">
     <div class="xp-row"><span class="xp-label">XP</span><span id="xp-count">0</span></div>
     <div class="xp-bar"><div class="xp-fill" id="xp-fill"></div></div>
     <button class="upgrade-btn" id="upgrade-btn" onclick="goToPro()">⚡ Upgrade to Pro</button>
-    <button class="theme-btn" id="theme-btn" onclick="toggleThemePanel()">🎨 Theme</button>
     <a href="https://chessforge.org" class="home-btn">← Homepage</a>
     <button class="logout-btn" id="logout-btn">Sign Out</button>
   </div>
