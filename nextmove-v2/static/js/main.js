@@ -1179,28 +1179,6 @@ const BotState = {
   weaknesses: []
 };
 
-function initBotPage(){
-  if(BotState.board) return;
-  BotState.board = Chessboard('bot-board', {
-    position: 'start',
-    draggable: true,
-    pieceTheme: PIECE_THEME,
-    onDrop: handleBotDrop,
-    onSnapEnd: ()=>{ if(BotState.game) BotState.board.position(BotState.game.fen()); },
-    onSquareClick: handleBotSquareClick,
-  });
-  // Show weakness targets if we have analysis data
-  if(State.analysisData){
-    const wp = (State.analysisData.top_weaknesses || []).map(([n])=>n);
-    BotState.weaknesses = wp;
-    if(wp.length){
-      showEl('bot-weakness-targets');
-      const list = document.getElementById('bot-target-list');
-      list.innerHTML = wp.slice(0,3).map(w=>`<div class="bot-target">🎯 ${esc(w)}</div>`).join('');
-    }
-  }
-}
-
 function getEloFromAnalysis(){
   if(!State.analysisData) return null;
   const metas = State.analysisData.game_metas || [];
@@ -1229,13 +1207,14 @@ function startBotGame(){
   BotState.lastBotSan = '';
   BotState.lastPlayerMove = null;
   BotState.lastBotMove = null;
-  BotState.board.orientation(BotState.playerColor);
-  BotState.board.position('start', false);
+  BotState.perf = [];
+  BotState.moveData = [];
+  BotState.board.flip(BotState.playerColor);
+  BotState.board.setPosition(START_FEN);
+  BotState.board.clearMarks();
   document.getElementById('bot-move-history').innerHTML = '';
   document.getElementById('bot-review-card').classList.add('hidden');
-  BoardOverlay.setOrientation(BotState.playerColor);
-  setTimeout(()=>BoardOverlay.syncSize(), 80);
-  BoardOverlay.clear();
+  hidePause();
   Coach.reset();
   const estElo = getEloFromAnalysis();
   const eloStr = estElo ? ` · ~${estElo} ELO` : '';
@@ -1243,162 +1222,120 @@ function startBotGame(){
   enableCoachButtons(true);
   if(State.coachMode==='coached'){
     Coach.setStatus('Watching the board');
+    Coach.speak('Game on. Take your time before every move — I\'ll ask questions and point things out.');
     Coach.renderQuestions(['Game on. Take your time before every move — I\'ll be asking questions and pointing things out.']);
-    // If player to move first (white), kick off coach question immediately
     if(BotState.playerColor === 'white'){
       setTimeout(()=>Coach.afterBotMove(''), 350);
     }
+  } else {
+    Coach.speak('');
   }
   if(BotState.playerColor === 'black'){
     setTimeout(makeBotMove, 800);
   }
 }
 
-function handleBotSquareClick(square){
-  if(!BotState.gameActive || BotState.thinking) return;
-  if(BotState.boardLocked){ ChessSFX.playWrong(); return; }
-  if(BotState.game.turn() !== BotState.playerColor[0]) return;
-  const piece = BotState.game.get(square);
-  // Same square clicked → deselect
-  if(BotState.selectedSquare === square){
-    BotState.selectedSquare = null;
-    clearBotHighlights(); paintLastMove();
-    return;
-  }
-  // We have a selection and clicked a target
-  if(BotState.selectedSquare){
-    const src = BotState.selectedSquare;
-    const mv = BotState.game.move({from:src, to:square, promotion:'q'});
-    if(mv){
-      BotState.selectedSquare = null;
-      const fenBefore = (function(){ const t=new Chess(); t.load(BotState.game.fen()); t.undo(); return t.fen(); })();
-      ChessSFX.playMove(mv);
-      BotState.board.position(BotState.game.fen());
-      BotState.lastPlayerMove = {from: src, to: square};
-      clearBotHighlights(); paintLastMove();
-      addBotMove(mv.san, src+square);
-      BoardOverlay.clear();
-      if(State.coachMode==='coached') Coach.afterPlayerMove(fenBefore, mv.san);
-      checkBotGameOver();
-      if(!BotState.game.game_over()) setTimeout(makeBotMove, State.coachMode==='coached' ? 1200 : 600);
-      return;
-    }
-    // Not a legal move — if clicked own piece, switch selection
-    if(piece && piece.color === BotState.playerColor[0]){
-      BotState.selectedSquare = square;
-      clearBotHighlights(); paintLastMove();
-      highlightBotMoves(square);
-      ChessSFX.playSelect();
-      return;
-    }
-    // Clicked empty/enemy square that's not a legal target → just deselect
-    BotState.selectedSquare = null;
-    clearBotHighlights(); paintLastMove();
-    return;
-  }
-  // No prior selection — select if it's our piece
-  if(piece && piece.color === BotState.playerColor[0]){
-    BotState.selectedSquare = square;
-    clearBotHighlights(); paintLastMove();
-    highlightBotMoves(square);
-    ChessSFX.playSelect();
-  }
-}
-
-function highlightBotMoves(square){
-  const moves = BotState.game.moves({square, verbose:true});
-  // Selected square ring
-  document.querySelectorAll(`#bot-board [data-square="${square}"]`).forEach(el=>el.classList.add('cf-selected'));
-  moves.forEach(m=>{
-    document.querySelectorAll(`#bot-board [data-square="${m.to}"]`).forEach(el=>{
-      const isCapture = !!BotState.game.get(m.to) || m.flags.includes('e');
-      const mark = document.createElement('div');
-      mark.className = isCapture ? 'cf-move-ring' : 'cf-move-dot';
-      el.appendChild(mark);
-    });
-  });
-}
-
-function clearBotHighlights(){
-  document.querySelectorAll('#bot-board .cf-selected').forEach(el=>el.classList.remove('cf-selected'));
-  document.querySelectorAll('#bot-board .cf-check').forEach(el=>el.classList.remove('cf-check'));
-  document.querySelectorAll('#bot-board .cf-move-dot, #bot-board .cf-move-ring').forEach(el=>el.remove());
-  // also clear any stale inline boxShadow from older code
-  document.querySelectorAll('#bot-board [data-square]').forEach(el=>{ if(el.style.boxShadow) el.style.boxShadow=''; });
-}
-
-function paintLastMove(){
-  document.querySelectorAll('#bot-board .cf-last-move').forEach(el=>el.classList.remove('cf-last-move'));
-  const m = BotState.lastPlayerMove || BotState.lastBotMove;
-  if(!m) return;
-  document.querySelectorAll(`#bot-board [data-square="${m.from}"], #bot-board [data-square="${m.to}"]`).forEach(el=>el.classList.add('cf-last-move'));
-  // King-in-check glow
-  if(BotState.game && BotState.game.in_check()){
-    const turn = BotState.game.turn();
-    // Find king square of side to move
-    for(const f of 'abcdefgh'){
-      for(let r=1;r<=8;r++){
-        const sq = f+r;
-        const p = BotState.game.get(sq);
-        if(p && p.type==='k' && p.color===turn){
-          document.querySelectorAll(`#bot-board [data-square="${sq}"]`).forEach(el=>el.classList.add('cf-check'));
-        }
-      }
-    }
-  }
-}
-
-function handleBotDrop(src, tgt){
-  if(!BotState.gameActive || BotState.thinking) return 'snapback';
-  if(BotState.boardLocked){ ChessSFX.playWrong(); return 'snapback'; }
-  if(BotState.game.turn() !== BotState.playerColor[0]) return 'snapback';
+// Player made a legal move on the ForgeBoard.
+function handleCoachMove(from, to){
+  if(!BotState.gameActive || BotState.thinking || BotState.boardLocked) return false;
+  if(BotState.game.turn() !== BotState.playerColor[0]) return false;
   const fenBefore = BotState.game.fen();
-  const mv = BotState.game.move({from:src, to:tgt, promotion:'q'});
-  if(!mv) return 'snapback';
+  const mv = BotState.game.move({from, to, promotion:'q'});
+  if(!mv) return false;
   ChessSFX.playMove(mv);
-  BotState.selectedSquare = null;
-  BotState.lastPlayerMove = {from: src, to: tgt};
-  clearBotHighlights(); paintLastMove();
-  BoardOverlay.clear();
-  addBotMove(mv.san, src+tgt);
-  if(State.coachMode==='coached'){
-    Coach.afterPlayerMove(fenBefore, mv.san);
+  BotState.lastPlayerMove = {from, to};
+  BotState.lastBotMove = null;
+  BotState.board.setPosition(BotState.game.fen(), {lastMove:{from,to}, checkSquare:coachKingCheckSquare()});
+  rebuildBotHistory();
+  BotState.board.clearMarks();
+  if(BotState.game.game_over()){ checkBotGameOver(); return true; }
+  if(State.coachMode === 'coached'){
+    Coach.reviewPlayerMove(fenBefore, mv.san);   // may PAUSE before the bot replies
+  } else {
+    setTimeout(makeBotMove, 450);
   }
-  checkBotGameOver();
-  if(!BotState.game.game_over()){
-    setTimeout(makeBotMove, State.coachMode==='coached' ? 1200 : 700);
-  }
+  return true;
 }
+
+function rebuildBotHistory(){
+  const hist = document.getElementById('bot-move-history');
+  if(!hist) return;
+  hist.innerHTML = '';
+  const moves = BotState.game.history();
+  for(let i=0;i<moves.length;i+=2){
+    const num = i/2+1;
+    const row = document.createElement('div');
+    row.className = 'bot-move-item'; row.id = 'bot-row-'+num;
+    row.innerHTML = `<span class="bot-move-num">${num}.</span><span class="bot-move-w">${esc(moves[i]||'')}</span><span class="bot-move-b">${esc(moves[i+1]||'')}</span>`;
+    hist.appendChild(row);
+  }
+  hist.scrollTop = hist.scrollHeight;
+}
+
+/* ── Red PAUSE-before-blunder overlay ─────────────────────────────────────── */
+function showPause(data, fenBefore){
+  BotState.boardLocked = true;
+  BotState._pauseFen = fenBefore;
+  BotState._pauseData = data || {};
+  const ov = document.getElementById('blunder-pause');
+  const txt = document.getElementById('pause-text');
+  if(txt) txt.textContent = (data && data.commentary) ? data.commentary : 'Hold on — take a breath and look at the whole board before you commit.';
+  if(ov) ov.classList.remove('hidden');
+  coachApplyMarks(data||{});           // point the hand at the danger / better move
+  Coach.speak('Wait — breathe. ' + ((data&&data.commentary)||'Look again before you lose material.'));
+  ChessSFX.playWrong();
+}
+function hidePause(){
+  const ov = document.getElementById('blunder-pause');
+  if(ov) ov.classList.add('hidden');
+  BotState.boardLocked = false;
+}
+function pauseTakeBack(){
+  if(BotState.game){ try{ BotState.game.undo(); }catch(e){} }
+  BotState.lastPlayerMove = null;
+  BotState.board.setPosition(BotState.game.fen(), {checkSquare:coachKingCheckSquare()});
+  rebuildBotHistory();
+  hidePause();
+  Coach.setStatus('Smart — rethink it.');
+  Coach.speak('Good. Now scan: what is your opponent threatening, and which of your pieces is loose?');
+  coachApplyMarks(BotState._pauseData||{});
+}
+function pausePlayAnyway(){
+  const d = BotState._pauseData || {};
+  hidePause();
+  Coach.renderFeedback(d.commentary||'', d.severity||'');
+  coachApplyMarks(d);
+  if(d.mcq && d.mcq.force){ setTimeout(()=>MCQ.open(d.mcq, null, true), 300); }
+  checkBotGameOver();
+  if(!BotState.game.game_over()) setTimeout(makeBotMove, 600);
+}
+window.pauseTakeBack = pauseTakeBack;
+window.pausePlayAnyway = pausePlayAnyway;
 
 async function makeBotMove(){
   if(!BotState.gameActive || BotState.game.game_over()) return;
   BotState.thinking = true;
-  setBotStatus('🤖 Bot is thinking…');
+  setBotStatus('Bot is thinking…');
   try{
-    const estElo = getEloFromAnalysis() || 1200;
     const r = await fetch('/bot-move', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({fen: BotState.game.fen(), weaknesses: BotState.weaknesses, elo: estElo}),
+      body: JSON.stringify({fen: BotState.game.fen(), weaknesses: BotState.weaknesses, perf: BotState.perf||[]}),
       credentials:'include'
     });
     const d = await r.json();
     if(d.error || !d.move){ setBotStatus('Bot error — your turn!'); BotState.thinking=false; return; }
-    const mv = BotState.game.move({from:d.move.slice(0,2), to:d.move.slice(2,4), promotion:'q'});
+    const from = d.move.slice(0,2), to = d.move.slice(2,4);
+    const mv = BotState.game.move({from, to, promotion:'q'});
     if(mv){
-      BotState.board.position(BotState.game.fen(), true);
       ChessSFX.playMove(mv);
-      addBotMove(mv.san, d.move, true);
+      BotState.lastBotMove = {from, to};
+      BotState.lastPlayerMove = null;
+      BotState.board.setPosition(BotState.game.fen(), {lastMove:{from,to}, checkSquare:coachKingCheckSquare()});
+      rebuildBotHistory();
       BotState.lastBotSan = mv.san;
-      BotState.lastBotMove = {from: d.move.slice(0,2), to: d.move.slice(2,4)};
-      BotState.lastPlayerMove = null; // bot move takes precedence visually
-      setTimeout(()=>paintLastMove(), 220);
-      if(d.in_check){
-        setBotStatus('♟ Bot played ' + mv.san + ' — You are in CHECK!');
-      } else {
-        setBotStatus('♟ Bot played ' + mv.san + ' — Your turn.');
-      }
+      setBotStatus(d.in_check ? ('♟ Bot played ' + mv.san + ' — you are in CHECK!') : ('♟ Bot played ' + mv.san + ' — your turn.'));
       if(State.coachMode==='coached' && !BotState.game.game_over()){
-        setTimeout(()=>Coach.afterBotMove(mv.san), 350);
+        setTimeout(()=>Coach.afterBotMove(mv.san), 300);
       }
       checkBotGameOver();
     }
@@ -1427,7 +1364,8 @@ function checkBotGameOver(){
   if(!BotState.game.game_over()) return;
   BotState.gameActive = false;
   enableCoachButtons(false);
-  BoardOverlay.clear();
+  hidePause();
+  if(BotState.board && BotState.board.clearMarks) BotState.board.clearMarks();
   let result = '';
   if(BotState.game.in_checkmate()){
     const winner = BotState.game.turn() === 'w' ? 'Black' : 'White';
@@ -1819,46 +1757,47 @@ function setBotMode(mode){
   ]);
 }
 
+const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+
+function coachKingCheckSquare(){
+  if(!BotState.game || !BotState.game.in_check()) return null;
+  const turn = BotState.game.turn();
+  for(const f of 'abcdefgh'){ for(let r=1;r<=8;r++){ const sq=f+r; const p=BotState.game.get(sq); if(p&&p.type==='k'&&p.color===turn) return sq; } }
+  return null;
+}
+
 function initCoachPage(){
   if(!document.getElementById('bot-board')) return;
-  if(BotState.board) return;
-  BotState.board = Chessboard('bot-board', {
-    position: 'start',
-    draggable: true,
-    pieceTheme: PIECE_THEME,
-    moveSpeed: 180,
-    snapSpeed: 80,
-    snapbackSpeed: 140,
-    appearSpeed: 140,
-    onDragStart: (src, piece)=>{
-      if(!BotState.gameActive || BotState.thinking) return false;
-      if(BotState.boardLocked){ ChessSFX.playWrong(); return false; }
-      if(BotState.game.turn() !== BotState.playerColor[0]) return false;
-      if(piece[0] !== BotState.playerColor[0]) return false;
-      BotState.selectedSquare = src;
-      clearBotHighlights(); paintLastMove();
-      highlightBotMoves(src);
-    },
-    onDrop: handleBotDrop,
-    onSnapEnd: ()=>{ if(BotState.game) BotState.board.position(BotState.game.fen()); paintLastMove(); },
-    onSquareClick: handleBotSquareClick,
-    onMouseoverSquare: sq=>{
-      if(BotState.selectedSquare || !BotState.gameActive) return;
-      if(BotState.game.turn() !== BotState.playerColor[0]) return;
+  if(BotState.board && BotState.board.__forge) return;
+  // Clean, tap-to-move ForgeBoard (same board as the onboarding calibration game)
+  BotState.board = new ForgeBoard('bot-board', {
+    orientation: 'white',
+    getTargets:(sq)=>{
+      if(!BotState.gameActive || BotState.thinking || BotState.boardLocked) return null;
+      if(!BotState.game || BotState.game.turn() !== BotState.playerColor[0]) return null;
       const p = BotState.game.get(sq);
-      if(p && p.color === BotState.playerColor[0]){
-        document.querySelectorAll(`#bot-board [data-square="${sq}"]`).forEach(el=>el.classList.add('cf-hover-piece'));
-      }
+      if(!p || p.color !== BotState.playerColor[0]) return null;
+      return BotState.game.moves({square:sq, verbose:true}).map(m=>m.to);
     },
-    onMouseoutSquare: sq=>{
-      document.querySelectorAll(`#bot-board [data-square="${sq}"]`).forEach(el=>el.classList.remove('cf-hover-piece'));
-    }
+    onMove:(from,to)=>handleCoachMove(from,to),
   });
+  BotState.board.__forge = true;
   if(State.analysisData){
     BotState.weaknesses = (State.analysisData.top_weaknesses||[]).map(([n])=>n);
   }
-  BoardOverlay.init('bot-board','gm-overlay');
-  window.addEventListener('resize', ()=>{ BoardOverlay.repaint(); if(BotState.board) BotState.board.resize(); });
+}
+
+// Draw the coach's arrows / highlights / pointing hand on the ForgeBoard.
+function coachApplyMarks(d){
+  const b = BotState.board; if(!b || !b.clearMarks) return;
+  b.clearMarks();
+  (d.arrows||[]).forEach(a=>{ if(a && a.from && a.to) b.arrow(a.from, a.to, a.color); });
+  (d.highlights||[]).forEach(h=>{ if(h && h.square) b.highlight(h.square, h.color); });
+  // Point the animated hand at the single most important square (first highlight, else arrow target)
+  let handSq = null;
+  if(d.highlights && d.highlights.length) handSq = d.highlights[0].square;
+  else if(d.arrows && d.arrows.length) handSq = d.arrows[0].to;
+  if(handSq) b.point(handSq);
 }
 
 /* ── Chessboard SFX (Web Audio — no asset needed) ─────────────────────────── */
@@ -2090,10 +2029,20 @@ const Coach = (function(){
     renderFeedback('', '');
     renderPositionBadge(null);
     renderTheory([]);
-    BoardOverlay.clear();
+    if(BotState.board && BotState.board.clearMarks) BotState.board.clearMarks();
     setThinking(false);
     BotState.boardLocked = false;
     showBoardLock(false);
+    speak('');
+  }
+  // The coach's spoken line, shown in a speech bubble beside the board.
+  function speak(text){
+    const b = document.getElementById('coach-speech');
+    if(!b) return;
+    if(!text){ b.classList.add('hidden'); b.textContent=''; return; }
+    b.textContent = text;
+    b.classList.remove('hidden');
+    b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop');
   }
   function getPlayedSAN(){
     if(!BotState.game) return [];
@@ -2105,7 +2054,6 @@ const Coach = (function(){
     if(BotState.game.turn() !== BotState.playerColor[0]) return;
     setStatus('Looking at the position');
     setThinking(true);
-    BoardOverlay.setOrientation(BotState.playerColor);
     try{
       const r = await fetch('/coach-question', {
         method:'POST', headers:{'Content-Type':'application/json'},
@@ -2122,23 +2070,23 @@ const Coach = (function(){
       renderFeedback('', '');
       renderPositionBadge(d.position_type || null);
       renderTheory(d.theory || []);
-      BoardOverlay.drawArrows(d.arrows||[]);
-      BoardOverlay.drawHighlights(d.highlights||[]);
+      coachApplyMarks(d);
       updateEvalBar(d.eval||0);
+      if(d.questions && d.questions.length) speak(d.questions[0]);
       setStatus('Your turn — what\'s the plan?');
-      if(d.mcq && d.mcq.force){
-        // Force engagement: lock board, force MCQ answer before play continues
-        MCQ.open(d.mcq, null, /*force*/true);
-      }
+      if(d.mcq && d.mcq.force){ MCQ.open(d.mcq, null, /*force*/true); }
     }catch(e){
       renderQuestions(['Take your time. What does the position need?']);
     }
     setThinking(false);
   }
-  async function afterPlayerMove(fenBefore, sanPlayed){
-    if(State.coachMode !== 'coached') return;
-    setStatus('Reviewing your move');
+  // Review the move the player just made. On a blunder/mistake, PAUSE (red overlay)
+  // and hold the bot's reply until the player decides. Otherwise, play on.
+  async function reviewPlayerMove(fenBefore, sanPlayed){
+    if(State.coachMode !== 'coached'){ setTimeout(makeBotMove, 400); return; }
+    setStatus('Checking your move…');
     setThinking(true);
+    let d = {};
     try{
       const r = await fetch('/coach-move-feedback', {
         method:'POST', headers:{'Content-Type':'application/json'},
@@ -2146,36 +2094,35 @@ const Coach = (function(){
           fen_before: fenBefore,
           san_played: sanPlayed,
           weaknesses: BotState.weaknesses,
-          played_moves: getPlayedSAN().slice(0,-1),  // exclude the just-played move
+          played_moves: getPlayedSAN().slice(0,-1),
         }),
         credentials:'include'
       });
-      const d = await r.json();
-      // Silent mode — coach stays quiet on routine moves
-      if(d.silent){
-        renderFeedback('', '');
-        BoardOverlay.clear();
-        if(typeof d.eval_after === 'number') updateEvalBar(d.eval_after);
-        setStatus(d.severity==='best' ? 'Top move ✓' : 'Solid move');
-        setThinking(false);
-        return;
-      }
-      renderFeedback(d.commentary || '', d.severity || '');
-      BoardOverlay.drawArrows(d.arrows||[]);
-      BoardOverlay.drawHighlights(d.highlights||[]);
-      if(typeof d.eval_after === 'number') updateEvalBar(d.eval_after);
-      if(d.severity === 'blunder' || d.severity === 'mistake'){
-        setStatus(d.severity==='blunder'?'Blunder spotted':'Mistake — let\'s learn');
-        if(d.mcq && d.mcq.force) setTimeout(()=>MCQ.open(d.mcq, sanPlayed, true), 500);
-      } else if(d.severity === 'inaccuracy') setStatus('Slight inaccuracy');
-      else setStatus('Watching the board');
-    }catch(e){
-      // Fail-safe: never soft-lock the user
-      renderFeedback('', '');
-      BotState.boardLocked = false;
-      showBoardLock(false);
-    }
+      d = await r.json();
+    }catch(e){ d = {silent:true}; }
     setThinking(false);
+    // Record perf for live calibration + post-game puzzles
+    BotState.perf = BotState.perf || []; BotState.moveData = BotState.moveData || [];
+    BotState.perf.push(typeof d.drop_cp==='number' ? d.drop_cp : 0);
+    BotState.moveData.push({fen_before:fenBefore, san:sanPlayed, severity:d.severity, drop_cp:d.drop_cp, best_move:d.best_move_san, best_pv:d.best_pv, side:BotState.playerColor});
+    if(typeof d.eval_after === 'number') updateEvalBar(d.eval_after);
+
+    if(d.severity === 'blunder' || d.severity === 'mistake'){
+      setStatus(d.severity==='blunder' ? 'Blunder — pause!' : 'Mistake — pause!');
+      showPause(d, fenBefore);      // bot reply waits until the player resolves the pause
+      return;
+    }
+    if(d.silent || !d.commentary){
+      renderFeedback('', '');
+      if(BotState.board && BotState.board.clearMarks) BotState.board.clearMarks();
+      speak('');
+    } else {
+      renderFeedback(d.commentary, d.severity||'');
+      coachApplyMarks(d);
+      speak(d.commentary);
+    }
+    setStatus(d.severity==='best' ? 'Top move ✓' : (d.severity==='inaccuracy' ? 'Slight inaccuracy' : 'Watching the board'));
+    setTimeout(makeBotMove, 500);
   }
   async function ask(type){
     if(!BotState.gameActive) return;
@@ -2211,7 +2158,7 @@ const Coach = (function(){
     }catch(e){}
     setThinking(false);
   }
-  return {afterBotMove, afterPlayerMove, ask, reset, renderQuestions, renderFeedback, setStatus, setThinking, renderPositionBadge, renderTheory};
+  return {afterBotMove, reviewPlayerMove, ask, reset, speak, renderQuestions, renderFeedback, setStatus, setThinking, renderPositionBadge, renderTheory};
 })();
 
 /* Board lock — force engagement when an MCQ is open */
