@@ -293,6 +293,23 @@ def login_required(f):
 def empty_progress():
     return {"games_analysed":0,"blunders_found":0,"puzzles_solved":0,"lessons_completed":[],"challenge_solved":[]}
 
+def default_onboarding(new=True):
+    """Onboarding state machine. New signups start at 'calibration'; existing users are complete."""
+    return {
+        "new_user": bool(new),
+        "complete": (not new),
+        "step": "calibration" if new else "done",   # calibration -> review -> coached -> done
+        "calibration_game": None,                     # {pgn, move_data} saved after game 1
+        "coached_game": None,
+    }
+
+def get_onboarding(user):
+    """Return onboarding state, defaulting pre-existing accounts to 'complete' so they're never forced through it."""
+    ob = user.get("onboarding")
+    if not ob:
+        return {"new_user": False, "complete": True, "step": "done", "calibration_game": None, "coached_game": None}
+    return ob
+
 def is_pro(user): return user.get("plan") == "pro"
 
 def games_today(user):
@@ -493,12 +510,14 @@ def register():
         db=load_db()
         if any(u.get("email","").lower()==email for u in db.values()): return jsonify({"error":"An account with that email already exists."}),400
     new_user={"password":hash_password(password),"email":email,"created":int(time.time()),
-              "xp":0,"plan":"free","plan_expires":None,"daily_counts":{},"games":[],"progress":empty_progress()}
+              "xp":0,"plan":"free","plan_expires":None,"daily_counts":{},"games":[],
+              "progress":empty_progress(),"onboarding":default_onboarding(new=True)}
     save_user(username,new_user)
     session["username"]=username; session.permanent=True
     # Notify admin
     send_admin_email("New ChessForge signup!",f"New user: {username}\nEmail: {email}\nTime: {time.strftime('%Y-%m-%d %H:%M')}")
-    return jsonify({"ok":True,"username":username,"xp":0,"plan":"free","progress":empty_progress()})
+    return jsonify({"ok":True,"username":username,"xp":0,"plan":"free","progress":empty_progress(),
+                    "onboarding":new_user["onboarding"]})
 
 @app.route("/auth/login", methods=["POST"])
 def login():
@@ -510,7 +529,8 @@ def login():
     if not user or not verify_password(password,user["password"]): time.sleep(0.3); return jsonify({"error":"Incorrect username or password."}),401
     session["username"]=username; session.permanent=True
     return jsonify({"ok":True,"username":username,"xp":user.get("xp",0),"plan":user.get("plan","free"),
-                    "progress":user.get("progress",empty_progress()),"games":user.get("games",[])})
+                    "progress":user.get("progress",empty_progress()),"games":user.get("games",[]),
+                    "onboarding":get_onboarding(user)})
 
 @app.route("/auth/logout", methods=["POST"])
 def logout():
@@ -523,7 +543,36 @@ def me():
     user=get_user(u)
     if not user: session.clear(); return jsonify({"loggedIn":False})
     return jsonify({"loggedIn":True,"username":u,"xp":user.get("xp",0),"plan":user.get("plan","free"),
-                    "progress":user.get("progress",empty_progress()),"games":user.get("games",[])})
+                    "progress":user.get("progress",empty_progress()),"games":user.get("games",[]),
+                    "onboarding":get_onboarding(user)})
+
+@app.route("/onboarding/state")
+@login_required
+def onboarding_state():
+    u=current_user(); user=get_user(u) or {}
+    return jsonify({"onboarding":get_onboarding(user)})
+
+@app.route("/onboarding/advance", methods=["POST"])
+@login_required
+def onboarding_advance():
+    u=current_user(); user=get_user(u)
+    if not user: return jsonify({"error":"User not found"}),404
+    data=request.get_json(silent=True) or {}
+    ob=get_onboarding(user)
+    step=data.get("step")
+    if step in ("calibration","review","coached","done"):
+        ob["step"]=step
+    if data.get("complete"): ob["complete"]=True
+    if ob.get("step")=="done": ob["complete"]=True
+    # Persist the calibration or coached game payload for later review
+    if data.get("calibration_game") is not None:
+        ob["calibration_game"]=data.get("calibration_game")
+    if data.get("coached_game") is not None:
+        ob["coached_game"]=data.get("coached_game")
+    ob["new_user"]=ob.get("new_user",True)
+    user["onboarding"]=ob
+    save_user(u,user)
+    return jsonify({"ok":True,"onboarding":ob})
 
 @app.route("/auth/save-game", methods=["POST"])
 @login_required
@@ -793,58 +842,73 @@ def handle_options(path=""):
     response.headers["Access-Control-Allow-Credentials"]="true"
     return response
 
+def estimate_player_elo(perf):
+    """Estimate player strength from a list of per-move eval drops (centipawns).
+    perf: list of ints (0 = perfect move, higher = bigger mistake). Returns an ELO estimate.
+    Starts moderate and converges as more samples arrive."""
+    if not perf:
+        return 1100  # moderate default before we know anything
+    samples = perf[-20:]  # only the recent window matters
+    avg = sum(samples) / len(samples)
+    # Blunder/mistake rate weighting
+    blunders = sum(1 for d in samples if d >= 300)
+    mistakes = sum(1 for d in samples if 150 <= d < 300)
+    rate = (blunders * 1.0 + mistakes * 0.5) / len(samples)
+    # Map average centipawn loss -> elo (lower loss = higher elo)
+    #   ~10cp avg  -> ~1900,  ~40cp -> ~1500,  ~90cp -> ~1100,  ~180cp -> ~700
+    base = 2000 - (avg * 7.5)
+    base -= rate * 250
+    # Confidence: pull toward 1100 when few samples
+    conf = min(len(samples) / 15.0, 1.0)
+    est = 1100 * (1 - conf) + base * conf
+    return int(max(500, min(2000, est)))
+
+def configure_bot_strength(engine, elo):
+    """Calibrate Stockfish to a target ELO. Uses UCI_LimitStrength/UCI_Elo where supported (>=1320),
+    else Skill Level for weaker play. Returns the search Limit to use."""
+    try:
+        if elo >= 1320:
+            engine.configure({"UCI_LimitStrength": True, "UCI_Elo": int(max(1320, min(2850, elo)))})
+            return chess.engine.Limit(time=0.25)
+        else:
+            # Below Stockfish's UCI_Elo floor — use Skill Level 0..20 + shallow search
+            # elo 500->skill 0, 1320->skill ~8
+            skill = int(max(0, min(20, (elo - 500) / 100)))
+            engine.configure({"Skill Level": skill})
+            depth = 2 if elo < 800 else (4 if elo < 1100 else 6)
+            return chess.engine.Limit(depth=depth)
+    except Exception:
+        # Engine doesn't support these options — fall back to depth mapping
+        depth = 3 if elo < 1000 else (6 if elo < 1400 else 10)
+        return chess.engine.Limit(depth=depth)
+
 @app.route("/bot-move", methods=["POST"])
 def bot_move():
-    """Get a bot move based on user weakness profile."""
+    """Adaptive bot move. Calibrates strength live from the player's per-move eval drops (perf)."""
     data = request.get_json(silent=True) or {}
     fen  = data.get("fen", "")
     weaknesses = data.get("weaknesses", [])
-    elo  = int(data.get("elo", 1200))
+    perf = data.get("perf", [])            # list of player eval drops so far
+    elo_override = data.get("elo")          # optional fixed elo
 
     sf = find_stockfish()
     if not sf or not fen:
         return jsonify({"error": "Engine not available"}), 500
-
     try:
         board = chess.Board(fen)
     except Exception:
         return jsonify({"error": "Invalid FEN"}), 400
 
-    # Map ELO to depth — lower ELO = shallower search = more mistakes
-    if elo < 800:   depth = 2
-    elif elo < 1000: depth = 3
-    elif elo < 1200: depth = 5
-    elif elo < 1400: depth = 7
-    elif elo < 1600: depth = 9
-    else:            depth = 12
-
-    # Occasionally play a "weakness-targeting" move instead of best move
-    # This makes the bot play positions that expose the user's weak patterns
-    targeting = random.random() < 0.4  # 40% chance of targeting
+    # Live calibration — start moderate, hone toward the player's real level
+    est_elo = int(elo_override) if elo_override else estimate_player_elo(perf)
+    # Bot plays slightly around the player's estimated level so games stay competitive
+    target_elo = int(max(500, min(2200, est_elo + random.randint(-60, 40))))
 
     try:
         with chess.engine.SimpleEngine.popen_uci(sf) as engine:
-            if targeting and weaknesses:
-                # Get multiple candidate moves and pick the one most likely to expose weakness
-                info = engine.analyse(board, chess.engine.Limit(depth=depth), multipv=5)
-                candidates = []
-                if isinstance(info, list):
-                    for i in info:
-                        pv = i.get("pv", [])
-                        if pv: candidates.append(pv[0])
-                else:
-                    pv = info.get("pv", [])
-                    if pv: candidates.append(pv[0])
-
-                # Pick a move that creates tactical complexity if user hangs pieces
-                move = candidates[0] if candidates else None
-                if not move:
-                    result = engine.play(board, chess.engine.Limit(depth=depth))
-                    move = result.move
-            else:
-                result = engine.play(board, chess.engine.Limit(depth=depth))
-                move = result.move
-
+            limit = configure_bot_strength(engine, target_elo)
+            result = engine.play(board, limit)
+            move = result.move
             if move and move in board.legal_moves:
                 san = board.san(move)
                 board.push(move)
@@ -855,6 +919,8 @@ def bot_move():
                     "game_over": board.is_game_over(),
                     "result": board.result() if board.is_game_over() else None,
                     "in_check": board.is_check(),
+                    "est_elo": est_elo,          # player's estimated level (for UI)
+                    "bot_elo": target_elo,       # strength the bot just played at
                 })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
