@@ -2434,8 +2434,8 @@ class ForgeBoard {
     this.overlay = document.createElement('div');
     this.overlay.className = 'fb-overlay';
     this.overlay.innerHTML = '<svg viewBox="0 0 100 100" preserveAspectRatio="none"><g class="fb-hls"></g><g class="fb-arrows"></g></svg><div class="fb-hands"></div>';
+    this.el.appendChild(this.overlay);   // attach overlay first so square inserts have a valid anchor
     this._renderSquares();
-    this.el.appendChild(this.overlay);
     this._bindDrag();
   }
   _order(){
@@ -2469,7 +2469,7 @@ class ForgeBoard {
         frag.appendChild(cell);
       });
     });
-    if(this.overlay) this.el.insertBefore(frag, this.overlay);
+    if(this.overlay && this.overlay.parentNode === this.el) this.el.insertBefore(frag, this.overlay);
     else this.el.appendChild(frag);
   }
   setPosition(fen, opts={}){
