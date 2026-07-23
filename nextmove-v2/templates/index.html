@@ -12,7 +12,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 <link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
-<link rel="stylesheet" href="/static/css/style.css">
+<link rel="stylesheet" href="/static/css/style.css?v=p4">
 </head>
 <body>
 
@@ -136,6 +136,34 @@
         </div>
         <!-- thin red flag at the top of the board (does NOT cover it) -->
         <div class="blunder-flag hidden" id="blunder-flag">✋ Hold on — that costs you. Look below ↓</div>
+        <!-- animated coach: arm stretches from the figure to point at a tile -->
+        <div class="coach-arm-layer" id="coach-arm-layer" aria-hidden="true">
+          <div class="coach-arm" id="coach-arm"><span class="coach-hand" id="coach-hand">👆</span></div>
+        </div>
+        <div class="coach-figure" id="coach-figure" aria-hidden="true">
+          <svg viewBox="0 0 200 220">
+            <defs><linearGradient id="blz" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#243044"/><stop offset="1" stop-color="#161d2a"/></linearGradient></defs>
+            <path d="M28 220 C28 168 60 150 100 150 C140 150 172 168 172 220 Z" fill="url(#blz)"/>
+            <path d="M84 152 L100 150 L116 152 L108 176 L92 176 Z" fill="#0f1520"/>
+            <path d="M96 158 L104 158 L110 200 L100 210 L90 200 Z" fill="#00d4ff"/>
+            <rect x="88" y="128" width="24" height="30" rx="10" fill="#d99a6c"/>
+            <ellipse cx="100" cy="96" rx="42" ry="46" fill="#eab387"/>
+            <circle cx="59" cy="98" r="8" fill="#e0a878"/><circle cx="141" cy="98" r="8" fill="#e0a878"/>
+            <path d="M58 92 C56 52 84 40 100 40 C116 40 144 52 142 92 C138 74 128 66 116 64 C120 70 120 78 118 82 C112 66 96 62 84 66 C82 74 82 80 84 84 C74 74 64 76 58 92 Z" fill="#2a2018"/>
+            <path d="M74 86 Q84 80 94 85" stroke="#2a2018" stroke-width="4" fill="none" stroke-linecap="round"/>
+            <path d="M106 85 Q116 80 126 86" stroke="#2a2018" stroke-width="4" fill="none" stroke-linecap="round"/>
+            <g class="coach-eyes">
+              <ellipse cx="84" cy="98" rx="7" ry="8" fill="#fff"/><circle cx="85" cy="99" r="3.4" fill="#20242c"/>
+              <ellipse cx="116" cy="98" rx="7" ry="8" fill="#fff"/><circle cx="115" cy="99" r="3.4" fill="#20242c"/>
+            </g>
+            <path d="M100 102 L96 112 L104 112 Z" fill="#dd9a68"/>
+            <path d="M86 120 Q100 132 114 120" stroke="#b5673c" stroke-width="4" fill="none" stroke-linecap="round"/>
+            <path d="M58 96 C56 60 144 60 142 96" stroke="#0f1520" stroke-width="6" fill="none"/>
+            <rect x="52" y="92" width="12" height="20" rx="5" fill="#0f1520"/>
+            <path d="M64 112 Q80 128 92 124" stroke="#0f1520" stroke-width="5" fill="none" stroke-linecap="round"/>
+            <circle cx="92" cy="124" r="5" fill="#00d4ff"/>
+          </svg>
+        </div>
       </div>
       <!-- Blunder review card sits BELOW the board so the board stays fully visible -->
       <div class="blunder-alert hidden" id="blunder-alert">
@@ -390,6 +418,6 @@
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
-<script src="/static/js/main.js"></script>
+<script src="/static/js/main.js?v=p4"></script>
 </body>
 </html>
