@@ -837,3 +837,31 @@ body{font-family:'Satoshi','Segoe UI',system-ui,sans-serif;letter-spacing:.005em
   70%{transform:translate(-50%,-122%) rotate(-6deg) scale(1)}
   100%{transform:translate(-50%,-150%) rotate(-10deg) scale(.8);opacity:.6}
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Animated human coach — figure at the board corner + arm that stretches to a tile
+   ═══════════════════════════════════════════════════════════════════════════ */
+.gm-board-wrap{position:relative;overflow:visible}
+.coach-figure{
+  position:absolute;right:-14px;bottom:-10px;width:118px;z-index:14;pointer-events:none;
+  filter:drop-shadow(0 8px 16px rgba(0,0,0,.5));animation:coachBob 4.5s ease-in-out infinite;
+}
+.coach-figure svg{width:100%;height:auto;display:block}
+@keyframes coachBob{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(-5px) rotate(-1deg)}}
+.coach-eyes{animation:coachBlink 5.5s infinite;transform-box:fill-box;transform-origin:center}
+@keyframes coachBlink{0%,93%,100%{transform:scaleY(1)}96%{transform:scaleY(.12)}}
+.coach-figure.think{animation:coachThink 1.2s ease-in-out infinite}
+@keyframes coachThink{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(-3px) rotate(2deg)}}
+.coach-figure.alarm{animation:coachAlarm .5s ease-in-out 2}
+@keyframes coachAlarm{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px) rotate(-3deg)}75%{transform:translateX(6px) rotate(3deg)}}
+
+.coach-arm-layer{position:absolute;inset:0;pointer-events:none;z-index:13;overflow:visible}
+.coach-arm{
+  position:absolute;height:19px;border-radius:11px;width:0;opacity:0;transform-origin:left center;
+  background:linear-gradient(90deg,#161d2a 0, #243044 20px, #eab387 20px, #e0a878 100%);
+  box-shadow:0 3px 9px rgba(0,0,0,.45);
+  transition:width .4s cubic-bezier(.34,1.45,.5,1), opacity .18s;
+}
+.coach-arm.show{opacity:1}
+.coach-hand{position:absolute;right:-10px;top:50%;font-size:27px;line-height:1;transform:translateY(-55%) rotate(88deg);filter:drop-shadow(0 2px 3px rgba(0,0,0,.45))}
+@media(max-width:620px){.coach-figure{width:88px;right:-8px}}
