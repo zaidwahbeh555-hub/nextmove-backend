@@ -1330,6 +1330,13 @@ function showPause(data, fenBefore, sanPlayed){
   if(txt) txt.textContent = (data && data.commentary) ? data.commentary : 'Take a breath — step through what happens next.';
   renderPauseFrame();
   Coach.speak('Wait — breathe. Step through it: see what your opponent does next.');
+  // coach reacts: alarmed, and points the arm at the trouble square
+  if(window.CoachFigure){
+    CoachFigure.mood('alarm');
+    const hs = (data && data.highlights && data.highlights[0] && data.highlights[0].square)
+             || (data && data.arrows && data.arrows[0] && data.arrows[0].to);
+    if(hs) setTimeout(()=>CoachFigure.point(hs), 250);
+  }
   ChessSFX.playWrong();
 }
 function hidePause(){
@@ -1836,18 +1843,43 @@ function initCoachPage(){
   }
 }
 
-// Draw the coach's arrows / highlights / pointing hand on the ForgeBoard.
+// Draw the coach's arrows / highlights on the ForgeBoard and point the coach's arm at the key square.
 function coachApplyMarks(d){
   const b = BotState.board; if(!b || !b.clearMarks) return;
   b.clearMarks();
   (d.arrows||[]).forEach(a=>{ if(a && a.from && a.to) b.arrow(a.from, a.to, a.color); });
   (d.highlights||[]).forEach(h=>{ if(h && h.square) b.highlight(h.square, h.color); });
-  // Point the animated hand at the single most important square (first highlight, else arrow target)
   let handSq = null;
   if(d.highlights && d.highlights.length) handSq = d.highlights[0].square;
   else if(d.arrows && d.arrows.length) handSq = d.arrows[0].to;
-  if(handSq) b.point(handSq);
+  if(handSq) CoachFigure.point(handSq); else CoachFigure.rest();
 }
+
+/* ── The animated human coach: arm stretches from the figure to a board tile ── */
+const CoachFigure = (function(){
+  const layer = ()=>document.getElementById('coach-arm-layer');
+  const arm   = ()=>document.getElementById('coach-arm');
+  const fig   = ()=>document.getElementById('coach-figure');
+  function point(sq){
+    const L=layer(), A=arm(); if(!L||!A) return;
+    const tile=document.querySelector('#bot-board .fb-sq[data-square="'+sq+'"]');
+    const lr=L.getBoundingClientRect();
+    if(!tile || lr.width===0){ rest(); return; }
+    const tr=tile.getBoundingClientRect();
+    const tx=tr.left-lr.left+tr.width/2, ty=tr.top-lr.top+tr.height/2;
+    const sx=lr.width-70, sy=lr.height-58;                 // shoulder, near the figure
+    const dx=tx-sx, dy=ty-sy;
+    const dist=Math.max(24, Math.hypot(dx,dy)-16);         // stop short so the finger sits on the tile
+    const ang=Math.atan2(dy,dx)*180/Math.PI;
+    A.style.left=sx+'px'; A.style.top=(sy-9.5)+'px'; A.style.transform='rotate('+ang+'deg)';
+    A.style.transition='none'; A.style.width='0px'; A.classList.add('show');
+    requestAnimationFrame(()=>{ A.style.transition=''; A.style.width=dist+'px'; });
+  }
+  function rest(){ const A=arm(); if(A){ A.classList.remove('show'); A.style.width='0px'; } }
+  function mood(m){ const F=fig(); if(!F) return; F.classList.remove('think','alarm'); if(m) F.classList.add(m); }
+  return {point, rest, mood};
+})();
+window.CoachFigure = CoachFigure;
 
 /* ── Chessboard SFX (Web Audio — no asset needed) ─────────────────────────── */
 const ChessSFX = (function(){
@@ -2034,6 +2066,7 @@ const Coach = (function(){
     const el = document.getElementById('coach-thinking');
     if(el) el.classList.toggle('hidden', !on);
     setSpeaking(on);
+    if(window.CoachFigure) CoachFigure.mood(on ? 'think' : '');
   }
   function renderQuestions(qs){
     const ul = document.getElementById('coach-questions');
@@ -2083,6 +2116,7 @@ const Coach = (function(){
     BotState.boardLocked = false;
     showBoardLock(false);
     speak('');
+    if(window.CoachFigure){ CoachFigure.rest(); CoachFigure.mood(''); }
   }
   // The coach's spoken line, shown in a speech bubble beside the board.
   function speak(text){
