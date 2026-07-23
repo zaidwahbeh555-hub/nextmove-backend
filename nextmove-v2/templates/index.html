@@ -12,7 +12,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 <link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
-<link rel="stylesheet" href="/static/css/style.css?v=p4">
+<link rel="stylesheet" href="/static/css/style.css?v=p5">
 </head>
 <body>
 
@@ -84,6 +84,7 @@
   </div>
   <ul class="nav-links">
     <li><a href="#" class="nav-link active" data-page="coach">🎓 Play & Coach</a></li>
+    <li><a href="#" class="nav-link" data-page="training">🎯 Training</a></li>
     <li><a href="#" class="nav-link" data-page="puzzles">🧩 Puzzles</a></li>
   </ul>
   <div class="sidebar-bottom">
@@ -124,8 +125,6 @@
         </div>
       </div>
       <div class="gm-board-wrap">
-        <!-- coach speech bubble, floats over the top of the board -->
-        <div class="coach-speech hidden" id="coach-speech"></div>
         <div id="bot-board" class="gm-board"></div>
         <div class="gm-board-lock hidden" id="board-lock">
           <div class="gm-lock-inner">
@@ -136,34 +135,6 @@
         </div>
         <!-- thin red flag at the top of the board (does NOT cover it) -->
         <div class="blunder-flag hidden" id="blunder-flag">✋ Hold on — that costs you. Look below ↓</div>
-        <!-- animated coach: arm stretches from the figure to point at a tile -->
-        <div class="coach-arm-layer" id="coach-arm-layer" aria-hidden="true">
-          <div class="coach-arm" id="coach-arm"><span class="coach-hand" id="coach-hand">👆</span></div>
-        </div>
-        <div class="coach-figure" id="coach-figure" aria-hidden="true">
-          <svg viewBox="0 0 200 220">
-            <defs><linearGradient id="blz" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#243044"/><stop offset="1" stop-color="#161d2a"/></linearGradient></defs>
-            <path d="M28 220 C28 168 60 150 100 150 C140 150 172 168 172 220 Z" fill="url(#blz)"/>
-            <path d="M84 152 L100 150 L116 152 L108 176 L92 176 Z" fill="#0f1520"/>
-            <path d="M96 158 L104 158 L110 200 L100 210 L90 200 Z" fill="#00d4ff"/>
-            <rect x="88" y="128" width="24" height="30" rx="10" fill="#d99a6c"/>
-            <ellipse cx="100" cy="96" rx="42" ry="46" fill="#eab387"/>
-            <circle cx="59" cy="98" r="8" fill="#e0a878"/><circle cx="141" cy="98" r="8" fill="#e0a878"/>
-            <path d="M58 92 C56 52 84 40 100 40 C116 40 144 52 142 92 C138 74 128 66 116 64 C120 70 120 78 118 82 C112 66 96 62 84 66 C82 74 82 80 84 84 C74 74 64 76 58 92 Z" fill="#2a2018"/>
-            <path d="M74 86 Q84 80 94 85" stroke="#2a2018" stroke-width="4" fill="none" stroke-linecap="round"/>
-            <path d="M106 85 Q116 80 126 86" stroke="#2a2018" stroke-width="4" fill="none" stroke-linecap="round"/>
-            <g class="coach-eyes">
-              <ellipse cx="84" cy="98" rx="7" ry="8" fill="#fff"/><circle cx="85" cy="99" r="3.4" fill="#20242c"/>
-              <ellipse cx="116" cy="98" rx="7" ry="8" fill="#fff"/><circle cx="115" cy="99" r="3.4" fill="#20242c"/>
-            </g>
-            <path d="M100 102 L96 112 L104 112 Z" fill="#dd9a68"/>
-            <path d="M86 120 Q100 132 114 120" stroke="#b5673c" stroke-width="4" fill="none" stroke-linecap="round"/>
-            <path d="M58 96 C56 60 144 60 142 96" stroke="#0f1520" stroke-width="6" fill="none"/>
-            <rect x="52" y="92" width="12" height="20" rx="5" fill="#0f1520"/>
-            <path d="M64 112 Q80 128 92 124" stroke="#0f1520" stroke-width="5" fill="none" stroke-linecap="round"/>
-            <circle cx="92" cy="124" r="5" fill="#00d4ff"/>
-          </svg>
-        </div>
       </div>
       <!-- Blunder review card sits BELOW the board so the board stays fully visible -->
       <div class="blunder-alert hidden" id="blunder-alert">
@@ -182,41 +153,52 @@
       <div class="gm-status-box" id="bot-status">Choose a mode and click New Game to start.</div>
     </div>
 
-    <!-- Right: Coach Panel (rebuilt) -->
+    <!-- Right: the coach is a real presence here — big, permanent, speaks in a bubble -->
     <div class="gm-side" id="coach-panel">
-      <div class="gm-coach-card">
-        <div class="gm-coach-head">
-          <div class="gm-avatar"><span>♛</span></div>
-          <div class="gm-coach-meta">
-            <div class="gm-coach-name">GM Forge</div>
-            <div class="gm-coach-status" id="coach-status-label">Awaiting your move…</div>
-          </div>
-          <div class="gm-eval-mini">
-            <span class="gm-eval-num" id="eval-num">0.0</span>
-          </div>
+      <div class="coach-stage">
+        <div class="coach-bubble" id="coach-bubble"><span id="coach-bubble-text">Hit <b>New Game</b> and I'll sit in — I'll talk you through it.</span></div>
+        <div class="coach-thinking-mini hidden" id="coach-thinking"><span class="gm-dot-pulse"></span><span class="gm-dot-pulse"></span><span class="gm-dot-pulse"></span></div>
+        <div class="coach-big idle" id="coach-big">
+          <svg viewBox="0 0 200 220">
+            <defs><linearGradient id="blz2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#243044"/><stop offset="1" stop-color="#161d2a"/></linearGradient></defs>
+            <path d="M8 220 C8 158 52 138 100 138 C148 138 192 158 192 220 Z" fill="url(#blz2)"/>
+            <path d="M82 140 L100 138 L118 140 L109 168 L91 168 Z" fill="#0f1520"/>
+            <path d="M95 146 L105 146 L112 200 L100 212 L88 200 Z" fill="#00d4ff"/>
+            <rect x="87" y="120" width="26" height="30" rx="11" fill="#d99a6c"/>
+            <ellipse cx="100" cy="88" rx="44" ry="48" fill="#eab387"/>
+            <circle cx="57" cy="90" r="8.5" fill="#e0a878"/><circle cx="143" cy="90" r="8.5" fill="#e0a878"/>
+            <path d="M56 84 C54 42 84 30 100 30 C116 30 146 42 144 84 C140 66 130 58 118 56 C122 62 122 70 120 74 C114 58 96 54 84 58 C82 66 82 72 84 76 C74 66 62 68 56 84 Z" fill="#2a2018"/>
+            <path d="M74 78 Q84 72 94 77" stroke="#2a2018" stroke-width="4" fill="none" stroke-linecap="round"/>
+            <path d="M106 77 Q116 72 126 78" stroke="#2a2018" stroke-width="4" fill="none" stroke-linecap="round"/>
+            <g class="coach-eyes">
+              <ellipse cx="84" cy="90" rx="7.5" ry="8.5" fill="#fff"/><circle class="pupil" cx="85" cy="91" r="3.6" fill="#20242c"/>
+              <ellipse cx="116" cy="90" rx="7.5" ry="8.5" fill="#fff"/><circle class="pupil" cx="115" cy="91" r="3.6" fill="#20242c"/>
+            </g>
+            <path d="M100 95 L96 106 L104 106 Z" fill="#dd9a68"/>
+            <path class="coach-mouth" d="M86 114 Q100 126 114 114" stroke="#b5673c" stroke-width="4" fill="none" stroke-linecap="round"/>
+            <path d="M56 88 C54 52 146 52 144 88" stroke="#0f1520" stroke-width="6" fill="none"/>
+            <rect x="50" y="84" width="13" height="22" rx="6" fill="#0f1520"/>
+            <path d="M63 106 Q80 124 92 118" stroke="#0f1520" stroke-width="5" fill="none" stroke-linecap="round"/>
+            <circle cx="92" cy="118" r="5.5" fill="#00d4ff"/>
+          </svg>
         </div>
-        <div class="gm-eval-bar-wrap">
-          <div class="gm-eval-bar-bg"><div class="gm-eval-bar-fill" id="eval-bar" style="width:50%"></div></div>
+        <div class="coach-name-tag">GM Forge <span class="coach-live"><span class="gm-dot"></span>live</span></div>
+        <div class="coach-eval-row">
+          <span class="coach-eval-label">EVAL</span>
+          <div class="coach-eval-bar"><div class="coach-eval-fill" id="eval-bar" style="width:50%"></div></div>
+          <span class="coach-eval-num" id="eval-num">0.0</span>
         </div>
-        <div class="gm-coach-body">
-          <div class="gm-coach-thinking hidden" id="coach-thinking"><span class="gm-dot-pulse"></span><span class="gm-dot-pulse"></span><span class="gm-dot-pulse"></span> thinking…</div>
-          <div class="gm-position-badge hidden" id="coach-position-badge"></div>
-          <div class="gm-theory hidden" id="coach-theory"></div>
-          <ul class="gm-question-list" id="coach-questions"><li class="gm-q-empty">Start a game in Coached mode and I'll walk you through every position.</li></ul>
-          <div class="gm-feedback hidden" id="coach-feedback"></div>
-        </div>
-        <div class="gm-coach-actions">
-          <button class="gm-action-btn hint" id="hint-btn-coach" onclick="askCoach('hint')" disabled>💡 Hint</button>
-          <button class="gm-action-btn explain" id="explain-btn-coach" onclick="askCoach('explain')" disabled>📊 Explain</button>
-          <button class="gm-action-btn quiz" id="quiz-btn-coach" onclick="askCoach('quiz')" disabled>🎯 Quiz Me</button>
+        <div class="coach-actions-row">
+          <button class="coach-mini-btn" id="hint-btn-coach" onclick="askCoach('hint')" disabled>💡 Hint</button>
+          <button class="coach-mini-btn" id="explain-btn-coach" onclick="askCoach('explain')" disabled>📊 Explain</button>
+          <button class="coach-mini-btn" id="quiz-btn-coach" onclick="askCoach('quiz')" disabled>🎯 Quiz</button>
         </div>
       </div>
 
-      <div class="gm-history-card">
-        <div class="gm-card-label">Move History</div>
+      <details class="coach-history">
+        <summary>Move list</summary>
         <div id="bot-move-history" class="gm-move-history"></div>
-      </div>
-
+      </details>
       <div class="gm-history-card hidden" id="bot-review-card">
         <div class="gm-card-label">Game Review</div>
         <div id="bot-review-content"></div>
@@ -366,6 +348,15 @@
   </div>
 </div>
 
+<!-- ═══ TRAINING ══════════════════════════════════════════════════════════════ -->
+<div class="page" id="page-training">
+  <div class="page-header"><h1>Training</h1><p>Drill the exact weaknesses your coach spots in your games.</p></div>
+  <div class="train-grid" id="train-grid"></div>
+  <div class="train-note">
+    <p><strong>This is the starting point.</strong> Right now these launch weakness-targeted puzzle sets. Tell me exactly how you want Training to work — timed drills, spaced repetition, a specific weakness path — and I'll build it out.</p>
+  </div>
+</div>
+
 <!-- ═══ PUZZLES ═══════════════════════════════════════════════════════════════ -->
 <div class="page" id="page-puzzles">
   <div class="page-header"><h1>Your Puzzles</h1><p>Positions from your actual blunders — click piece to select, click target to move</p></div>
@@ -418,6 +409,6 @@
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
-<script src="/static/js/main.js?v=p4"></script>
+<script src="/static/js/main.js?v=p5"></script>
 </body>
 </html>
