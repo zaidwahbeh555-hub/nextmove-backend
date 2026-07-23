@@ -134,17 +134,21 @@
             <div class="gm-lock-sub">No skipping. Pick the move you think is best.</div>
           </div>
         </div>
-        <!-- big red PAUSE overlay when a blunder is about to cost you -->
-        <div class="blunder-pause hidden" id="blunder-pause">
-          <div class="pause-inner">
-            <div class="pause-icon">✋</div>
-            <div class="pause-title">PAUSE — breathe.</div>
-            <p class="pause-text" id="pause-text"></p>
-            <div class="pause-actions">
-              <button class="pause-btn takeback" onclick="pauseTakeBack()">↩ Take it back</button>
-              <button class="pause-btn anyway" onclick="pausePlayAnyway()">Play it anyway →</button>
-            </div>
-          </div>
+        <!-- thin red flag at the top of the board (does NOT cover it) -->
+        <div class="blunder-flag hidden" id="blunder-flag">✋ Hold on — that costs you. Look below ↓</div>
+      </div>
+      <!-- Blunder review card sits BELOW the board so the board stays fully visible -->
+      <div class="blunder-alert hidden" id="blunder-alert">
+        <div class="ba-head"><span class="ba-icon">✋</span><b class="ba-title">That move loses material — see why.</b></div>
+        <p class="ba-text" id="ba-text"></p>
+        <div class="ba-playback">
+          <button class="ba-nav" onclick="pbStep(-1)" aria-label="Back">◀</button>
+          <span class="ba-frame" id="ba-frame">Your move</span>
+          <button class="ba-nav" onclick="pbStep(1)" aria-label="Forward">▶</button>
+        </div>
+        <div class="ba-actions">
+          <button class="pause-btn takeback" onclick="pauseTakeBack()">↩ Take it back</button>
+          <button class="pause-btn anyway" onclick="pausePlayAnyway()">Play it anyway →</button>
         </div>
       </div>
       <div class="gm-status-box" id="bot-status">Choose a mode and click New Game to start.</div>
