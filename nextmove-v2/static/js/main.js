@@ -422,9 +422,41 @@ function showPage(name){
     if(name==='puzzles')initPuzzleBoard();
     if(name==='lessons')initLessonsPage();
     if(name==='progress')renderProgressPage();
+    if(name==='training')renderTrainingPage();
     if(name==='coach'||name==='bot')initCoachPage();
   },60);
 }
+
+/* ── Training (first pass — weakness-targeted drill launchers) ─────────────── */
+function renderTrainingPage(){
+  const grid=document.getElementById('train-grid');
+  if(!grid || grid.dataset.done) return;
+  const cards=[
+    {k:'Hanging piece',     icon:'🎯', t:'Stop hanging pieces', d:'Loose-piece drills — spot what\'s undefended before you move.'},
+    {k:'Missed tactic',     icon:'⚡', t:'Sharpen tactics',     d:'Forks, pins and shots you keep walking past.'},
+    {k:'King safety issue', icon:'👑', t:'King safety',         d:'Castle, make luft, stop back-rank disasters.'},
+    {k:'Endgame mistake',   icon:'🏁', t:'Endgame technique',   d:'Convert winning endings, hold the tough ones.'},
+    {k:'tactics',           icon:'🧩', t:'Mixed tactics',       d:'A broad set to keep your pattern library sharp.'},
+    {k:'Opening mistake',   icon:'📖', t:'Opening principles',  d:'Develop, take the centre, don\'t rush the queen.'},
+  ];
+  grid.innerHTML = cards.map(c=>`<button class="train-card" onclick="trainWeakness('${c.k}')"><div class="train-ic">${c.icon}</div><div class="train-t">${esc(c.t)}</div><div class="train-d">${esc(c.d)}</div><div class="train-go">Start drill →</div></button>`).join('');
+  grid.dataset.done='1';
+}
+async function trainWeakness(weakness){
+  try{
+    const r=await fetch('/generate-puzzles',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({weakness,count:8}),credentials:'include'});
+    const d=await r.json();
+    if(d.error){ alert('Sign in to train (puzzles are generated per account).'); return; }
+    if(d.puzzles && d.puzzles.length){
+      State.puzzles=d.puzzles; State.puzzleIdx=0; State.puzzleCorrect=0; State.puzzleWrong=0;
+      const t=document.getElementById('puzzle-total'); if(t)t.textContent=State.puzzles.length;
+      const np=document.getElementById('no-puzzles'); if(np)np.classList.add('hidden');
+      const pa=document.getElementById('puzzle-area'); if(pa)pa.classList.remove('hidden');
+      showPage('puzzles');
+    }
+  }catch(e){ alert('Could not load drills right now.'); }
+}
+window.trainWeakness = trainWeakness;
 document.querySelectorAll('.nav-link').forEach(l=>l.addEventListener('click',e=>{e.preventDefault();showPage(l.dataset.page);}));
 
 /* ── Tabs ─────────────────────────────────────────────────────────────────── */
@@ -1330,13 +1362,7 @@ function showPause(data, fenBefore, sanPlayed){
   if(txt) txt.textContent = (data && data.commentary) ? data.commentary : 'Take a breath — step through what happens next.';
   renderPauseFrame();
   Coach.speak('Wait — breathe. Step through it: see what your opponent does next.');
-  // coach reacts: alarmed, and points the arm at the trouble square
-  if(window.CoachFigure){
-    CoachFigure.mood('alarm');
-    const hs = (data && data.highlights && data.highlights[0] && data.highlights[0].square)
-             || (data && data.arrows && data.arrows[0] && data.arrows[0].to);
-    if(hs) setTimeout(()=>CoachFigure.point(hs), 250);
-  }
+  if(window.CoachFigure) CoachFigure.mood('alarm');   // the coach looks alarmed
   ChessSFX.playWrong();
 }
 function hidePause(){
@@ -1804,13 +1830,9 @@ function setBotMode(mode){
   State.coachMode = mode;
   document.getElementById('mode-coached').classList.toggle('active', mode==='coached');
   document.getElementById('mode-free').classList.toggle('active', mode==='free');
-  const panel = document.getElementById('coach-panel');
-  if(panel) panel.style.opacity = mode==='coached' ? '1' : '0.55';
-  Coach.renderQuestions([
-    mode==='coached'
-      ? 'Coached mode active. I\'ll ask questions and point at the board on every move.'
-      : 'Free play mode — no hints. Just play your best chess.'
-  ]);
+  Coach.speak(mode==='coached'
+    ? 'Coached mode on — I\'ll talk you through every move.'
+    : 'Free play — no hints. Just play.');
 }
 
 const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
@@ -1849,34 +1871,19 @@ function coachApplyMarks(d){
   b.clearMarks();
   (d.arrows||[]).forEach(a=>{ if(a && a.from && a.to) b.arrow(a.from, a.to, a.color); });
   (d.highlights||[]).forEach(h=>{ if(h && h.square) b.highlight(h.square, h.color); });
+  // Precise pointing happens on the board itself (finger + arrows).
   let handSq = null;
   if(d.highlights && d.highlights.length) handSq = d.highlights[0].square;
   else if(d.arrows && d.arrows.length) handSq = d.arrows[0].to;
-  if(handSq) CoachFigure.point(handSq); else CoachFigure.rest();
+  if(handSq && BotState.board && BotState.board.point) BotState.board.point(handSq);
 }
 
-/* ── The animated human coach: arm stretches from the figure to a board tile ── */
+/* ── The big coach character: reacts with moods (idle / think / alarm / happy) ── */
 const CoachFigure = (function(){
-  const layer = ()=>document.getElementById('coach-arm-layer');
-  const arm   = ()=>document.getElementById('coach-arm');
-  const fig   = ()=>document.getElementById('coach-figure');
-  function point(sq){
-    const L=layer(), A=arm(); if(!L||!A) return;
-    const tile=document.querySelector('#bot-board .fb-sq[data-square="'+sq+'"]');
-    const lr=L.getBoundingClientRect();
-    if(!tile || lr.width===0){ rest(); return; }
-    const tr=tile.getBoundingClientRect();
-    const tx=tr.left-lr.left+tr.width/2, ty=tr.top-lr.top+tr.height/2;
-    const sx=lr.width-70, sy=lr.height-58;                 // shoulder, near the figure
-    const dx=tx-sx, dy=ty-sy;
-    const dist=Math.max(24, Math.hypot(dx,dy)-16);         // stop short so the finger sits on the tile
-    const ang=Math.atan2(dy,dx)*180/Math.PI;
-    A.style.left=sx+'px'; A.style.top=(sy-9.5)+'px'; A.style.transform='rotate('+ang+'deg)';
-    A.style.transition='none'; A.style.width='0px'; A.classList.add('show');
-    requestAnimationFrame(()=>{ A.style.transition=''; A.style.width=dist+'px'; });
-  }
-  function rest(){ const A=arm(); if(A){ A.classList.remove('show'); A.style.width='0px'; } }
-  function mood(m){ const F=fig(); if(!F) return; F.classList.remove('think','alarm'); if(m) F.classList.add(m); }
+  const fig = ()=>document.getElementById('coach-big');
+  function mood(m){ const F=fig(); if(!F) return; F.classList.remove('idle','think','alarm','happy'); F.classList.add(m||'idle'); }
+  function point(){}   // pointing is drawn on the board now
+  function rest(){}
   return {point, rest, mood};
 })();
 window.CoachFigure = CoachFigure;
@@ -2118,13 +2125,17 @@ const Coach = (function(){
     speak('');
     if(window.CoachFigure){ CoachFigure.rest(); CoachFigure.mood(''); }
   }
-  // The coach's spoken line, shown in a speech bubble beside the board.
+  // The coach's ONE voice: a short line in his speech bubble. Keep it brief.
   function speak(text){
-    const b = document.getElementById('coach-speech');
-    if(!b) return;
-    if(!text){ b.classList.add('hidden'); b.textContent=''; return; }
-    b.textContent = text;
-    b.classList.remove('hidden');
+    const b = document.getElementById('coach-bubble');
+    const t = document.getElementById('coach-bubble-text');
+    if(!b || !t) return;
+    if(!text){ t.textContent='…'; return; }
+    let s = String(text).replace(/\s+/g,' ').trim();
+    const m = s.match(/^(.*?[.!?])(\s|$)/);           // first sentence only
+    if(m && m[1].length >= 12) s = m[1];
+    if(s.length > 150) s = s.slice(0,148)+'…';
+    t.innerHTML = esc(s);
     b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop');
   }
   function getPlayedSAN(){
@@ -2431,14 +2442,14 @@ setTimeout(()=>{
    ForgeBoard — clean, custom chessboard (SVG pieces, flat squares, overlays)
    Rules-agnostic: the app supplies legal targets + validates moves via chess.js.
    ═══════════════════════════════════════════════════════════════════════════ */
-const FB_BASE = '<path d="M11.5 41.8 C11 38.5 13 36.3 15.3 35.8 L29.7 35.8 C32 36.3 34 38.5 33.5 41.8 Z"/>';
+const FB_BASE = '<path d="M9.5 42.5 L35.5 42.5 L35.5 39.5 Q35.5 37.5 33 37.5 L12 37.5 Q9.5 37.5 9.5 39.5 Z"/><path d="M12.5 37.5 L32.5 37.5 L31 32 L14 32 Z"/>';
 const FB_PIECES = {
-  p:'<circle cx="22.5" cy="12" r="5"/><path d="M17.5 35 C17.5 26 20.5 20.5 22.5 19 C24.5 20.5 27.5 26 27.5 35 Z"/>'+FB_BASE,
-  r:'<path d="M13 9 L13 15 L32 15 L32 9 L28.3 9 L28.3 11.6 L25.4 11.6 L25.4 9 L19.6 9 L19.6 11.6 L16.7 11.6 L16.7 9 Z"/><path d="M16 15 L29 15 L28 20 L17 20 Z"/><path d="M17 20 C16.5 27 15.5 31 14.5 35 L30.5 35 C29.5 31 28.5 27 28 20 Z"/>'+FB_BASE,
-  n:'<path d="M12 41 L33 41 C33 32 32 27 28 23 C31 21 31 16 28 13 L29 8 L24.5 11 C22 9 18 9 15 12 C12.5 14.5 11 17 9 18 C7.5 19 7 21 8.5 22 C10 23 12 22 13 21 C13 24 12 27 12.5 31 C12.5 35 12 38 12 41 Z"/>'+FB_BASE,
-  b:'<circle cx="22.5" cy="6" r="2.1"/><path d="M22.5 8.5 C27.8 12 28.6 19 24 24 L21 24 C16.4 19 17.2 12 22.5 8.5 Z"/><path d="M16.5 24 L28.5 24 L27.5 26.6 L17.5 26.6 Z"/><path d="M18 28 C17.5 31.5 16.5 33.5 15.5 35.5 L29.5 35.5 C28.5 33.5 27.5 31.5 27 28 Z"/>'+FB_BASE,
-  q:'<circle cx="11" cy="13" r="2.3"/><circle cx="16.75" cy="9.3" r="2.3"/><circle cx="22.5" cy="8.2" r="2.3"/><circle cx="28.25" cy="9.3" r="2.3"/><circle cx="34" cy="13" r="2.3"/><path d="M11 13 L14.5 26 L30.5 26 L34 13 L28.25 18 L22.5 10 L16.75 18 Z"/><path d="M16.5 26.2 L28.5 26.2 L27.5 28.8 L17.5 28.8 Z"/><path d="M15.5 30 C15 32.8 14.3 34 13.3 35.6 L31.7 35.6 C30.7 34 30 32.8 29.5 30 Z"/>'+FB_BASE,
-  k:'<path d="M20.8 4 L24.2 4 L24.2 7 L27.2 7 L27.2 10.3 L24.2 10.3 L24.2 15 L20.8 15 L20.8 10.3 L17.8 10.3 L17.8 7 L20.8 7 Z"/><path d="M22.5 15.5 C18 15.5 15.5 19.5 17.6 23.5 L27.4 23.5 C29.5 19.5 27 15.5 22.5 15.5 Z"/><path d="M16.5 23.6 L28.5 23.6 L27.5 26.2 L17.5 26.2 Z"/><path d="M17.5 29.5 C17 32.5 16 34 15 35.6 L30 35.6 C29 34 28 32.5 27.5 29.5 Z"/>'+FB_BASE
+  k:'<rect x="21" y="4" width="3" height="8" rx="1"/><rect x="18.5" y="6.5" width="8" height="3" rx="1"/><path d="M22.5 12 C16 12 13 18 17 24 Q22.5 20 28 24 C32 18 29 12 22.5 12 Z"/><path d="M15 24 Q22.5 20 30 24 L29 32 L16 32 Z"/>'+FB_BASE,
+  q:'<circle cx="10" cy="13" r="2.6"/><circle cx="17.5" cy="9.5" r="2.6"/><circle cx="27.5" cy="9.5" r="2.6"/><circle cx="35" cy="13" r="2.6"/><circle cx="22.5" cy="8" r="2.6"/><path d="M10 14 L13.5 27 L31.5 27 L35 14 L29 20 L25.5 12 L22.5 19 L19.5 12 L16 20 Z"/><path d="M13.5 27 L31.5 27 L30 32 L15 32 Z"/>'+FB_BASE,
+  b:'<circle cx="22.5" cy="6" r="2.6"/><path d="M22.5 9 C29 13 30 21 24 27 L21 27 C15 21 16 13 22.5 9 Z"/><rect x="20.5" y="15" width="4" height="1.8" rx=".6"/><rect x="21.6" y="13.9" width="1.8" height="4" rx=".6"/><path d="M17 27 L28 27 L29.5 32 L15.5 32 Z"/>'+FB_BASE,
+  n:'<path d="M13 42 C12 33 14 28 18 25 C13.5 24 12 19 15 15 C17 12 15 11 14.5 8 L18 10 C20 7 25 7 28 11 C31.5 15.5 32 24 31 30 C30.5 34 31 38 31 42 Z"/><circle class="fb-eye" cx="17.5" cy="17" r="1.5"/>',
+  r:'<path d="M12 9 L12 15 L33 15 L33 9 L28.5 9 L28.5 11.5 L25 11.5 L25 9 L20 9 L20 11.5 L16.5 11.5 L16.5 9 Z"/><path d="M14.5 15 L30.5 15 L29 20 L16 20 Z"/><path d="M16 20 L29 20 L30.5 32 L14.5 32 Z"/>'+FB_BASE,
+  p:'<circle cx="22.5" cy="11" r="5.2"/><path d="M18 17 L27 17 L26 20 L19 20 Z"/><path d="M17.5 32 Q16 24 22.5 20 Q29 24 27.5 32 Z"/>'+FB_BASE
 };
 function fbPieceSVG(type, color){
   return '<svg class="fb-piece '+color+'" viewBox="0 0 45 45">'+FB_PIECES[type.toLowerCase()]+'</svg>';
