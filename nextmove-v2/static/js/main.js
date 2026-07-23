@@ -1273,21 +1273,68 @@ function rebuildBotHistory(){
 }
 
 /* ── Red PAUSE-before-blunder overlay ─────────────────────────────────────── */
-function showPause(data, fenBefore){
+function checkSqForFen(fen){
+  try{
+    const g = new Chess(fen);
+    if(!g.in_check()) return null;
+    const turn = g.turn();
+    for(const f of 'abcdefgh'){ for(let r=1;r<=8;r++){ const sq=f+r; const p=g.get(sq); if(p&&p.type==='k'&&p.color===turn) return sq; } }
+  }catch(e){}
+  return null;
+}
+// Build the "what happens" playback: your move → opponent's punishment, plus the better move.
+function buildPauseFrames(fenBefore, sanPlayed, d){
+  const frames=[];
+  try{
+    const g0=new Chess(fenBefore);
+    frames.push({fen:fenBefore, label:'Before — your move', last:null});
+    const m1=g0.move(sanPlayed);
+    frames.push({fen:g0.fen(), label:'You played '+sanPlayed, last:m1?{from:m1.from,to:m1.to}:null});
+    if(d && d.opp_best_san){
+      const g1=new Chess(g0.fen());
+      const m2=g1.move(d.opp_best_san);
+      if(m2) frames.push({fen:g1.fen(), label:'Opponent hits back with '+d.opp_best_san+' — you\'re worse', last:{from:m2.from,to:m2.to}});
+    }
+    if(d && d.best_move_san){
+      const gb=new Chess(fenBefore);
+      const mb=gb.move(d.best_move_san);
+      if(mb) frames.push({fen:gb.fen(), label:'Better was '+d.best_move_san, last:{from:mb.from,to:mb.to}, better:{from:mb.from,to:mb.to}});
+    }
+  }catch(e){}
+  return frames;
+}
+function renderPauseFrame(){
+  const frames = BotState._pbFrames||[]; const f = frames[BotState._pbIdx]; if(!f) return;
+  BotState.board.setPosition(f.fen, {lastMove:f.last, checkSquare:checkSqForFen(f.fen)});
+  BotState.board.clearMarks();
+  if(f.better) BotState.board.arrow(f.better.from, f.better.to, '#26d07c');
+  else if(f.last) BotState.board.arrow(f.last.from, f.last.to, f.better?'#26d07c':'#ff5d6c');
+  const fl=document.getElementById('ba-frame'); if(fl) fl.textContent=f.label;
+}
+function pbStep(dir){
+  const frames = BotState._pbFrames||[];
+  BotState._pbIdx = Math.max(0, Math.min(frames.length-1, (BotState._pbIdx||0)+dir));
+  renderPauseFrame();
+}
+window.pbStep = pbStep;
+
+function showPause(data, fenBefore, sanPlayed){
   BotState.boardLocked = true;
   BotState._pauseFen = fenBefore;
   BotState._pauseData = data || {};
-  const ov = document.getElementById('blunder-pause');
-  const txt = document.getElementById('pause-text');
-  if(txt) txt.textContent = (data && data.commentary) ? data.commentary : 'Hold on — take a breath and look at the whole board before you commit.';
-  if(ov) ov.classList.remove('hidden');
-  coachApplyMarks(data||{});           // point the hand at the danger / better move
-  Coach.speak('Wait — breathe. ' + ((data&&data.commentary)||'Look again before you lose material.'));
+  BotState._pbFrames = buildPauseFrames(fenBefore, sanPlayed, data||{});
+  BotState._pbIdx = Math.min(1, BotState._pbFrames.length-1);  // start on "you played"
+  const flag=document.getElementById('blunder-flag'); if(flag) flag.classList.remove('hidden');
+  const alert=document.getElementById('blunder-alert'); if(alert) alert.classList.remove('hidden');
+  const txt=document.getElementById('ba-text');
+  if(txt) txt.textContent = (data && data.commentary) ? data.commentary : 'Take a breath — step through what happens next.';
+  renderPauseFrame();
+  Coach.speak('Wait — breathe. Step through it: see what your opponent does next.');
   ChessSFX.playWrong();
 }
 function hidePause(){
-  const ov = document.getElementById('blunder-pause');
-  if(ov) ov.classList.add('hidden');
+  const flag=document.getElementById('blunder-flag'); if(flag) flag.classList.add('hidden');
+  const alert=document.getElementById('blunder-alert'); if(alert) alert.classList.add('hidden');
   BotState.boardLocked = false;
 }
 function pauseTakeBack(){
@@ -1297,12 +1344,14 @@ function pauseTakeBack(){
   rebuildBotHistory();
   hidePause();
   Coach.setStatus('Smart — rethink it.');
-  Coach.speak('Good. Now scan: what is your opponent threatening, and which of your pieces is loose?');
+  Coach.speak('Good call. Now scan: what is your opponent threatening, and which of your pieces is loose?');
   coachApplyMarks(BotState._pauseData||{});
 }
 function pausePlayAnyway(){
   const d = BotState._pauseData || {};
   hidePause();
+  // restore the real board (position after your move) and continue
+  BotState.board.setPosition(BotState.game.fen(), {lastMove:BotState.lastPlayerMove, checkSquare:coachKingCheckSquare()});
   Coach.renderFeedback(d.commentary||'', d.severity||'');
   coachApplyMarks(d);
   if(d.mcq && d.mcq.force){ setTimeout(()=>MCQ.open(d.mcq, null, true), 300); }
@@ -2109,7 +2158,7 @@ const Coach = (function(){
 
     if(d.severity === 'blunder' || d.severity === 'mistake'){
       setStatus(d.severity==='blunder' ? 'Blunder — pause!' : 'Mistake — pause!');
-      showPause(d, fenBefore);      // bot reply waits until the player resolves the pause
+      showPause(d, fenBefore, sanPlayed);   // bot reply waits until the player resolves the pause
       return;
     }
     if(d.silent || !d.commentary){
@@ -2381,7 +2430,9 @@ class ForgeBoard {
     this.el.innerHTML = '';
     this.overlay = document.createElement('div');
     this.overlay.className = 'fb-overlay';
-    this.overlay.innerHTML = '<svg viewBox="0 0 100 100" preserveAspectRatio="none"><g class="fb-hls"></g><g class="fb-arrows"></g></svg><div class="fb-hands"></div>';
+    this.overlay.innerHTML = '<svg viewBox="0 0 100 100" preserveAspectRatio="none"><g class="fb-hls"></g><g class="fb-arrows"></g><g class="fb-user"></g></svg><div class="fb-hands"></div>';
+    this.userArrows = [];   // {from,to} — user's own right-click arrows
+    this.userHls = [];      // squares the user right-clicked to mark red
     this.el.appendChild(this.overlay);   // attach overlay first so square inserts have a valid anchor
     this._renderSquares();
     this._bindDrag();
@@ -2443,6 +2494,7 @@ class ForgeBoard {
     if('checkSquare' in opts) this.checkSquare = opts.checkSquare;
     this.selected = null;
     this._renderSquares();
+    if(this.overlay && this.clearUser) this.clearUser();
   }
   flip(color){ this.orientation = color; this._renderSquares(); }
   markLast(from,to){ this.lastMove = {from,to}; }
@@ -2497,14 +2549,30 @@ class ForgeBoard {
       return cell ? cell.dataset.square : null;
     };
     const down = (e)=>{
+      // Left button = piece interaction; a left click also clears the user's own arrows (chess.com behaviour).
+      if(e.button && e.button!==0) return;   // ignore right/middle here
       if(!this.interactive) return;
       const pt = e.touches ? e.touches[0] : e;
       const sq = squareAt(pt.clientX, pt.clientY);
       if(!sq) return;
-      // Record the press; do NOT change selection here (that happens on click-up
-      // or when a drag actually starts) so a plain click doesn't select-then-toggle-off.
+      if(this.userArrows.length || this.userHls.length) this.clearUser();
       startSq = sq; moved=false; sx=pt.clientX; sy=pt.clientY;
     };
+    // ── Right-click arrows + red square highlights (like chess.com) ──
+    let rcFrom = null;
+    this.el.addEventListener('contextmenu', e=>e.preventDefault());
+    this.el.addEventListener('mousedown', e=>{
+      if(e.button!==2) return;
+      e.preventDefault();
+      rcFrom = squareAt(e.clientX, e.clientY);
+    });
+    this.el.addEventListener('mouseup', e=>{
+      if(e.button!==2 || !rcFrom) return;
+      const to = squareAt(e.clientX, e.clientY);
+      if(to && to===rcFrom) this.toggleUserHighlight(rcFrom);
+      else if(to) this.toggleUserArrow(rcFrom, to);
+      rcFrom = null;
+    });
     const move = (e)=>{
       if(!startSq) return;
       const pt = e.touches ? e.touches[0] : e;
@@ -2598,6 +2666,43 @@ class ForgeBoard {
     hand.className='fb-hand';hand.textContent='👆';
     hand.style.left=c.x+'%';hand.style.top=c.y+'%';
     hands.appendChild(hand);
+  }
+  /* ── user's own right-click marks ── */
+  toggleUserArrow(from,to){
+    const i=this.userArrows.findIndex(a=>a.from===from && a.to===to);
+    if(i>=0) this.userArrows.splice(i,1); else this.userArrows.push({from,to});
+    this._renderUser();
+  }
+  toggleUserHighlight(sq){
+    const i=this.userHls.indexOf(sq);
+    if(i>=0) this.userHls.splice(i,1); else this.userHls.push(sq);
+    this._renderUser();
+  }
+  clearUser(){ this.userArrows=[]; this.userHls=[]; this._renderUser(); }
+  _renderUser(){
+    const g=this.overlay.querySelector('.fb-user'); if(!g) return;
+    g.innerHTML='';
+    const ns='http://www.w3.org/2000/svg';
+    this.userHls.forEach(sq=>{
+      const c=this._xy(sq);
+      const rect=document.createElementNS(ns,'rect');
+      rect.setAttribute('x',c.x-6.25);rect.setAttribute('y',c.y-6.25);
+      rect.setAttribute('width','12.5');rect.setAttribute('height','12.5');
+      rect.setAttribute('fill','rgba(255,70,70,.5)');
+      g.appendChild(rect);
+    });
+    this.userArrows.forEach(a=>{
+      const p=this._xy(a.from), q=this._xy(a.to);
+      const dx=q.x-p.x, dy=q.y-p.y, len=Math.hypot(dx,dy)||1, ux=dx/len, uy=dy/len;
+      const ex=q.x-ux*5.5, ey=q.y-uy*5.5, hb=4.6;
+      const line=document.createElementNS(ns,'line');
+      line.setAttribute('x1',p.x);line.setAttribute('y1',p.y);line.setAttribute('x2',ex);line.setAttribute('y2',ey);
+      line.setAttribute('class','fb-arrow');line.setAttribute('stroke','#f6b93b');line.setAttribute('stroke-width','3.4');
+      const head=document.createElementNS(ns,'polygon');
+      head.setAttribute('points',q.x+','+q.y+' '+(ex-ux*hb+(-uy)*hb*0.7)+','+(ey-uy*hb+(ux)*hb*0.7)+' '+(ex-ux*hb-(-uy)*hb*0.7)+','+(ey-uy*hb-(ux)*hb*0.7));
+      head.setAttribute('fill','#f6b93b');
+      g.appendChild(line);g.appendChild(head);
+    });
   }
 }
 
