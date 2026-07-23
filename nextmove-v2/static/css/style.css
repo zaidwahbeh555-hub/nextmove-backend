@@ -674,8 +674,10 @@ body{font-family:'Satoshi','Segoe UI',system-ui,sans-serif;letter-spacing:.005em
 .fb-light{background:#d7cdb8}     /* cream */
 .fb-dark{background:#37404e}      /* slate */
 .fb-piece{width:88%;height:88%;pointer-events:none;display:block;filter:drop-shadow(0 2px 2px rgba(0,0,0,.28))}
-.fb-piece.w path,.fb-piece.w circle,.fb-piece.w rect{fill:#f4efe6;stroke:#20242c;stroke-width:1.1;stroke-linejoin:round}
-.fb-piece.b path,.fb-piece.b circle,.fb-piece.b rect{fill:#171b22;stroke:#05070a;stroke-width:1.1;stroke-linejoin:round}
+.fb-piece.w path,.fb-piece.w circle,.fb-piece.w rect{fill:#f2ede3;stroke:#20242c;stroke-width:1.5;stroke-linejoin:round}
+.fb-piece.b path,.fb-piece.b circle,.fb-piece.b rect{fill:#161b22;stroke:#05070a;stroke-width:1.5;stroke-linejoin:round}
+.fb-piece.w .fb-eye{fill:#20242c;stroke:none}
+.fb-piece.b .fb-eye{fill:#f2ede3;stroke:none}
 .fb-sq.fb-drag-piece .fb-piece{opacity:.25}
 
 /* interaction states */
@@ -865,3 +867,65 @@ body{font-family:'Satoshi','Segoe UI',system-ui,sans-serif;letter-spacing:.005em
 .coach-arm.show{opacity:1}
 .coach-hand{position:absolute;right:-10px;top:50%;font-size:27px;line-height:1;transform:translateY(-55%) rotate(88deg);filter:drop-shadow(0 2px 3px rgba(0,0,0,.45))}
 @media(max-width:620px){.coach-figure{width:88px;right:-8px}}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Coach STAGE — big permanent character, one speech bubble, minimal chrome
+   ═══════════════════════════════════════════════════════════════════════════ */
+.coach-stage{
+  background:linear-gradient(180deg,var(--bg2),var(--bg3));border:1px solid var(--border2);
+  border-radius:var(--r-lg);padding:1.2rem 1.1rem 1.1rem;display:flex;flex-direction:column;
+  align-items:center;position:relative;box-shadow:var(--shadow),inset 0 1px 0 rgba(255,255,255,.04);
+}
+.coach-bubble{
+  position:relative;background:#fff;color:#12121a;border-radius:16px;padding:.8rem 1rem;
+  font-size:.95rem;line-height:1.45;font-weight:600;max-width:100%;min-height:2.4rem;
+  display:flex;align-items:center;box-shadow:0 12px 30px rgba(0,0,0,.45);margin-bottom:.5rem;
+}
+.coach-bubble::after{content:'';position:absolute;bottom:-9px;left:50%;transform:translateX(-50%);border:9px solid transparent;border-top-color:#fff;border-bottom:0}
+.coach-bubble b{color:#0a7ea4}
+.coach-bubble.pop{animation:bubblePop .4s cubic-bezier(.34,1.56,.64,1)}
+@keyframes bubblePop{from{opacity:.35;transform:translateY(7px) scale(.96)}to{opacity:1;transform:none}}
+.coach-thinking-mini{display:flex;gap:.3rem;margin:.15rem 0}
+.coach-thinking-mini .gm-dot-pulse{width:7px;height:7px}
+
+.coach-big{width:min(210px,78%);margin-top:.1rem}
+.coach-big svg{width:100%;height:auto;display:block;filter:drop-shadow(0 12px 20px rgba(0,0,0,.5))}
+.coach-big.idle{animation:coachBob 4.5s ease-in-out infinite}
+.coach-big.think{animation:coachThink 1.3s ease-in-out infinite}
+.coach-big.alarm{animation:coachAlarm .5s ease-in-out 2}
+.coach-big.happy{animation:coachHappy .6s ease}
+@keyframes coachBob{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(-6px) rotate(-1deg)}}
+@keyframes coachThink{0%,100%{transform:rotate(0)}50%{transform:rotate(2.5deg)}}
+@keyframes coachAlarm{0%,100%{transform:translateX(0)}25%{transform:translateX(-7px) rotate(-3deg)}75%{transform:translateX(7px) rotate(3deg)}}
+@keyframes coachHappy{0%,100%{transform:translateY(0)}40%{transform:translateY(-11px)}}
+.coach-big .coach-eyes{animation:coachBlink 5s infinite;transform-box:fill-box;transform-origin:center}
+@keyframes coachBlink{0%,93%,100%{transform:scaleY(1)}96%{transform:scaleY(.12)}}
+
+.coach-name-tag{margin-top:.55rem;font-weight:800;font-size:1.05rem;display:flex;align-items:center;gap:.5rem}
+.coach-live{display:inline-flex;align-items:center;gap:.3rem;font-size:.66rem;font-weight:700;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em}
+.coach-live .gm-dot{width:7px;height:7px}
+.coach-eval-row{display:flex;align-items:center;gap:.55rem;width:100%;margin-top:.95rem}
+.coach-eval-label{font-size:.62rem;font-weight:800;letter-spacing:.1em;color:var(--muted2)}
+.coach-eval-bar{flex:1;height:6px;background:var(--bg4);border-radius:999px;overflow:hidden}
+.coach-eval-fill{height:100%;background:linear-gradient(90deg,var(--cyan),var(--paper));border-radius:999px;transition:width .4s cubic-bezier(.2,.7,.2,1)}
+.coach-eval-num{font-weight:800;font-variant-numeric:tabular-nums;font-size:.82rem;color:var(--cyan);min-width:36px;text-align:right}
+.coach-actions-row{display:flex;gap:.45rem;width:100%;margin-top:.95rem}
+.coach-mini-btn{flex:1;background:var(--bg3);border:1px solid var(--border2);color:var(--ink);padding:.6rem .3rem;border-radius:10px;font-weight:700;font-size:.8rem;cursor:pointer;font-family:'Satoshi',sans-serif;transition:all .15s}
+.coach-mini-btn:hover:not(:disabled){background:var(--bg4);transform:translateY(-1px)}
+.coach-mini-btn:disabled{opacity:.35;cursor:not-allowed}
+.coach-history{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r-md);padding:.65rem .9rem;margin-top:1rem}
+.coach-history summary{cursor:pointer;font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted2);list-style:none}
+.coach-history summary::-webkit-details-marker{display:none}
+.coach-history[open] summary{margin-bottom:.6rem}
+
+/* ── Training page (first pass) ───────────────────────────────────────────── */
+.train-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:1rem;max-width:60rem}
+.train-card{text-align:left;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r-lg);padding:1.3rem;cursor:pointer;font-family:'Satoshi',sans-serif;transition:transform .18s cubic-bezier(.2,.9,.25,1.4),border-color .18s;display:flex;flex-direction:column;gap:.4rem}
+.train-card:hover{transform:translateY(-3px);border-color:var(--cyan)}
+.train-ic{font-size:1.9rem}
+.train-t{font-weight:800;font-size:1.05rem}
+.train-d{color:var(--muted2);font-size:.9rem;line-height:1.45;flex:1}
+.train-go{color:var(--cyan);font-weight:700;font-size:.85rem;margin-top:.4rem}
+.train-note{margin-top:1.6rem;max-width:44rem;background:var(--bg3);border:1px solid var(--border2);border-left:3px solid var(--cyan);border-radius:var(--r-md);padding:1rem 1.2rem}
+.train-note p{color:var(--muted2);font-size:.92rem;line-height:1.55}
+.train-note strong{color:var(--paper)}
