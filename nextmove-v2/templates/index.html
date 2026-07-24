@@ -12,7 +12,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 <link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
-<link rel="stylesheet" href="/static/css/style.css?v=p5">
+<link rel="stylesheet" href="/static/css/style.css?v=p6">
 </head>
 <body>
 
@@ -188,7 +188,13 @@
           <div class="coach-eval-bar"><div class="coach-eval-fill" id="eval-bar" style="width:50%"></div></div>
           <span class="coach-eval-num" id="eval-num">0.0</span>
         </div>
-        <div class="coach-actions-row">
+        <!-- forced engagement — when the coach asks, you answer before moving -->
+        <div class="coach-engage hidden" id="coach-engage">
+          <button class="coach-engage-btn" onclick="CoachDialogue.engage('see')">I see it</button>
+          <button class="coach-engage-btn" onclick="CoachDialogue.engage('notsure')">Not sure</button>
+          <button class="coach-engage-btn show" onclick="CoachDialogue.engage('show')">Show me →</button>
+        </div>
+        <div class="coach-actions-row" id="coach-actions-row">
           <button class="coach-mini-btn" id="hint-btn-coach" onclick="askCoach('hint')" disabled>💡 Hint</button>
           <button class="coach-mini-btn" id="explain-btn-coach" onclick="askCoach('explain')" disabled>📊 Explain</button>
           <button class="coach-mini-btn" id="quiz-btn-coach" onclick="askCoach('quiz')" disabled>🎯 Quiz</button>
@@ -409,6 +415,6 @@
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
-<script src="/static/js/main.js?v=p5"></script>
+<script src="/static/js/main.js?v=p6"></script>
 </body>
 </html>
