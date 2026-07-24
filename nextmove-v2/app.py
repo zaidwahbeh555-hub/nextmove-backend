@@ -1062,64 +1062,46 @@ def coach_position():
             turn = "White" if board.turn == chess.WHITE else "Black"
             player_turn = board.turn
 
-            # Build personalised coaching message
+            # ── Build the message off the REAL engine line, so hints are never wrong ──
+            best_uci = best_pv[0] if best_pv else None
+            best_from = chess.square_name(best_uci.from_square) if best_uci else None
+            best_pc = board.piece_at(best_uci.from_square) if best_uci else None
+            best_pc_name = PIECE_NAMES.get(best_pc.piece_type, "piece") if best_pc else "piece"
+
+            # what's actually threatened (your loose pieces)
+            my_loose = find_loose_pieces(board, player_turn)
+            threat_sq = chess.square_name(my_loose[0][0]) if my_loose else None
+            threat_pc = PIECE_NAMES.get(my_loose[0][1].piece_type, "piece") if my_loose else None
+
             message = ""
-            warning = ""
+            warning = bool(my_loose)
 
-            # Check for hanging pieces
-            for sq in chess.SQUARES:
-                piece = board.piece_at(sq)
-                if piece and piece.color == player_turn:
-                    if board.is_attacked_by(not player_turn, sq):
-                        attackers = board.attackers(not player_turn, sq)
-                        defenders = board.attackers(player_turn, sq)
-                        if len(list(attackers)) > len(list(defenders)):
-                            warning = f"⚠️ Your {piece.piece_type.name.lower() if hasattr(piece.piece_type, 'name') else 'piece'} on {chess.square_name(sq)} looks vulnerable!"
-                            break
-
-            # Personalised nudge based on weaknesses
-            nudges = []
-            if "Hanging piece" in weaknesses:
-                nudges.append("Scan: are all your pieces safe?")
-            if "King safety issue" in weaknesses and not board.has_castling_rights(player_turn):
-                nudges.append("Is your king safe?")
-            if "Missed tactic" in weaknesses:
-                nudges.append("Any checks, captures or threats available?")
-
-            if request_type == "nudge":
-                if warning:
-                    message = warning
-                elif nudges:
-                    message = f"💭 {nudges[0]}"
-                else:
-                    adv = abs(eval_pawns)
-                    if eval_pawns > 1.5: message = "✅ You're winning — keep it clean, don't give it away."
-                    elif eval_pawns < -1.5: message = "💪 You're behind — look for counterplay and complications."
-                    else: message = "⚖️ Position is balanced — every move counts here."
-
-            elif request_type == "hint":
-                if warning:
-                    message = warning + " Fix this first."
+            if request_type == "hint":
+                if my_loose:
+                    message = f"{gm_phrase(VOICE_BAD)} First — your {threat_pc} on {threat_sq} is hanging. Sort that out before anything else."
                 elif best_move:
-                    # Give a directional hint, not the exact move
-                    piece = board.piece_at(chess.parse_square(best_pv[0].uci()[:2])) if best_pv else None
-                    if piece:
-                        message = f"💡 Consider moving your {chess.piece_name(piece.piece_type)} — it can do something useful here."
-                    else:
-                        message = "💡 Look for a forcing move — check, capture, or threat."
+                    where = f" on {best_from}" if best_from else ""
+                    message = f"{gm_phrase(VOICE_OPEN)} Your {best_pc_name}{where} is the piece to look at — it's got the strongest move here."
                 else:
-                    message = "💡 Improve your worst-placed piece."
+                    message = f"{gm_phrase(VOICE_POS)} {gm_phrase(SOCRATIC)}"
 
             elif request_type == "explain":
+                good_for_me = (eval_pawns > 0) == (player_turn == chess.WHITE)
                 adv = abs(eval_pawns)
-                who = "White" if eval_pawns > 0 else "Black"
-                message = f"📊 Eval: {'+' if eval_pawns >= 0 else ''}{eval_pawns} ({who} is {'slightly ' if adv < 1 else ''}{'better' if adv < 2 else 'much better' if adv < 4 else 'winning'}). "
-                if warning:
-                    message += warning
-                elif nudges:
-                    message += " | ".join(nudges)
-                elif best_move:
-                    message += f"Engine likes {best_move} here."
+                state = ("dead level" if adv < 0.3 else "slightly better" if adv < 0.8
+                         else "clearly better" if adv < 1.6 else "much better" if adv < 3 else "winning")
+                who = "You're" if good_for_me else "They're"
+                message = f"📊 {who} {state} ({'+' if eval_pawns >= 0 else ''}{eval_pawns}). "
+                if best_move:
+                    message += f"The engine's move is {best_move}. "
+                if my_loose:
+                    message += f"Careful — your {threat_pc} on {threat_sq} is loose."
+
+            else:  # nudge
+                if my_loose:
+                    message = f"{gm_phrase(VOICE_THREAT)} Your {threat_pc} on {threat_sq} looks loose."
+                else:
+                    message = gm_phrase(SOCRATIC)
 
             return jsonify({
                 "message": message,
@@ -1179,12 +1161,16 @@ def detect_opening(san_moves):
             return name, theme
     return None, None
 
-VOICE_OPEN = ["Watch this.", "Notice —", "Look closely.", "Here's the thing.", "Quick question.", "Let me ask you —", "OK, pay attention.", "Pause.", "Stop. Look.", "Right —"]
-VOICE_GOOD = ["Clean.", "Yes — that's it.", "I'd play that too.", "Solid.", "Exactly the move.", "Spot on.", "That's the engine line.", "Beautiful."]
-VOICE_BAD  = ["Wait, hold on.", "Hmm — careful.", "Stop. We need to talk about this.", "OK that's a problem.", "No — let's look at this again."]
-VOICE_TACTIC = ["There's something concrete here.", "Calculate carefully.", "A tactic is on the board — find it.", "Pieces are tangled — there's a punishment available.", "This screams tactic."]
-VOICE_POS  = ["Quiet position. Strategic decision.", "No fireworks — just good positioning.", "Improve your worst piece.", "Think long-term here.", "Slow chess. Best move? Best piece?"]
-VOICE_CRIT = ["Now this is the critical moment.", "Whole game turns on the next move.", "Don't rush this one.", "Critical decision — pick carefully.", "This is the moment."]
+# Coach voice — modeled on how a hype GM coaches a beginner: casual, emotional,
+# Socratic, principle-naming. Big varied pools so it never repeats itself.
+VOICE_OPEN = ["Yo, hold up.","Okay okay, look.","Wait wait wait.","Bro, look at this.","Ooh, pay attention here.","Alright, eyes up.","Hmm, one sec.","Check this out.","Okay, real quick —","Notice something?","Hold on, dude.","Right, look.","Ayy, see it?","Stop — look at the board.","Okay, this is important.","Peep this."]
+VOICE_GOOD = ["Boom! That's it.","Yes! Nice.","Monster move.","Ohhh, beautiful.","That's the one, baby.","Sheesh, clean.","Big brain, dude.","That's nasty — I love it.","Yep, that's the engine move.","You saw that? Sick.","Textbook. Chef's kiss.","There it is!","That's a coach's move right there.","Sharp. Real sharp.","Okay okay, you cooked.","That's what I'm talking about."]
+VOICE_BAD  = ["Oh no, wait.","Ohhh dude, no.","Yikes.","Wait wait wait wait.","Uh oh.","Ooh, that one hurts.","Bro. Bro. Look.","Nooo, not that.","Ahh, that's rough.","Oof, careful.","Hmm, I don't love that.","Hold up — that's a problem.","Ehh, that stings.","Come on now, look.","That's a slip, dude.","Mmm, we gotta talk about this one."]
+VOICE_TACTIC = ["There's a shot here, I can feel it.","Somebody's hanging, dude — find it.","Tactic on the board. Calculate.","Ooh, this is sharp. Checks first.","Free stuff is floating around — grab it.","There's a punch here. Throw it.","Fork, pin, skewer — one of 'em is live.","Loose pieces, dude. LPDO — loose pieces drop off.","This position is BEGGING for a combo.","Count it out — there's material to win.","Don't play safe, there's a hit.","Eyes on every check and capture, bro.","This is a calculate spot, not a vibe spot.","Somebody left a piece — go get it.","Slow down and find the tactic.","There's a tell here — spot the weak piece."]
+VOICE_POS  = ["Quiet spot — improve your worst piece.","No fireworks, dude. Just good chess.","Slow position. Think plans.","Where's your saddest piece? Fix it.","Nothing forcing — build up.","This is a maneuvering moment, bro.","Small edges. Stack 'em.","Trade your bad piece for their good one.","Space, structure, squares. That's the game now.","Patience — it's not ready to blow up.","Ask what the position wants, dude.","Long game here. Don't rush.","Reposition, then strike.","Keep the tension — don't rush the trade.","Get a knight to an outpost if you can.","Boring is fine. Boring wins."]
+VOICE_CRIT = ["Okay — THIS is the moment.","Bro, the whole game turns here.","Don't rush this one, dude.","Critical. Slow way down.","Everything hinges on this move.","This is a games-won-or-lost spot.","Take your time. Big one.","Deep breath. This matters.","The plan lives or dies right here.","Make it count, baby.","This is a thinking move, not a reflex.","Get this right and you're winning.","Fork in the road — choose well.","No autopilot here, dude.","Remember this position.","Precision now. Lock in."]
+VOICE_THREAT = ["See what they just did? That's a threat.","That move wasn't random, bro — they want something.","They just set a trap. Spot it.","Don't ignore their last move — it's got teeth.","They're coming for a piece. Which one?","You're being threatened. Defend or counter first.","Their move attacks — what exactly?","Careful, dude, that had a point.","They've got an idea. What is it?","Uh oh — they're threatening something real."]
+SOCRATIC = ["What's their move threatening?","What's your worst piece right now?","Any checks, captures, or threats for YOU?","If you do nothing, what happens?","Which of your pieces is hanging?","Which file just opened up?","Is that a principled move, though?","Can you improve a piece for free?","Is your king safe enough to attack?","What did their last move give up?","Where's the weakest square in their camp?","Trade, push, or wait — which, and why?"]
 
 def piece_label(piece):
     if not piece: return "piece"
@@ -1256,6 +1242,35 @@ def detect_themes(board, player_color):
 
 def gm_phrase(pool):
     return random.choice(pool) if pool else ""
+
+def opening_lesson(board_before, move, san, fullmove):
+    """Gotham-style principle nudge for a non-blunder opening move (or praise for castling).
+    Lets the coach teach principles proactively, not just react to eval drops."""
+    if san.startswith("O-O"):
+        return random.choice([
+            "Yes! Castle. King's safe now — exactly right. Get those rooks into the game next.",
+            "Castling, baby. King tucked away, rook activated. Textbook.",
+            "Good — king safety first. NOW you can start thinking about attacking.",
+        ])
+    if fullmove > 12:
+        return None
+    pc = board_before.piece_at(move.from_square)
+    if not pc:
+        return None
+    ff = chess.square_file(move.from_square)
+    if pc.piece_type == chess.PAWN and ff == 5 and move.from_square in (chess.F2, chess.F7):
+        return random.choice([
+            "Ooh, careful with that f-pawn, bro. That pawn is your king's bodyguard — it's literally why scholar's mate targets f7. Try not to move it early.",
+            "Mmm, the f-pawn — I wanna break this habit. It guards your king. Get your knights and bishops out instead.",
+            "That f-pawn opens up your king, dude. Keep it home — develop and castle instead.",
+        ])
+    if pc.piece_type == chess.QUEEN and fullmove <= 6:
+        return random.choice([
+            f"Queen out early with {san}? They'll just develop and hit it with tempo — free time for them. Knights and bishops first, bro.",
+            "Careful — early queen. Every time they attack it, they develop for free. Minor pieces first.",
+            "The queen comes out AFTER the knights and bishops. Otherwise you're handing them targets.",
+        ])
+    return None
 
 def piece_label(piece):
     if not piece: return "piece"
@@ -1556,14 +1571,15 @@ def coach_move_feedback():
         opening_was, _ = detect_opening(played_moves)
         new_opening = opening_name and (opening_name != opening_was)
 
-        # ── Decide whether to SPEAK ──
-        # Always speak on: blunder, mistake, inaccuracy
-        # Speak occasionally on: best move with new opening info, opening transition
-        # Stay silent on: routine "ok" or "best" moves in middlegame
-        should_speak = severity in ("blunder","mistake","inaccuracy")
-        if severity == "best" and new_opening:
-            should_speak = True
-        if severity == "ok" and fullmove < 8 and new_opening:
+        # ── Decide whether to SPEAK (good timing = the whole game) ──
+        # Speak only when there's real content: a meaningful eval drop (>=75cp),
+        # or opening theory worth naming. Silent on tiny slips and routine moves —
+        # a coach who talks every move is noise.
+        # A principle worth teaching even when the move isn't a blunder (f-pawn, early queen, castling)
+        lesson = opening_lesson(board, move, san_played, fullmove)
+
+        should_speak = drop >= 75 or bool(lesson)
+        if new_opening and severity in ("best", "ok") and fullmove <= 10:
             should_speak = True
 
         arrows, highlights, parts = [], [], []
@@ -1582,8 +1598,10 @@ def coach_move_feedback():
                 "opening": {"name": opening_name, "theme": opening_theme} if opening_name else None,
             })
 
-        # Voice
-        if severity == "best":
+        # Voice — a teachable principle takes the mic when the move wasn't a real error
+        if lesson and severity in ("best", "ok", "inaccuracy"):
+            parts.append(lesson)
+        elif severity == "best":
             parts.append(f"✅ {gm_phrase(VOICE_GOOD)} {san_played} was the top move.")
             if new_opening: parts.append(f"📖 We've entered the {opening_name}. {opening_theme}")
             if best_pv: parts.append(f"Continuation: {best_pv}.")
