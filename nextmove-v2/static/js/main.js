@@ -1888,6 +1888,53 @@ const CoachFigure = (function(){
 })();
 window.CoachFigure = CoachFigure;
 
+/* ── Two-phase coaching: ask -> (player engages) -> reveal, with synced marks ── */
+const CoachDialogue = {
+  data:null, reveal:null,
+  start(d){
+    this.data = d;
+    const q = (d.dialogue||[]).find(x=>x.phase==='question');
+    this.reveal = (d.dialogue||[]).find(x=>x.phase==='reveal') || null;
+    CoachFigure.mood(this._mood(d.reaction));
+    // question phase — highlight the danger/target in red/green, point the finger, no arrow yet
+    if(BotState.board && BotState.board.clearMarks){
+      BotState.board.clearMarks();
+      (d.highlights||[]).forEach(h=>{ if(h && h.square) BotState.board.highlight(h.square, h.color); });
+      if(d.highlights && d.highlights[0] && BotState.board.point) BotState.board.point(d.highlights[0].square);
+    }
+    if(q){
+      Coach.speak(q.text);
+      this._showEngage(true);        // force engagement — no skip
+      BotState.boardLocked = true;   // can't move until they answer
+      Coach.setStatus('Coach is asking — answer first.');
+    } else {
+      this._reveal('see');           // hint/explain style: straight to the point
+    }
+  },
+  engage(choice){
+    this._showEngage(false);
+    BotState.boardLocked = false;
+    this._reveal(choice);
+  },
+  _reveal(choice){
+    const d = this.data || {};
+    if(this.reveal) Coach.speak(this.reveal.text);
+    // reveal phase — draw the green engine-move arrow (kept in sync with the words)
+    if(BotState.board && BotState.board.arrow){
+      (d.arrows||[]).forEach(a=>{ if(a && a.from && a.to) BotState.board.arrow(a.from, a.to, a.color); });
+    }
+    Coach.setStatus('Your move — you got this.');
+    setTimeout(()=>CoachFigure.mood('idle'), 2400);
+  },
+  _showEngage(on){
+    const el = document.getElementById('coach-engage'); if(el) el.classList.toggle('hidden', !on);
+    const acts = document.getElementById('coach-actions-row'); if(acts) acts.classList.toggle('hidden', on);
+  },
+  _mood(reaction){ return ({concerned:'alarm', excited:'happy', curious:'think', neutral:'idle'})[reaction] || 'idle'; },
+  reset(){ this.data=null; this.reveal=null; this._showEngage(false); }
+};
+window.CoachDialogue = CoachDialogue;
+
 /* ── Chessboard SFX (Web Audio — no asset needed) ─────────────────────────── */
 const ChessSFX = (function(){
   let ctx=null, enabled=true;
@@ -2124,6 +2171,7 @@ const Coach = (function(){
     showBoardLock(false);
     speak('');
     if(window.CoachFigure){ CoachFigure.rest(); CoachFigure.mood(''); }
+    if(window.CoachDialogue) CoachDialogue.reset();
   }
   // The coach's ONE voice: a short line in his speech bubble. Keep it brief.
   function speak(text){
@@ -2148,31 +2196,31 @@ const Coach = (function(){
     if(BotState.game.turn() !== BotState.playerColor[0]) return;
     setStatus('Looking at the position');
     setThinking(true);
+    let d = {silent:true};
     try{
-      const r = await fetch('/coach-question', {
+      const r = await fetch('/coach-position', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({
           fen: BotState.game.fen(),
           weaknesses: BotState.weaknesses,
-          last_bot_san: lastBotSan||'',
           played_moves: getPlayedSAN(),
         }),
         credentials:'include'
       });
-      const d = await r.json();
-      renderQuestions(d.questions || []);
-      renderFeedback('', '');
-      renderPositionBadge(d.position_type || null);
-      renderTheory(d.theory || []);
-      coachApplyMarks(d);
-      updateEvalBar(d.eval||0);
-      if(d.questions && d.questions.length) speak(d.questions[0]);
-      setStatus('Your turn — what\'s the plan?');
-      if(d.mcq && d.mcq.force){ MCQ.open(d.mcq, null, /*force*/true); }
-    }catch(e){
-      renderQuestions(['Take your time. What does the position need?']);
-    }
+      d = await r.json();
+    }catch(e){ d = {silent:true}; }
     setThinking(false);
+    if(typeof d.eval === 'number') updateEvalBar(d.eval);
+    if(d.silent){
+      // nothing worth saying — coach stays quiet, board stays free
+      if(BotState.board && BotState.board.clearMarks) BotState.board.clearMarks();
+      CoachFigure.mood('idle');
+      setStatus('Your move.');
+      return;
+    }
+    // there's a teaching moment — run the two-phase ask -> reveal
+    setStatus('Coach is asking…');
+    CoachDialogue.start(d);
   }
   // Review the move the player just made. On a blunder/mistake, PAUSE (red overlay)
   // and hold the bot's reply until the player decides. Otherwise, play on.
@@ -2221,36 +2269,23 @@ const Coach = (function(){
   async function ask(type){
     if(!BotState.gameActive) return;
     setThinking(true);
-    if(type === 'quiz'){
-      try{
-        const r = await fetch('/coach-question', {
-          method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({
-            fen: BotState.game.fen(),
-            weaknesses: BotState.weaknesses,
-            last_bot_san: BotState.lastBotSan||'',
-            played_moves: getPlayedSAN(),
-          }),
-          credentials:'include'
-        });
-        const d = await r.json();
-        if(d.mcq){ MCQ.open(d.mcq, null, true); }
-        else renderFeedback('No clear quiz move here — position is balanced. Look for the long-term plan.','ok');
-      }catch(e){}
-      setThinking(false);
-      return;
-    }
     try{
       const r = await fetch('/coach-position', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({fen: BotState.game.fen(), weaknesses: BotState.weaknesses, type}),
+        body: JSON.stringify({
+          fen: BotState.game.fen(),
+          weaknesses: BotState.weaknesses,
+          played_moves: getPlayedSAN(),
+          type: (type === 'quiz' ? 'position' : type),   // quiz reuses the classifier
+        }),
         credentials:'include'
       });
       const d = await r.json();
-      renderFeedback(d.message || '', type==='hint'?'inaccuracy':'ok');
-      updateEvalBar(d.eval||0);
-    }catch(e){}
-    setThinking(false);
+      setThinking(false);
+      if(typeof d.eval === 'number') updateEvalBar(d.eval);
+      if(d.silent){ speak("Position's calm — nothing loud to say. Just play a solid move."); CoachFigure.mood('idle'); return; }
+      CoachDialogue.start(d);   // hint/explain = single reveal; quiz = full ask -> reveal
+    }catch(e){ setThinking(false); }
   }
   return {afterBotMove, reviewPlayerMove, ask, reset, speak, renderQuestions, renderFeedback, setStatus, setThinking, renderPositionBadge, renderTheory};
 })();
