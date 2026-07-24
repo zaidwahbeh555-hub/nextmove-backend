@@ -1036,82 +1036,79 @@ def cancel_subscription():
 
 @app.route("/coach-position", methods=["POST"])
 def coach_position():
-    """Real-time coaching for a position during a bot game."""
+    """Two-phase coaching: classify the moment, then ask -> (player engages) -> reveal.
+    Silent by default; only speaks on real teaching moments. Every move it names is
+    Stockfish's actual top move, so it's never wrong."""
     data = request.get_json(silent=True) or {}
-    fen        = data.get("fen", "")
-    weaknesses = data.get("weaknesses", [])
-    request_type = data.get("type", "nudge")  # nudge | hint | explain
+    fen          = data.get("fen", "")
+    weaknesses   = data.get("weaknesses", [])
+    played_moves = data.get("played_moves", []) or []
+    request_type = data.get("type", "position")  # position | hint | explain
 
     sf = find_stockfish()
     if not sf or not fen:
-        return jsonify({"message": "Play on!", "eval": 0})
-
+        return jsonify({"silent": True})
     try:
         board = chess.Board(fen)
     except Exception:
-        return jsonify({"message": "Play on!", "eval": 0})
+        return jsonify({"silent": True})
 
     try:
         with chess.engine.SimpleEngine.popen_uci(sf) as engine:
-            info = engine.analyse(board, chess.engine.Limit(depth=12))
-            score = info["score"].white().score(mate_score=10000) or 0
-            best_pv = info.get("pv", [])
-            best_move = board.san(best_pv[0]) if best_pv and best_pv[0] in board.legal_moves else None
+            engine.configure({"Threads": 1, "Hash": 32})
+            top_lines = analyse_pv(engine, board, depth=12, multipv=3)
+        if not top_lines:
+            return jsonify({"silent": True})
+        eval_pawns = round((top_lines[0].get("score_cp") or 0) / 100, 1)
+        best_uci = top_lines[0]["move"]
+        try: best_san = board.san(best_uci)
+        except Exception: best_san = None
+        player = board.turn
 
-            eval_pawns = round(score / 100, 1)
-            turn = "White" if board.turn == chess.WHITE else "Black"
-            player_turn = board.turn
-
-            # ── Build the message off the REAL engine line, so hints are never wrong ──
-            best_uci = best_pv[0] if best_pv else None
-            best_from = chess.square_name(best_uci.from_square) if best_uci else None
-            best_pc = board.piece_at(best_uci.from_square) if best_uci else None
-            best_pc_name = PIECE_NAMES.get(best_pc.piece_type, "piece") if best_pc else "piece"
-
-            # what's actually threatened (your loose pieces)
-            my_loose = find_loose_pieces(board, player_turn)
-            threat_sq = chess.square_name(my_loose[0][0]) if my_loose else None
-            threat_pc = PIECE_NAMES.get(my_loose[0][1].piece_type, "piece") if my_loose else None
-
-            message = ""
-            warning = bool(my_loose)
-
+        # ── Hint / Explain buttons: a single direct answer (still from the engine) ──
+        if request_type in ("hint", "explain"):
+            my_loose = find_loose_pieces(board, player)
             if request_type == "hint":
                 if my_loose:
-                    message = f"{gm_phrase(VOICE_BAD)} First — your {threat_pc} on {threat_sq} is hanging. Sort that out before anything else."
-                elif best_move:
-                    where = f" on {best_from}" if best_from else ""
-                    message = f"{gm_phrase(VOICE_OPEN)} Your {best_pc_name}{where} is the piece to look at — it's got the strongest move here."
+                    sq, pc = my_loose[0]
+                    text = f"{gm_phrase(VOICE_BAD)} First — your {PIECE_NAMES.get(pc.piece_type,'piece')} on {chess.square_name(sq)} is hanging. Deal with that. The engine plays {best_san}."
                 else:
-                    message = f"{gm_phrase(VOICE_POS)} {gm_phrase(SOCRATIC)}"
-
-            elif request_type == "explain":
-                good_for_me = (eval_pawns > 0) == (player_turn == chess.WHITE)
+                    bf = chess.square_name(best_uci.from_square)
+                    bpc = board.piece_at(best_uci.from_square)
+                    text = f"{gm_phrase(VOICE_OPEN)} Look at your {PIECE_NAMES.get(bpc.piece_type,'piece')} on {bf} — that's where the strongest move is ({best_san})."
+            else:
+                good = (eval_pawns > 0) == (player == chess.WHITE)
                 adv = abs(eval_pawns)
-                state = ("dead level" if adv < 0.3 else "slightly better" if adv < 0.8
-                         else "clearly better" if adv < 1.6 else "much better" if adv < 3 else "winning")
-                who = "You're" if good_for_me else "They're"
-                message = f"📊 {who} {state} ({'+' if eval_pawns >= 0 else ''}{eval_pawns}). "
-                if best_move:
-                    message += f"The engine's move is {best_move}. "
-                if my_loose:
-                    message += f"Careful — your {threat_pc} on {threat_sq} is loose."
-
-            else:  # nudge
-                if my_loose:
-                    message = f"{gm_phrase(VOICE_THREAT)} Your {threat_pc} on {threat_sq} looks loose."
-                else:
-                    message = gm_phrase(SOCRATIC)
-
+                state = ("dead level" if adv < 0.3 else "slightly better" if adv < 0.8 else "clearly better" if adv < 1.6 else "much better" if adv < 3 else "winning")
+                text = f"📊 {'You are' if good else 'They are'} {state} ({'+' if eval_pawns>=0 else ''}{eval_pawns}). Engine's move: {best_san}."
             return jsonify({
-                "message": message,
-                "eval": eval_pawns,
-                "warning": bool(warning),
-                "best_move": best_move if request_type == "explain" else None,
+                "silent": False, "scenario": request_type, "reaction": "neutral",
+                "dialogue": [{"phase": "reveal", "text": text, "wait": False}],
+                "arrows": [build_arrow(best_uci, "#26d07c")], "highlights": [],
+                "eval": eval_pawns, "best_move_san": best_san,
             })
 
-    except Exception as e:
-        return jsonify({"message": "Think carefully before moving.", "eval": 0})
+        # ── Default: classify the moment and build a two-phase question -> reveal ──
+        scenario, ctx = classify_moment(board, top_lines, played_moves)
+        if scenario == "quiet":
+            return jsonify({"silent": True, "eval": eval_pawns, "best_move_san": best_san})
+        built = build_coach_dialogue(scenario, ctx, board, top_lines)
+        if not built:
+            return jsonify({"silent": True, "eval": eval_pawns, "best_move_san": best_san})
+        mcq = maybe_build_mcq(board, top_lines, position_type="tactical" if scenario == "tactical_opportunity" else "positional", force=False)
+        return jsonify({
+            "silent": False,
+            "scenario": scenario,
+            "reaction": ctx.get("reaction", "neutral"),
+            "dialogue": built["dialogue"],
+            "arrows": built["arrows"],
+            "highlights": built["highlights"],
+            "eval": eval_pawns,
+            "best_move_san": best_san,
+            "mcq": mcq,
+        })
+    except Exception:
+        return jsonify({"silent": True})
 
 # ── GM Coach helpers (v2 — Grandmaster mode) ──────────────────────────────────
 PIECE_NAMES = {chess.PAWN:"pawn",chess.KNIGHT:"knight",chess.BISHOP:"bishop",chess.ROOK:"rook",chess.QUEEN:"queen",chess.KING:"king"}
@@ -1271,6 +1268,203 @@ def opening_lesson(board_before, move, san, fullmove):
             "The queen comes out AFTER the knights and bishops. Otherwise you're handing them targets.",
         ])
     return None
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Two-phase coaching dialogue (ask -> wait -> reveal), Gotham-style.
+# {piece}/{sq} = your threatened piece; {tpiece}/{tsq} = a loose enemy piece;
+# {best} = Stockfish's actual top move (so the reveal is NEVER wrong).
+# ══════════════════════════════════════════════════════════════════════════════
+DIALOGUE = {
+  "opponent_threat": {
+    "q": [
+      "Wait — see what they just did? What's under attack right now?",
+      "Hold up. Your {piece} on {sq} — you sure it's safe?",
+      "Ooh, careful. What are they threatening this move?",
+      "They didn't move that for fun, dude. What's the threat?",
+      "Uh oh. Count the attackers on {sq}. Safe, or not?",
+      "Do you see it? Something of yours is loose.",
+      "Their last move had a point. What is it?",
+      "Look at your {piece}. Defended enough, you think?",
+      "That move attacks something. Can you spot what?",
+      "Danger, bro. Which piece is hanging?",
+      "Before you touch anything — is your {piece} on {sq} okay?",
+      "Pause. If you ignore their move, what happens?",
+      "See the threat? {sq} is in trouble.",
+      "Bro, look at {sq}. You feel good about that?",
+    ],
+    "r": [
+      "Yeah — your {piece} on {sq} is hanging. {best} is the clean way out. Defend, move, or hit back harder — that's always the choice.",
+      "Exactly. They're winning that {piece} unless you act. {best} solves it. Loose pieces drop off — that's LPDO.",
+      "Right — {sq} is the problem. {best} fixes it. Never leave a piece hanging when it's your move.",
+      "That's the threat. {best} deals with it and keeps you solid.",
+      "You got it. {best} handles it. Rule: address the threat, or make a bigger one.",
+      "See? {best} saves the piece. A move you don't defend against is a move that beats you.",
+      "Bingo. {best} is the move — it takes the sting out of their threat.",
+    ],
+  },
+  "tactical_opportunity": {
+    "q": [
+      "Ooh — I smell something. What can you win here?",
+      "Their {tpiece} on {tsq} looks loose. Can you punish it?",
+      "There's a shot on the board. Do you see it?",
+      "Checks, captures, threats — run the list. What jumps out?",
+      "They left something. What are you taking?",
+      "This is a calculate spot, not a vibe spot. What wins?",
+      "Free stuff alert. Which piece can you grab?",
+      "Something's hanging for THEM. Find it.",
+      "You've got a tactic here, bro. Where?",
+      "What's the most forcing move you have right now?",
+      "Their {tsq} — how many of your pieces see it?",
+      "Don't play safe. There's a punch here — throw it.",
+    ],
+    "r": [
+      "There it is — {best}. That's the shot. When they hang a piece, you take the piece.",
+      "Boom. {best} wins material. Nine times out of ten, spotting free stuff is the whole game at this level.",
+      "Yes! {best}. Forcing and strong — that's how you punish a loose piece.",
+      "{best} is the one. Checks and captures first, always — that's how you find these.",
+      "Monster. {best} grabs it. That's a one-mover: you make a move, you get the reward.",
+      "Exactly — {best}. Piece coordination: your pieces were already aiming there.",
+      "{best}. Take it, dude. Don't overthink free material.",
+    ],
+  },
+  "pre_castling": {
+    "q": [
+      "Quick one — by which move should you usually castle?",
+      "Your king's still in the middle. Feel safe about that?",
+      "It's past move 8 and no castle yet. What should you prioritize?",
+      "Where does your king want to be right now?",
+      "Center's getting spicy and your king's still home. Thoughts?",
+      "What's the one thing you haven't done that a coach would nag about?",
+      "King safety check — are you happy where your king is?",
+    ],
+    "r": [
+      "Castle, dude — {best}. The whole point of castling is a safe king AND a rook in the game. Aim to castle by move 8.",
+      "Yeah — get the king tucked away. {best}. A king in the center is a king in danger.",
+      "Right, {best}. Safety first, then you attack. Don't get caught with your king in the middle.",
+      "{best}. Castle now while it's quiet — you won't get to later.",
+      "Exactly — {best}. King safe, rook activated. That's principled chess.",
+    ],
+  },
+  "critical_decision": {
+    "q": [
+      "Okay — THIS is the moment. What's the plan?",
+      "Big decision here. Attack, trade, or improve a piece?",
+      "You're much better — what's the cleanest way to convert?",
+      "The game turns on this move. What are you going for?",
+      "Don't rush. What does the position actually want?",
+      "You're worse — where's your counterplay?",
+      "What's your worst piece, and can you fix it right now?",
+      "If you could make any move, what would win it?",
+    ],
+    "r": [
+      "The engine's plan is {best}. When you're winning, simplify and keep it clean — don't give it back.",
+      "{best} is the move. Improve your worst piece, trade when ahead, complicate when behind.",
+      "Go with {best}. Convert like a sport — if they don't get a chance, they can't come back.",
+      "{best}. Slow, precise chess here. This is where games are won.",
+      "Yeah — {best}. Ask what the position wants, then give it that.",
+    ],
+  },
+  "endgame_technique": {
+    "q": [
+      "Endgame now. What's the fastest way to win this?",
+      "Few pieces left — where does your king belong?",
+      "You're up material. Trades or no trades?",
+      "What's the plan — push a pawn, activate the king, or trade down?",
+      "How do you turn this edge into a queen?",
+      "Endgame rule time — what's priority one here?",
+    ],
+    "r": [
+      "{best}. In the endgame the king is a fighter — march it up. And when you're ahead, trade pieces, not pawns.",
+      "Go {best}. Up material? Trade down and push a passer. Queen resurrecting is the fastest win.",
+      "{best}. Activate, then advance. Passed pawns must be pushed.",
+      "Yeah — {best}. Simplify when ahead; every trade makes your extra material bigger.",
+      "{best}. King and pawns win endgames — get the king in the fight.",
+    ],
+  },
+}
+
+def _fmt(t, ctx):
+    for k, v in ctx.items():
+        t = t.replace("{"+k+"}", str(v))
+    return t
+
+def classify_moment(board, top_lines, played_moves):
+    """Return (scenario, ctx). scenario='quiet' means stay silent."""
+    if not top_lines:
+        return "quiet", {}
+    player = board.turn
+    sign = 1 if player == chess.WHITE else -1
+    eval_cp = top_lines[0].get("score_cp") or 0
+    my_eval = eval_cp * sign
+    gap = 0
+    if len(top_lines) >= 2:
+        gap = ((top_lines[0].get("score_cp") or 0) - (top_lines[1].get("score_cp") or 0)) * sign
+    my_loose = find_loose_pieces(board, player)
+    opp_loose = find_loose_pieces(board, not player)
+    fullmove = board.fullmove_number
+    mat = total_non_king_material(board)
+    best_uci = top_lines[0]["move"]
+    best_from = chess.square_name(best_uci.from_square)
+    ctx = {"best_from": best_from, "reaction": "neutral"}
+
+    # 1) opponent just threatens one of your pieces
+    if my_loose:
+        sq, pc = my_loose[0]
+        ctx.update({"sq": chess.square_name(sq), "piece": PIECE_NAMES.get(pc.piece_type, "piece"),
+                    "reaction": "concerned"})
+        return "opponent_threat", ctx
+    # 2) you can win material (clear best move, or a loose enemy piece to grab)
+    if opp_loose and gap >= 120:
+        sq, pc = opp_loose[0]
+        ctx.update({"tsq": chess.square_name(sq), "tpiece": PIECE_NAMES.get(pc.piece_type, "piece"),
+                    "reaction": "excited"})
+        return "tactical_opportunity", ctx
+    if gap >= 200:
+        ctx["reaction"] = "excited"
+        return "tactical_opportunity", ctx
+    # 3) haven't castled and it's getting late
+    king_sq = board.king(player)
+    home = chess.E1 if player == chess.WHITE else chess.E8
+    if board.has_castling_rights(player) and fullmove > 8 and king_sq == home:
+        ctx["reaction"] = "curious"
+        return "pre_castling", ctx
+    # 4) endgame with something to convert
+    if mat <= 20 and abs(my_eval) >= 150:
+        ctx["reaction"] = "neutral"
+        return "endgame_technique", ctx
+    # 5) decisive middlegame moment
+    if abs(my_eval) >= 250 and mat > 20:
+        ctx["reaction"] = "curious"
+        return "critical_decision", ctx
+    return "quiet", ctx
+
+def build_coach_dialogue(scenario, ctx, board, top_lines):
+    """Two-phase dialogue + synced arrows/highlights, using the REAL engine move."""
+    best_uci = top_lines[0]["move"]
+    try: best_san = board.san(best_uci)
+    except Exception: best_san = None
+    ctx = dict(ctx); ctx["best"] = best_san or "the best move"
+    bank = DIALOGUE.get(scenario)
+    if not bank or not best_san:
+        return None
+    question = _fmt(gm_phrase(bank["q"]), ctx)
+    reveal   = _fmt(gm_phrase(bank["r"]), ctx)
+    highlights, arrows = [], []
+    # question phase: point at the danger (red) or the target (green)
+    if scenario == "opponent_threat" and ctx.get("sq"):
+        highlights = [{"square": ctx["sq"], "color": "#ff4d4d", "label": "vulnerable"}]
+    elif scenario == "tactical_opportunity" and ctx.get("tsq"):
+        highlights = [{"square": ctx["tsq"], "color": "#26d07c", "label": "target"}]
+    # reveal phase: green arrow for the engine's move
+    arrows = [build_arrow(best_uci, "#26d07c")]
+    return {
+        "dialogue": [
+            {"phase": "question", "text": question, "wait": True},
+            {"phase": "reveal", "text": reveal, "wait": False},
+        ],
+        "highlights": highlights,
+        "arrows": arrows,
+    }
 
 def piece_label(piece):
     if not piece: return "piece"
