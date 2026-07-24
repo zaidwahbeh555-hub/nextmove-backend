@@ -929,3 +929,11 @@ body{font-family:'Satoshi','Segoe UI',system-ui,sans-serif;letter-spacing:.005em
 .train-note{margin-top:1.6rem;max-width:44rem;background:var(--bg3);border:1px solid var(--border2);border-left:3px solid var(--cyan);border-radius:var(--r-md);padding:1rem 1.2rem}
 .train-note p{color:var(--muted2);font-size:.92rem;line-height:1.55}
 .train-note strong{color:var(--paper)}
+
+/* ── Forced-engagement buttons (coach asks -> you answer before moving) ── */
+.coach-engage{display:flex;gap:.45rem;width:100%;margin-top:.9rem;animation:bubblePop .35s cubic-bezier(.34,1.56,.64,1)}
+.coach-engage.hidden{display:none}
+.coach-engage-btn{flex:1;background:var(--bg3);border:1.5px solid var(--border2);color:var(--ink);padding:.7rem .3rem;border-radius:10px;font-weight:700;font-size:.82rem;cursor:pointer;font-family:'Satoshi',sans-serif;transition:all .15s}
+.coach-engage-btn:hover{background:var(--cyan-dim);border-color:var(--cyan);transform:translateY(-1px)}
+.coach-engage-btn.show{background:var(--cyan);color:#04141a;border-color:var(--cyan)}
+.coach-engage-btn.show:hover{background:var(--cyan);filter:brightness(1.05)}
