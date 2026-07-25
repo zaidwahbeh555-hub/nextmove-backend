@@ -1,5 +1,5 @@
 /* ChessForge Pro v6 — Complete JS */
-const PIECE_THEME = 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png';
+const PIECE_THEME = '/static/pieces/custom/{piece}.svg';
 
 const LESSONS={
   tactics:{title:'Tactics: Forks, Pins & Skewers',subtitle:'The most powerful short-term weapons in chess',priority:'high',icon:'⚔',sections:[
@@ -428,35 +428,136 @@ function showPage(name){
 }
 
 /* ── Training (first pass — weakness-targeted drill launchers) ─────────────── */
-function renderTrainingPage(){
-  const grid=document.getElementById('train-grid');
-  if(!grid || grid.dataset.done) return;
-  const cards=[
-    {k:'Hanging piece',     icon:'🎯', t:'Stop hanging pieces', d:'Loose-piece drills — spot what\'s undefended before you move.'},
-    {k:'Missed tactic',     icon:'⚡', t:'Sharpen tactics',     d:'Forks, pins and shots you keep walking past.'},
-    {k:'King safety issue', icon:'👑', t:'King safety',         d:'Castle, make luft, stop back-rank disasters.'},
-    {k:'Endgame mistake',   icon:'🏁', t:'Endgame technique',   d:'Convert winning endings, hold the tough ones.'},
-    {k:'tactics',           icon:'🧩', t:'Mixed tactics',       d:'A broad set to keep your pattern library sharp.'},
-    {k:'Opening mistake',   icon:'📖', t:'Opening principles',  d:'Develop, take the centre, don\'t rush the queen.'},
-  ];
-  grid.innerHTML = cards.map(c=>`<button class="train-card" onclick="trainWeakness('${c.k}')"><div class="train-ic">${c.icon}</div><div class="train-t">${esc(c.t)}</div><div class="train-d">${esc(c.d)}</div><div class="train-go">Start drill →</div></button>`).join('');
-  grid.dataset.done='1';
-}
-async function trainWeakness(weakness){
+const MM_COLORS = {Vulnerable:'#ff5d6c', Learning:'#ff9f43', Building:'#ffd54a', Automatic:'#26d07c'};
+async function renderTrainingPage(force){
+  const grid=document.getElementById('train-grid'); if(!grid) return;
+  if(grid.dataset.loaded && !force) return;
+  grid.innerHTML = '<div class="train-loading">Loading your patterns…</div>';
+  let d;
   try{
-    const r=await fetch('/generate-puzzles',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({weakness,count:8}),credentials:'include'});
-    const d=await r.json();
-    if(d.error){ alert('Sign in to train (puzzles are generated per account).'); return; }
-    if(d.puzzles && d.puzzles.length){
-      State.puzzles=d.puzzles; State.puzzleIdx=0; State.puzzleCorrect=0; State.puzzleWrong=0;
-      const t=document.getElementById('puzzle-total'); if(t)t.textContent=State.puzzles.length;
-      const np=document.getElementById('no-puzzles'); if(np)np.classList.add('hidden');
-      const pa=document.getElementById('puzzle-area'); if(pa)pa.classList.remove('hidden');
-      showPage('puzzles');
-    }
-  }catch(e){ alert('Could not load drills right now.'); }
+    const r=await fetch('/training/weaknesses',{credentials:'include'});
+    d=await r.json();
+    if(d.error){ grid.innerHTML='<div class="train-loading">Sign in to build your training profile.</div>'; return; }
+  }catch(e){ grid.innerHTML='<div class="train-loading">Could not load training right now.</div>'; return; }
+  grid.dataset.loaded='1';
+  // streak flame
+  const sc=document.getElementById('streak-count'); if(sc) sc.textContent=(d.streak&&d.streak.count)||0;
+  const flame=document.getElementById('streak-flame'); if(flame) flame.classList.toggle('lit', ((d.streak&&d.streak.count)||0)>0);
+  // due-for-review
+  const due=(d.weaknesses||[]).filter(w=>w.due_now);
+  const dueBox=document.getElementById('train-due'), dueList=document.getElementById('train-due-list');
+  if(dueBox&&dueList){
+    if(due.length){ dueBox.classList.remove('hidden');
+      dueList.innerHTML=due.map(w=>`<button class="due-chip" onclick="TrainingDrill.start('${w.pattern}')">${esc(w.pattern)} <span>→</span></button>`).join('');
+    } else dueBox.classList.add('hidden');
+  }
+  // weakness cards with muscle-memory meters
+  grid.innerHTML=(d.weaknesses||[]).map(w=>{
+    const col=MM_COLORS[w.band]||'#7a7a9a';
+    return `<button class="train-card" onclick="TrainingDrill.start('${w.pattern}')">
+      <div class="train-card-head"><span class="train-card-name">${esc(w.pattern)}</span><span class="train-band" style="color:${col};border-color:${col}44">${esc(w.band)}</span></div>
+      <p class="train-card-note">${esc(w.note||'')}</p>
+      <div class="mm-bar"><div class="mm-fill" style="width:${w.strength}%;background:${col}"></div></div>
+      <div class="train-card-foot"><span>${w.strength}% muscle memory</span>${w.due_now?'<span class="due-pill">Due</span>':''}</div>
+    </button>`;
+  }).join('');
+  // mastered
+  const mBox=document.getElementById('train-mastered');
+  if(mBox){ mBox.innerHTML = d.mastered ? `<span class="mastered-badge">🏅 ${d.mastered} pattern${d.mastered>1?'s':''} mastered (80%+)</span>` : ''; }
 }
-window.trainWeakness = trainWeakness;
+
+/* ── Drill session — full-screen, one pattern, spaced repetition ── */
+const TrainingDrill = {
+  positions:[], idx:0, correct:0, pattern:'', streak:0, board:null, game:null, solved:false,
+  async start(pattern){
+    let d;
+    try{
+      const r=await fetch('/training/next',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pattern,count:8}),credentials:'include'});
+      d=await r.json();
+    }catch(e){ return; }
+    if(!d || !d.positions || !d.positions.length) return;
+    this.positions=d.positions; this.idx=0; this.correct=0; this.pattern=d.pattern; this.streak=0;
+    document.getElementById('drill-pattern').textContent=d.pattern;
+    document.getElementById('drill-streak-count').textContent='0';
+    document.getElementById('drill-summary').classList.add('hidden');
+    document.querySelector('.drill-body').style.display='';
+    document.getElementById('drill-overlay').classList.remove('hidden');
+    if(!this.board){
+      this.board=new ForgeBoard('drill-board',{
+        orientation:'white',
+        getTargets:(sq)=>{
+          if(this.solved || !this.game) return null;
+          const p=this.game.get(sq); if(!p || p.color!==this.game.turn()) return null;
+          return this.game.moves({square:sq,verbose:true}).map(m=>m.to);
+        },
+        onMove:(from,to)=>this._move(from,to),
+      });
+    }
+    this._load();
+  },
+  _load(){
+    const p=this.positions[this.idx];
+    this.game=new Chess(p.fen); this.solved=false;
+    this.board.flip(p.side==='white'?'white':'black');
+    this.board.setPosition(p.fen);
+    document.getElementById('drill-progress').textContent=`${this.idx+1} / ${this.positions.length}`;
+    document.getElementById('drill-progress-fill').style.width=(this.idx/this.positions.length*100)+'%';
+    document.getElementById('drill-prompt').textContent=(p.side==='white'?'White':'Black')+' to move — find the best move.';
+    document.getElementById('drill-feedback').classList.add('hidden');
+    document.getElementById('drill-next').classList.add('hidden');
+  },
+  _move(from,to){
+    if(this.solved) return false;
+    const p=this.positions[this.idx];
+    const before=this.game.fen();
+    const mv=this.game.move({from,to,promotion:'q'});
+    if(!mv) return false;
+    this.solved=true;
+    const norm=s=>String(s).replace(/[+#!?]/g,'');
+    const ok = norm(mv.san)===norm(p.solution);
+    const fb=document.getElementById('drill-feedback');
+    if(ok){
+      this.correct++; this.streak++;
+      this.board.setPosition(this.game.fen(),{lastMove:{from,to}});
+      fb.className='drill-feedback good';
+      fb.innerHTML=`✔ <b>${esc(mv.san)}</b> — that's it. <span class="fb-tag">${esc(p.pattern)}</span> ${esc(p.hint||'')}`;
+      if(window.ChessSFX) ChessSFX.playWin();
+    } else {
+      this.game.undo(); this.board.setPosition(before);
+      fb.className='drill-feedback bad';
+      fb.innerHTML=`✗ Not that one. The move was <b>${esc(p.solution)}</b>. <span class="fb-tag">${esc(p.pattern)}</span> ${esc(p.hint||'')}`;
+      if(window.ChessSFX) ChessSFX.playWrong();
+    }
+    fb.classList.remove('hidden');
+    document.getElementById('drill-streak-count').textContent=this.streak;
+    document.getElementById('drill-next').classList.remove('hidden');
+    return true;
+  },
+  next(){ this.idx++; if(this.idx>=this.positions.length){ this._finish(); } else { this._load(); } },
+  async _finish(){
+    const total=this.positions.length;
+    let d={};
+    try{
+      const r=await fetch('/training/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pattern:this.pattern,correct:this.correct,total}),credentials:'include'});
+      d=await r.json();
+    }catch(e){}
+    document.querySelector('.drill-body').style.display='none';
+    const sum=document.getElementById('drill-summary');
+    const col=MM_COLORS[d.band]||'#7a7a9a';
+    sum.innerHTML=`
+      <div class="ds-score">${this.correct} / ${total}</div>
+      <div class="ds-line">${d.passed?'🔥 Session passed!':'Keep at it — run it again.'}</div>
+      <div class="ds-mm"><div class="ds-mm-label">${esc(this.pattern)} — muscle memory</div>
+        <div class="mm-bar big"><div class="mm-fill" style="width:${(d.strength||0)}%;background:${col}"></div></div>
+        <div class="ds-band" style="color:${col}">${esc(d.band||'')} · ${(d.strength||0)}%</div></div>
+      ${d.mastered?'<div class="ds-master">🏅 Pattern mastered!</div>':''}
+      <div class="ds-next">Next review in ${d.next_review_days||1} day${(d.next_review_days||1)>1?'s':''} · 🔥 ${d.streak||0} day streak</div>
+      <div class="ds-actions"><button class="onb-btn" onclick="TrainingDrill.exit()">Done</button><button class="onb-btn ghost" onclick="TrainingDrill.start('${this.pattern}')">Again</button></div>`;
+    sum.classList.remove('hidden');
+  },
+  exit(){ document.getElementById('drill-overlay').classList.add('hidden'); renderTrainingPage(true); }
+};
+window.TrainingDrill = TrainingDrill;
 document.querySelectorAll('.nav-link').forEach(l=>l.addEventListener('click',e=>{e.preventDefault();showPage(l.dataset.page);}));
 
 /* ── Tabs ─────────────────────────────────────────────────────────────────── */
@@ -1904,15 +2005,15 @@ const CoachDialogue = {
     }
     if(q){
       Coach.speak(q.text);
-      this._showEngage(true);        // force engagement — no skip
-      BotState.boardLocked = true;   // can't move until they answer
-      Coach.setStatus('Coach is asking — answer first.');
+      this._renderEngage(d.scenario);  // contextual response buttons — the only interaction
+      BotState.boardLocked = true;     // can't move until you answer
+      Coach.setStatus('Milo\'s asking — answer first.');
     } else {
-      this._reveal('see');           // hint/explain style: straight to the point
+      this._reveal('see');             // hint/explain style: straight to the point
     }
   },
   engage(choice){
-    this._showEngage(false);
+    const el = document.getElementById('coach-engage'); if(el){ el.classList.add('hidden'); el.innerHTML=''; }
     BotState.boardLocked = false;
     this._reveal(choice);
   },
@@ -1926,12 +2027,20 @@ const CoachDialogue = {
     Coach.setStatus('Your move — you got this.');
     setTimeout(()=>CoachFigure.mood('idle'), 2400);
   },
-  _showEngage(on){
-    const el = document.getElementById('coach-engage'); if(el) el.classList.toggle('hidden', !on);
-    const acts = document.getElementById('coach-actions-row'); if(acts) acts.classList.toggle('hidden', on);
+  _renderEngage(scenario){
+    const el = document.getElementById('coach-engage'); if(!el) return;
+    const opts = ({
+      opponent_threat:   [['see','I see it'],['notsure','Not sure'],['show','Show me']],
+      tactical_opportunity:[['see','I found it'],['notsure','Not sure'],['show','Show me']],
+      pre_castling:      [['see','Castle it'],['notsure','Not yet'],['show','Why?']],
+      critical_decision: [['see','Got a plan'],['notsure','Not sure'],['show','Show me']],
+      endgame_technique: [['see','I know'],['notsure','Not sure'],['show','Show me']],
+    })[scenario] || [['see','I see it'],['notsure','Not sure'],['show','Show me']];
+    el.innerHTML = opts.map((o,i)=>`<button class="coach-engage-btn${i===opts.length-1?' show':''}" onclick="CoachDialogue.engage('${o[0]}')">${esc(o[1])}${i===opts.length-1?' →':''}</button>`).join('');
+    el.classList.remove('hidden');
   },
   _mood(reaction){ return ({concerned:'alarm', excited:'happy', curious:'think', neutral:'idle'})[reaction] || 'idle'; },
-  reset(){ this.data=null; this.reveal=null; this._showEngage(false); }
+  reset(){ this.data=null; this.reveal=null; const el=document.getElementById('coach-engage'); if(el){ el.classList.add('hidden'); el.innerHTML=''; } }
 };
 window.CoachDialogue = CoachDialogue;
 
@@ -2007,12 +2116,7 @@ function updateEvalBar(evalPawns){
   num.style.color = evalPawns > 0.5 ? 'var(--green)' : evalPawns < -0.5 ? 'var(--red)' : 'var(--cyan)';
 }
 
-function enableCoachButtons(on){
-  ['hint-btn-coach','explain-btn-coach','quiz-btn-coach'].forEach(id=>{
-    const btn = document.getElementById(id);
-    if(btn) btn.disabled = !on;
-  });
-}
+function enableCoachButtons(on){ /* standalone buttons removed — the coach speaks proactively */ }
 
 /* ── Board Overlay (arrows + highlights) ──────────────────────────────────── */
 const BoardOverlay = (function(){
@@ -2489,6 +2593,18 @@ const FB_PIECES = {
 function fbPieceSVG(type, color){
   return '<svg class="fb-piece '+color+'" viewBox="0 0 45 45">'+FB_PIECES[type.toLowerCase()]+'</svg>';
 }
+// Custom piece SVGs live in /static/pieces/custom/ (wK.svg, bQ.svg, …). If a file is
+// missing, fall back to the built-in vector piece so the board is never broken.
+function fbPieceCode(type, color){ return (color==='w'?'w':'b') + type.toUpperCase(); }
+function fbPieceEl(type, color){
+  const code = fbPieceCode(type, color);
+  return '<img class="fb-piece-img" draggable="false" alt="" src="/static/pieces/custom/'+code+'.svg" '+
+         'onerror="fbPieceImgFail(this,\''+type+'\',\''+color+'\')">';
+}
+function fbPieceImgFail(img, type, color){
+  try{ img.outerHTML = fbPieceSVG(type, color); }catch(e){}
+}
+window.fbPieceImgFail = fbPieceImgFail;
 
 class ForgeBoard {
   constructor(elId, opts={}){
@@ -2541,7 +2657,7 @@ class ForgeBoard {
         if(this.checkSquare===sq) cell.classList.add('fb-check');
         if(this.selected===sq) cell.classList.add('fb-selected');
         const pc = this.pos[sq];
-        if(pc) cell.innerHTML = fbPieceSVG(pc.type, pc.color);
+        if(pc) cell.innerHTML = fbPieceEl(pc.type, pc.color);
         // coordinate ticks on edges
         if(ri===7) cell.insertAdjacentHTML('beforeend','<span class="fb-coord file">'+file+'</span>');
         if(ci===0) cell.insertAdjacentHTML('beforeend','<span class="fb-coord rank">'+rank+'</span>');
