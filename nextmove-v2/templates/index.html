@@ -12,7 +12,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 <link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
-<link rel="stylesheet" href="/static/css/style.css?v=p6">
+<link rel="stylesheet" href="/static/css/style.css?v=p7">
 </head>
 <body>
 
@@ -111,11 +111,25 @@
   <div class="gm-layout">
     <!-- Left: Board with overlay -->
     <div class="gm-main">
+      <div class="gm-mode-cards">
+        <button class="gm-mode-card active" id="mode-coached" onclick="setBotMode('coached')">
+          <div class="gm-mode-ic">🎓</div>
+          <div class="gm-mode-txt">
+            <div class="gm-mode-name">Coached</div>
+            <div class="gm-mode-sub">Milo sits beside you — asks, points, and explains every move.</div>
+          </div>
+          <div class="gm-mode-check">✓</div>
+        </button>
+        <button class="gm-mode-card" id="mode-free" onclick="setBotMode('free')">
+          <div class="gm-mode-ic">⚡</div>
+          <div class="gm-mode-txt">
+            <div class="gm-mode-name">Free Play</div>
+            <div class="gm-mode-sub">Just you and the engine. Review your blunders afterward.</div>
+          </div>
+          <div class="gm-mode-check">✓</div>
+        </button>
+      </div>
       <div class="gm-toolbar">
-        <div class="gm-mode-selector">
-          <button class="gm-mode-btn active" id="mode-coached" onclick="setBotMode('coached')"><span>🎓</span> Coached</button>
-          <button class="gm-mode-btn" id="mode-free" onclick="setBotMode('free')"><span>⚡</span> Free Play</button>
-        </div>
         <div class="gm-controls">
           <select id="bot-color" class="gm-select">
             <option value="white">Play White</option>
@@ -182,23 +196,14 @@
             <circle cx="92" cy="118" r="5.5" fill="#00d4ff"/>
           </svg>
         </div>
-        <div class="coach-name-tag">GM Forge <span class="coach-live"><span class="gm-dot"></span>live</span></div>
+        <div class="coach-name-tag">Milo <span class="coach-live"><span class="gm-dot"></span>your coach</span></div>
         <div class="coach-eval-row">
           <span class="coach-eval-label">EVAL</span>
           <div class="coach-eval-bar"><div class="coach-eval-fill" id="eval-bar" style="width:50%"></div></div>
           <span class="coach-eval-num" id="eval-num">0.0</span>
         </div>
-        <!-- forced engagement — when the coach asks, you answer before moving -->
-        <div class="coach-engage hidden" id="coach-engage">
-          <button class="coach-engage-btn" onclick="CoachDialogue.engage('see')">I see it</button>
-          <button class="coach-engage-btn" onclick="CoachDialogue.engage('notsure')">Not sure</button>
-          <button class="coach-engage-btn show" onclick="CoachDialogue.engage('show')">Show me →</button>
-        </div>
-        <div class="coach-actions-row" id="coach-actions-row">
-          <button class="coach-mini-btn" id="hint-btn-coach" onclick="askCoach('hint')" disabled>💡 Hint</button>
-          <button class="coach-mini-btn" id="explain-btn-coach" onclick="askCoach('explain')" disabled>📊 Explain</button>
-          <button class="coach-mini-btn" id="quiz-btn-coach" onclick="askCoach('quiz')" disabled>🎯 Quiz</button>
-        </div>
+        <!-- the ONLY interaction: response options that appear inside the conversation -->
+        <div class="coach-engage hidden" id="coach-engage"></div>
       </div>
 
       <details class="coach-history">
@@ -356,11 +361,45 @@
 
 <!-- ═══ TRAINING ══════════════════════════════════════════════════════════════ -->
 <div class="page" id="page-training">
-  <div class="page-header"><h1>Training</h1><p>Drill the exact weaknesses your coach spots in your games.</p></div>
-  <div class="train-grid" id="train-grid"></div>
-  <div class="train-note">
-    <p><strong>This is the starting point.</strong> Right now these launch weakness-targeted puzzle sets. Tell me exactly how you want Training to work — timed drills, spaced repetition, a specific weakness path — and I'll build it out.</p>
+  <div class="page-header train-header">
+    <div>
+      <h1>Training</h1>
+      <p>Drill your exact weaknesses with spaced repetition until the mistakes become <em>automatic</em> to avoid.</p>
+    </div>
+    <div class="streak-flame" id="streak-flame" title="Do one drill a day to keep your streak">
+      <span class="flame">🔥</span><span class="streak-num" id="streak-count">0</span>
+      <span class="streak-lbl">day<br>streak</span>
+    </div>
   </div>
+
+  <div class="train-due hidden" id="train-due">
+    <div class="train-due-label">⏰ Due for review today</div>
+    <div class="train-due-list" id="train-due-list"></div>
+  </div>
+
+  <div class="train-section-label" id="train-section-label">Your weakness patterns</div>
+  <div class="train-grid" id="train-grid"></div>
+  <div class="train-mastered" id="train-mastered"></div>
+</div>
+
+<!-- Drill session — full-screen focused view -->
+<div class="drill-overlay hidden" id="drill-overlay">
+  <div class="drill-top">
+    <button class="drill-exit" onclick="TrainingDrill.exit()">✕</button>
+    <div class="drill-pattern"><span class="drill-pattern-label">Drilling</span><b id="drill-pattern">Pattern</b></div>
+    <div class="drill-streak"><span>🔥</span><b id="drill-streak-count">0</b></div>
+  </div>
+  <div class="drill-progress-bar"><div class="drill-progress-fill" id="drill-progress-fill"></div></div>
+  <div class="drill-body">
+    <div class="drill-board-col"><div id="drill-board"></div></div>
+    <div class="drill-side">
+      <div class="drill-count" id="drill-progress">1 / 8</div>
+      <div class="drill-prompt" id="drill-prompt">Find the best move.</div>
+      <div class="drill-feedback hidden" id="drill-feedback"></div>
+      <button class="drill-next hidden" id="drill-next" onclick="TrainingDrill.next()">Next →</button>
+    </div>
+  </div>
+  <div class="drill-summary hidden" id="drill-summary"></div>
 </div>
 
 <!-- ═══ PUZZLES ═══════════════════════════════════════════════════════════════ -->
@@ -415,6 +454,6 @@
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
-<script src="/static/js/main.js?v=p6"></script>
+<script src="/static/js/main.js?v=p7"></script>
 </body>
 </html>
