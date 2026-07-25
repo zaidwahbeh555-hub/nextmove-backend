@@ -1955,6 +1955,164 @@ def analyze_bot_game():
         "total_player_moves": len(move_reviews),
     })
 
+# ══════════════════════════════════════════════════════════════════════════════
+# TRAINING — spaced-repetition "muscle memory" drilling of the player's weaknesses
+# ══════════════════════════════════════════════════════════════════════════════
+TRAIN_INTERVALS = [1, 3, 7, 14, 30]   # days between reviews as a pattern is mastered
+TRAIN_TYPES = [
+    ("Hanging piece",     "Loose pieces you leave undefended (LPDO)."),
+    ("Missed tactic",     "Forks, pins and shots you walk past."),
+    ("King safety issue", "Castling late, weak king, back-rank danger."),
+    ("Endgame mistake",   "Converting won endings, king activity, passers."),
+    ("Opening mistake",   "Development, the centre, not rushing the queen."),
+]
+TRAIN_POOLS = {
+    "Hanging piece": [
+        {"fen":"r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4","solution":"Ng5","side":"white","hint":"Two attackers on f7 — pile up."},
+        {"fen":"rnbq1rk1/ppp2ppp/3p1n2/4p3/2B1P3/2NP1N2/PPP2PPP/R1BQK2R w KQ - 0 7","solution":"Bxf7+","side":"white","hint":"Something's hanging on f7."},
+        {"fen":"r1bqkb1r/ppp2ppp/2np1n2/4p3/2B1P3/3P1N2/PPP2PPP/RNBQK2R w KQkq - 0 5","solution":"Ng5","side":"white","hint":"Attack two things at once."},
+    ],
+    "Missed tactic": [
+        {"fen":"r1bq1rk1/ppp2ppp/2np1n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w - - 0 8","solution":"Nd5","side":"white","hint":"A knight fork wins material."},
+        {"fen":"r2qkb1r/ppp2ppp/2np1n2/4p1B1/2B1P3/3P1N2/PPP2PPP/RN1QK2R b KQkq - 0 6","solution":"Nxe4","side":"black","hint":"Win a pawn tactically."},
+    ],
+    "King safety issue": [
+        {"fen":"r1bqk2r/pppp1ppp/2n2n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQ1RK1 b kq - 5 4","solution":"O-O","side":"black","hint":"Castle to safety NOW."},
+        {"fen":"rnbqkb1r/ppp2ppp/3p1n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 4","solution":"O-O","side":"white","hint":"Get the king tucked away."},
+    ],
+    "Endgame mistake": [
+        {"fen":"8/8/8/3k4/8/3K4/3P4/8 w - - 0 1","solution":"Ke3","side":"white","hint":"Escort the pawn — king leads."},
+        {"fen":"8/8/8/8/8/4K3/4P3/4k3 w - - 0 1","solution":"Kd3","side":"white","hint":"Gain the opposition."},
+        {"fen":"8/8/1k6/8/8/1K6/1P6/8 w - - 0 1","solution":"Kc4","side":"white","hint":"King in front of the pawn."},
+    ],
+    "Opening mistake": [
+        {"fen":"r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3","solution":"Bc4","side":"white","hint":"Develop toward the centre."},
+        {"fen":"rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2","solution":"Nf3","side":"white","hint":"Knight hits the centre."},
+    ],
+}
+def default_training():
+    return {"patterns": {}, "streak": {"count": 0, "last_day": ""}, "history": []}
+def get_training(user):
+    return user.get("training") or default_training()
+def ensure_patterns(tr, seed_from=None):
+    now = int(time.time())
+    names = set(tr["patterns"].keys())
+    # seed from the player's actual game mistakes if provided, else the common types
+    wanted = list(seed_from) if seed_from else [t[0] for t in TRAIN_TYPES]
+    for name in wanted:
+        if name not in names and name in TRAIN_POOLS:
+            tr["patterns"][name] = {"strength": 12, "seen": 0, "correct": 0, "due": now, "interval_days": 1}
+    return tr
+def drill_positions(name, count=8):
+    pool = TRAIN_POOLS.get(name) or TRAIN_POOLS["Missed tactic"]
+    out = []
+    while len(out) < count:
+        out.extend(random.sample(pool, min(len(pool), count - len(out))))
+    for p in out[:count]:
+        p = dict(p); p["pattern"] = name
+    return [dict(p, pattern=name) for p in out[:count]]
+def _is_yesterday(dstr):
+    try:
+        y = time.strftime("%Y-%m-%d", time.localtime(time.time() - 86400))
+        return dstr == y
+    except Exception:
+        return False
+def strength_band(s):
+    if s < 20: return "Vulnerable"
+    if s < 50: return "Learning"
+    if s < 80: return "Building"
+    return "Automatic"
+
+@app.route("/training/weaknesses")
+@login_required
+def training_weaknesses():
+    u = current_user(); user = get_user(u) or {}
+    tr = ensure_patterns(get_training(user))
+    user["training"] = tr; save_user(u, user)
+    now = int(time.time())
+    notes = {t[0]: t[1] for t in TRAIN_TYPES}
+    out = []
+    for name, p in tr["patterns"].items():
+        out.append({"pattern": name, "note": notes.get(name, ""), "strength": p.get("strength", 0),
+                    "band": strength_band(p.get("strength", 0)), "seen": p.get("seen", 0),
+                    "correct": p.get("correct", 0), "due": p.get("due", 0), "due_now": p.get("due", 0) <= now})
+    out.sort(key=lambda x: x["strength"])
+    mastered = sum(1 for x in out if x["strength"] >= 80)
+    return jsonify({"weaknesses": out, "streak": tr["streak"], "mastered": mastered, "due_count": sum(1 for x in out if x["due_now"])})
+
+@app.route("/training/next", methods=["POST", "GET"])
+@login_required
+def training_next():
+    u = current_user(); user = get_user(u) or {}
+    tr = ensure_patterns(get_training(user))
+    data = request.get_json(silent=True) or {}
+    forced = data.get("pattern")
+    now = int(time.time())
+    if forced and forced in tr["patterns"]:
+        name = forced
+    else:
+        items = list(tr["patterns"].items())
+        due = [x for x in items if x[1].get("due", 0) <= now] or items
+        due.sort(key=lambda x: x[1].get("strength", 0))   # weakest / most-due first
+        name = due[0][0]
+    user["training"] = tr; save_user(u, user)
+    return jsonify({"pattern": name, "band": strength_band(tr["patterns"][name].get("strength", 0)),
+                    "positions": drill_positions(name, int(data.get("count", 8)))})
+
+@app.route("/training/submit", methods=["POST"])
+@login_required
+def training_submit():
+    u = current_user(); user = get_user(u)
+    if not user: return jsonify({"error": "User not found"}), 404
+    data = request.get_json(silent=True) or {}
+    name = data.get("pattern", ""); correct = int(data.get("correct", 0)); total = max(1, int(data.get("total", 1)))
+    tr = ensure_patterns(get_training(user))
+    p = tr["patterns"].get(name)
+    if not p: return jsonify({"error": "Unknown pattern"}), 400
+    ratio = correct / total
+    passed = ratio >= 0.7
+    p["seen"] += total; p["correct"] += correct
+    if passed:
+        p["strength"] = min(100, p["strength"] + 15)
+        idx = TRAIN_INTERVALS.index(p["interval_days"]) if p["interval_days"] in TRAIN_INTERVALS else 0
+        p["interval_days"] = TRAIN_INTERVALS[min(idx + 1, len(TRAIN_INTERVALS) - 1)]
+    else:
+        p["strength"] = max(0, p["strength"] - 10)
+        p["interval_days"] = 1
+    p["due"] = int(time.time()) + p["interval_days"] * 86400
+    # streak
+    today = time.strftime("%Y-%m-%d"); st = tr["streak"]
+    if st.get("last_day") != today:
+        st["count"] = (st.get("count", 0) + 1) if _is_yesterday(st.get("last_day", "")) else 1
+        st["last_day"] = today
+    tr.setdefault("history", []).append({"day": today, "correct": correct, "total": total})
+    tr["history"] = tr["history"][-90:]
+    user["training"] = tr; save_user(u, user)
+    return jsonify({"ok": True, "pattern": name, "strength": p["strength"], "band": strength_band(p["strength"]),
+                    "passed": passed, "mastered": passed and p["strength"] >= 80, "streak": st["count"],
+                    "next_review_days": p["interval_days"]})
+
+@app.route("/training/streak")
+@login_required
+def training_streak():
+    user = get_user(current_user()) or {}
+    return jsonify(get_training(user)["streak"])
+
+@app.route("/training/progress")
+@login_required
+def training_progress():
+    user = get_user(current_user()) or {}
+    tr = ensure_patterns(get_training(user))
+    hist = tr.get("history", [])
+    by_day = {}
+    for h in hist:
+        d = by_day.setdefault(h["day"], {"correct": 0, "total": 0})
+        d["correct"] += h["correct"]; d["total"] += h["total"]
+    weekly = [{"day": d, "correct": v["correct"], "total": v["total"]} for d, v in sorted(by_day.items())][-7:]
+    mastered = [n for n, p in tr["patterns"].items() if p.get("strength", 0) >= 80]
+    return jsonify({"weekly": weekly, "mastered": mastered, "streak": tr["streak"],
+                    "patterns": {n: p.get("strength", 0) for n, p in tr["patterns"].items()}})
+
 @app.route("/health")
 def health():
     sf=find_stockfish()
