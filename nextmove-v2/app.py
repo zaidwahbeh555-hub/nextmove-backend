@@ -1275,110 +1275,243 @@ def opening_lesson(board_before, move, san, fullmove):
 # {best} = Stockfish's actual top move (so the reveal is NEVER wrong).
 # ══════════════════════════════════════════════════════════════════════════════
 DIALOGUE = {
-  "opponent_threat": {
+  "opponent_fork": {
     "q": [
-      "Wait — see what they just did? What's under attack right now?",
-      "Hold up. Your {piece} on {sq} — you sure it's safe?",
-      "Ooh, careful. What are they threatening this move?",
-      "They didn't move that for fun, dude. What's the threat?",
-      "Uh oh. Count the attackers on {sq}. Safe, or not?",
-      "Do you see it? Something of yours is loose.",
-      "Their last move had a point. What is it?",
-      "Look at your {piece}. Defended enough, you think?",
-      "That move attacks something. Can you spot what?",
-      "Danger, bro. Which piece is hanging?",
-      "Before you touch anything — is your {piece} on {sq} okay?",
-      "Pause. If you ignore their move, what happens?",
-      "See the threat? {sq} is in trouble.",
-      "Bro, look at {sq}. You feel good about that?",
+      "Wait — stop. That {fpiece} on {fsq} just forked you. What two pieces is it hitting?",
+      "Uh oh. Classic fork. {f1} and {f2} are both hanging off that {fpiece}. You can't save both — so which loss hurts less?",
+      "See it? One {fpiece}, two targets. That's a fork. What's your plan?",
+      "Hold on. Before you move — that {fpiece} hits {f1} AND {f2}. This isn't about saving both. It's about choosing.",
+      "Ooh, nasty. He forked you. Count it: {f1}, {f2}. Which one do you keep?",
+      "That {fpiece} landed on {fsq} and hits two things at once. You know the word for that?",
+      "Danger. It's a fork — {f1} and {f2}. Can you save the bigger one, or hit back harder?",
+      "Pause. A fork means you lose material unless you get creative. Any check or counter-threat here?",
+      "He didn't drop that {fpiece} there by accident. It forks {f1} and {f2}. What's the least-bad outcome?",
+      "This is the moment. Forked. Save a piece, or make a bigger threat and ignore his?",
+      "Both {f1} and {f2} attacked by one {fpiece}. Which matters more right now?",
+      "Fork alert. Sometimes the answer isn't retreat — it's an in-between move. See any checks first?",
+      "Okay, deep breath. It's a fork. Run every forcing reply — checks, captures, threats.",
+      "That {fpiece} is doing a lot of work. Two of your pieces in its sights. What's the priority?",
+      "He's trying to win material with that fork. Prove the forked piece can bite back with tempo.",
+      "Two targets, one attacker — the definition of a fork. Which piece leaves with tempo?",
     ],
     "r": [
-      "Yeah — your {piece} on {sq} is hanging. {best} is the clean way out. Defend, move, or hit back harder — that's always the choice.",
-      "Exactly. They're winning that {piece} unless you act. {best} solves it. Loose pieces drop off — that's LPDO.",
-      "Right — {sq} is the problem. {best} fixes it. Never leave a piece hanging when it's your move.",
-      "That's the threat. {best} deals with it and keeps you solid.",
-      "You got it. {best} handles it. Rule: address the threat, or make a bigger one.",
-      "See? {best} saves the piece. A move you don't defend against is a move that beats you.",
-      "Bingo. {best} is the move — it takes the sting out of their threat.",
+      "Yeah — it's a fork. {best} is the move: it saves what matters and keeps you in the game. You don't beat a fork by panicking, you beat it by choosing well.",
+      "Right. {best}. When you're forked, give up the smaller thing or create a bigger threat — never freeze.",
+      "Exactly. {best} keeps your most valuable piece and lets the other go on your terms. Damage control done right.",
+      "That's it — {best}. It moves with a threat, so he gets no free tempo. Forks punish loose coordination; remember the pattern.",
+      "Good. {best} is cleanest. Losing the exchange here is fine — your position stays healthy.",
+      "See? {best}. The trick with forks: look for a check or counter-attack BEFORE you accept the loss.",
+      "Yep — {best}. He wins a little, but you keep the initiative. A trade worth making.",
+      "{best}. File it away: knights fork, so watch any square a knight can hit two of your pieces from.",
+      "Correct — {best}. You save the queen and let the exchange go. Material is not everything; activity and king safety count.",
+      "{best} is the answer. A fork you see coming is half-defused. Next time, spot the radius early.",
     ],
   },
-  "tactical_opportunity": {
+  "opponent_pin": {
     "q": [
-      "Ooh — I smell something. What can you win here?",
-      "Their {tpiece} on {tsq} looks loose. Can you punish it?",
-      "There's a shot on the board. Do you see it?",
-      "Checks, captures, threats — run the list. What jumps out?",
-      "They left something. What are you taking?",
-      "This is a calculate spot, not a vibe spot. What wins?",
-      "Free stuff alert. Which piece can you grab?",
-      "Something's hanging for THEM. Find it.",
-      "You've got a tactic here, bro. Where?",
-      "What's the most forcing move you have right now?",
-      "Their {tsq} — how many of your pieces see it?",
-      "Don't play safe. There's a punch here — throw it.",
+      "Careful — your {pinned} on {pinsq} is pinned. If it moves, something worse falls. Feel the tension?",
+      "That's a pin on {pinsq}. The piece is stuck. Break it, defend it, or challenge the pinner?",
+      "Pinned piece on {pinsq}. Rule of thumb: pile up on it or kick the pinner. Which do you fancy?",
+      "See how your {pinned} can't move? That's a pin. What breaks it?",
+      "He pinned you. A pinned piece is only as safe as the square it's stuck on. How do you unpin?",
+      "Tension check: {pinned} on {pinsq} is pinned to your king. What's the plan?",
+      "Pins win games — right now YOU'RE pinned. Add a defender, or evict the pinner?",
+      "That piece on {pinsq} is frozen. Options: block, trade the pinner, make luft. Pick one.",
+      "A pin restricts you. Don't just live with it — can you challenge that pinning piece?",
+      "He's pinning your {pinned}. Sometimes the fix is a simple pawn kicking the attacker. See it?",
+      "Pinned. The danger is he piles on {pinsq}. Defend it now, or lose it later?",
+      "Notice the pin. Is anything relying on your {pinned} right now? Because it can't help.",
+      "That's a pin to the king — absolute. The piece literally can't move. How do you relieve it?",
+      "Feel the pressure on {pinsq}? Break the pin before he adds a second attacker.",
+      "He pinned you to win that piece. Beat him to it — what's the move?",
     ],
     "r": [
-      "There it is — {best}. That's the shot. When they hang a piece, you take the piece.",
-      "Boom. {best} wins material. Nine times out of ten, spotting free stuff is the whole game at this level.",
-      "Yes! {best}. Forcing and strong — that's how you punish a loose piece.",
-      "{best} is the one. Checks and captures first, always — that's how you find these.",
-      "Monster. {best} grabs it. That's a one-mover: you make a move, you get the reward.",
-      "Exactly — {best}. Piece coordination: your pieces were already aiming there.",
-      "{best}. Take it, dude. Don't overthink free material.",
+      "Yeah — {best} deals with the pin: it defends {pinsq}, evicts the pinner, or covers the piece behind. Pins reward patience.",
+      "Right, {best}. Never leave a pinned piece under-defended — attackers stack up fast.",
+      "{best} breaks the pin. Your piece is free and working again.",
+      "Exactly. {best}. When pinned, challenge the pinner — trading it off ends the problem instantly.",
+      "Good — {best}. Pinned pieces are targets; you just took yours off the hit list.",
+      "That's it, {best}. A pin is a relationship — break the link and the pressure's gone.",
+      "{best}. Defused. Watch for pins along the same line as your king and queen.",
+      "Yep, {best}. Add a defender or kick the pinner — you chose well.",
     ],
   },
-  "pre_castling": {
+  "opponent_threat_single_piece": {
     "q": [
-      "Quick one — by which move should you usually castle?",
-      "Your king's still in the middle. Feel safe about that?",
-      "It's past move 8 and no castle yet. What should you prioritize?",
-      "Where does your king want to be right now?",
-      "Center's getting spicy and your king's still home. Thoughts?",
-      "What's the one thing you haven't done that a coach would nag about?",
-      "King safety check — are you happy where your king is?",
+      "Hold up — see what he just did? Your {piece} on {sq}. Actually safe?",
+      "That move hits your {piece} on {sq}. Defend it, move it, or hit back — which?",
+      "Ooh, your {piece} on {sq} is loose. Count attackers and defenders. Even?",
+      "He's eyeing your {piece} on {sq}. LPDO — loose pieces drop off. What do you do?",
+      "Before you touch anything — is your {piece} on {sq} defended enough?",
+      "His last move had a point: it hits {sq}. Do you see the threat?",
+      "Your {piece} on {sq} — safe or not? Be honest with the count.",
+      "Danger on {sq}. Move it, guard it, or make a bigger threat. Pick your medicine.",
+      "That {piece} on {sq} hangs if you ignore it. What saves it with tempo?",
+      "He wants your {piece} on {sq}. Can you defend AND improve at once?",
+      "Look at {sq}. If you pass, what happens next move?",
+      "Simplest question in chess: can he take {sq} for free?",
+      "That's a threat, not a bluff. {sq} needs attention. What's best?",
+      "Your {piece} is under fire on {sq}. Retreat, defend, or counter-punch?",
+      "He just attacked {sq}. Don't autopilot — deal with the threat first.",
     ],
     "r": [
-      "Castle, dude — {best}. The whole point of castling is a safe king AND a rook in the game. Aim to castle by move 8.",
-      "Yeah — get the king tucked away. {best}. A king in the center is a king in danger.",
-      "Right, {best}. Safety first, then you attack. Don't get caught with your king in the middle.",
-      "{best}. Castle now while it's quiet — you won't get to later.",
-      "Exactly — {best}. King safe, rook activated. That's principled chess.",
+      "Yeah — {best}. Your {piece} on {sq} was hanging; that saves it cleanly. Always meet a threat, or make a bigger one.",
+      "Right, {best}. Loose pieces drop off — you kept yours on the board.",
+      "{best} handles it. Defend or out-threat him; you did it the calm way.",
+      "Exactly — {best}. See how it covers {sq} and keeps you coordinated?",
+      "Good. {best}. A move you don't answer is a move that beats you — you answered.",
+      "{best} is the fix. Simple, solid, no drama. Good defense.",
+      "Yep — {best}. The piece on {sq} is safe and your position's intact.",
+      "That's it, {best}. Threats first, plans second — right order.",
     ],
   },
-  "critical_decision": {
+  "player_can_win_material": {
     "q": [
-      "Okay — THIS is the moment. What's the plan?",
-      "Big decision here. Attack, trade, or improve a piece?",
-      "You're much better — what's the cleanest way to convert?",
-      "The game turns on this move. What are you going for?",
-      "Don't rush. What does the position actually want?",
-      "You're worse — where's your counterplay?",
-      "What's your worst piece, and can you fix it right now?",
-      "If you could make any move, what would win it?",
+      "Ooh — I smell something. His {tpiece} on {tsq} looks loose. Can you punish it?",
+      "Wait, is that free? Look hard at {tsq}. What can you win?",
+      "Checks, captures, threats — run the list. Something's hanging for HIM. Where?",
+      "He left the {tpiece} on {tsq} undefended. Are you taking it?",
+      "Calculate spot, not a vibe spot. What wins material here?",
+      "Free-stuff alert on {tsq}. Grab it — or is it a trap? Check first.",
+      "You've got a tactic. His {tpiece} on {tsq} is the clue. Find the move.",
+      "What's your most forcing move right now? Material's on the table.",
+      "His {tpiece} is loose. Before you take — any in-between move that wins more?",
+      "Opportunity knocks on {tsq}. Win it cleanly, or does he have a trick?",
+      "He blundered. The {tpiece} on {tsq} is hanging. Prove you see it.",
+      "Don't be polite — that {tpiece} on {tsq} is asking to be taken. Right?",
+      "Material's there. Cleanest way to bag the {tpiece}?",
+      "Sharpen up — his {tpiece} on {tsq} has no defender. What do you play?",
+      "You can win material. Target is {tsq}. Make sure it's safe, then strike.",
     ],
     "r": [
-      "The engine's plan is {best}. When you're winning, simplify and keep it clean — don't give it back.",
-      "{best} is the move. Improve your worst piece, trade when ahead, complicate when behind.",
-      "Go with {best}. Convert like a sport — if they don't get a chance, they can't come back.",
-      "{best}. Slow, precise chess here. This is where games are won.",
-      "Yeah — {best}. Ask what the position wants, then give it that.",
+      "Yes! {best}. Wins the {tpiece} clean — you spotted the loose piece and pounced. Greedy is good when it's safe.",
+      "Boom — {best}. Free material. Always scan for undefended enemy pieces first.",
+      "That's it, {best}. You cash in on {tsq}. LPDO in your favor this time.",
+      "{best}! Clean win — and you checked it wasn't a trap first. That's the discipline.",
+      "Exactly — {best} wins the {tpiece}. Punishing loose pieces is how rating points are made.",
+      "Yep, {best}. Material in the bank. Now convert — trade pieces when you're up.",
+      "Nice — {best}. He handed you the {tpiece}; you took it with both hands.",
+      "{best}. Winning material is step one; simplifying toward the endgame is step two.",
     ],
   },
-  "endgame_technique": {
+  "player_about_to_blunder": {
     "q": [
-      "Endgame now. What's the fastest way to win this?",
-      "Few pieces left — where does your king belong?",
-      "You're up material. Trades or no trades?",
-      "What's the plan — push a pawn, activate the king, or trade down?",
-      "How do you turn this edge into a queen?",
-      "Endgame rule time — what's priority one here?",
+      "Wait — WAIT. Before the natural move, look again. Your {piece} on {sq} is about to fall. See it?",
+      "Stop. The obvious move loses your {piece} on {sq}. There's a better path. Find it.",
+      "Careful — the tempting move hangs {sq}. Slow down. What's the safe square?",
+      "Hold on. I can feel you wanting to move fast. {sq} is a trap for you. Look deeper.",
+      "Danger to YOU. The move you want drops the {piece} on {sq}. Cleaner option?",
+      "This is a losing-your-{piece} moment if you're careless. Where's the accurate move?",
+      "Don't autopilot. {sq} is the problem square. What did he actually threaten?",
+      "Breathe. The instinctive move loses on {sq}. What's the precise reply?",
+      "One wrong step and your {piece} on {sq} is gone. Calculate before you commit.",
+      "He set a little trap. Play the natural move and {sq} falls. Sidestep it?",
+      "This is where games are lost — a careless move on {sq}. Be accurate.",
+      "Tempting, right? But it hangs {sq}. What's the disciplined choice?",
     ],
     "r": [
-      "{best}. In the endgame the king is a fighter — march it up. And when you're ahead, trade pieces, not pawns.",
-      "Go {best}. Up material? Trade down and push a passer. Queen resurrecting is the fastest win.",
-      "{best}. Activate, then advance. Passed pawns must be pushed.",
-      "Yeah — {best}. Simplify when ahead; every trade makes your extra material bigger.",
-      "{best}. King and pawns win endgames — get the king in the fight.",
+      "Yeah — {best}. The natural move dropped your {piece}; this keeps it all together. Good players slow down right here.",
+      "Right, {best}. You dodged the blunder. That pause you took? That's the whole skill.",
+      "{best} is safe. The tempting move lost {sq}; this doesn't. Calculation over instinct.",
+      "Exactly — {best}. Crisis averted. The move that FEELS right isn't always right.",
+      "Good. {best}. You just saved half a point by not rushing. Remember the feeling.",
+      "{best}. The accurate one. Blunders come from autopilot — you switched it off.",
+      "Yep — {best}. Your {piece} lives, your position holds. Disciplined.",
+    ],
+  },
+  "critical_castling_decision": {
+    "q": [
+      "Your king's still in the middle at move {fullmove}. Time to castle? Or something sharper first?",
+      "Gut check: is your king safe? You haven't castled. What's the priority?",
+      "The center's about to open and your king's home. Nervous? What should you do?",
+      "King safety, dude. You can still castle. Now, or is there a bigger move?",
+      "Uncastled king this late is a liability. Tuck it away now?",
+      "He's building toward your king. Castle before the position cracks open — agree?",
+      "Development's fine, but the king's exposed. What's the responsible move?",
+      "You've delayed castling. Sometimes fine — but is it fine HERE? Judge it.",
+      "Open lines toward an uncastled king spell trouble. What do you play?",
+      "Before you attack, is your OWN house in order? King home, move {fullmove}.",
+      "Prophylaxis time — sort your king safety before he forces it. Castle?",
+      "That king in the center makes me nervous. What removes the risk?",
+    ],
+    "r": [
+      "Yeah — {best}. Get the king safe and connect the rooks. You can't attack on a burning deck.",
+      "Right, {best}. Castled kings win more games than clever ones.",
+      "{best}. King tucked away, rook joins the game. Textbook.",
+      "Exactly — {best}. King safety is never wasted when the center's tense.",
+      "Good. {best}. He hoped you'd delay; you didn't. Solid.",
+      "{best}. Rooks connected, king safe — now you can be ambitious.",
+      "Yep — {best}. Castle first, questions later, when lines are opening.",
+    ],
+  },
+  "opening_deviation": {
+    "q": [
+      "Early days — move {fullmove}. Develop, control the center, castle. Which are you neglecting?",
+      "Which of your pieces is worst-developed right now? Fix that one.",
+      "Are you moving a piece twice while others sit home? Be honest.",
+      "Center, development, king safety — rank them for THIS position. Move one?",
+      "Don't chase pawns — get your pieces out. What develops with tempo?",
+      "Which minor piece hasn't moved yet? That's your clue.",
+      "Don't bring the queen out early — she'll get chased. Calmer developing move?",
+      "Knights before bishops, castle by move eight — how's the scorecard?",
+      "Every opening move should do a job. What does your candidate accomplish?",
+      "Fight for the center. Which move stakes a claim on the middle?",
+      "Tempo matters early. A developing move that also makes a threat?",
+      "Opening discipline: skip the pawn grab if it costs development. What's principled?",
+    ],
+    "r": [
+      "Yeah — {best}. Develops a piece and fights for the center. Activity beats greed in the opening.",
+      "Right, {best}. Every piece off the back rank is a step toward a real game.",
+      "{best}. Develop, castle, THEN attack — right order.",
+      "Exactly — {best}. Brings a piece in with purpose. Opening theory in one move.",
+      "Good. {best}. You resisted the flashy grab and developed. Maturity.",
+      "{best}. Minor pieces out, king getting safe — the position's healthy.",
+      "Yep — {best}. Principled play. Boring wins games.",
+    ],
+  },
+  "endgame_technique_moment": {
+    "q": [
+      "Endgame now — every tempo counts. Push the passer, activate the king, or improve the rook?",
+      "Few pieces left. Your king's a fighter here. Where does it belong?",
+      "This is technique. Do you have the opposition? Should you take it?",
+      "Passed pawns must be pushed — or blockaded. Which side are you on?",
+      "Endgames reward activity. Your most passive piece — how do you fix it?",
+      "King-and-pawn stuff is precise. Count the tempi. What's the winning square?",
+      "Simplify when ahead, complicate when behind. Which applies now?",
+      "The rook belongs behind the passed pawn. Where's your rook going?",
+      "Don't rush. Improve your worst piece first. Which is it?",
+      "Opposition, zugzwang, triangulation — one decides this. Which?",
+      "Activate the king — strongest piece with queens off. Which way?",
+      "Precise now. One loose move and the result flips. What's accurate?",
+    ],
+    "r": [
+      "Yeah — {best}. Endgames are precision, not power. A small improvement, and small things decide endgames.",
+      "Right, {best}. Activate, push, convert. Patient work.",
+      "{best}. King in front of the pawn, rook behind — technique on display.",
+      "Exactly — {best}. Small edges converted carefully. That's mastery.",
+      "Good. {best}. No rush, no risk, steady improvement. That's how you win won games.",
+      "{best}. You grabbed the opposition — zugzwang does the rest.",
+      "Yep — {best}. The endgame's a math problem; you just solved a line.",
+    ],
+  },
+  "player_found_brilliancy": {
+    "q": [
+      "OH. Did you see that the whole time, or just feel it? Because that was clean.",
+      "Wait — that's a GREAT move. Do you know WHY it's so strong?",
+      "Sheesh! Tell me the point of that move — because it's a good one.",
+      "That's a coach's move. What did you spot that most people wouldn't?",
+      "Beautiful. Before I gush — do you see the follow-up that makes it work?",
+      "Yes! Calculation or intuition? Either way, I approve.",
+      "That's the engine's top pick, you know. What made you play it?",
+      "Ohhh, nasty. Do you see the threat you just created?",
+    ],
+    "r": [
+      "That's the move the computer wants — {best}-level stuff. You're seeing the board like a player now. Hold onto that.",
+      "Exactly why it's strong. Moves like that win games quietly. Remember the pattern.",
+      "Yeah — brilliant. A threat AND a better piece, one move. Two jobs at once.",
+      "That's what mastery feels like — you didn't just react, you improved. Keep cooking.",
+      "Top move, full marks. When you find these, trust yourself and calculate the follow-up.",
+      "See? Not guessing anymore. That was real chess. Proud of that one.",
     ],
   },
 }
@@ -1388,8 +1521,52 @@ def _fmt(t, ctx):
         t = t.replace("{"+k+"}", str(v))
     return t
 
+def undeveloped_count(board, color):
+    n = 0
+    back = 0 if color == chess.WHITE else 7
+    for f in range(8):
+        p = board.piece_at(chess.square(f, back))
+        if p and p.color == color and p.piece_type in (chess.KNIGHT, chess.BISHOP):
+            n += 1
+    return n
+
+def detect_fork(board, victim_color):
+    """An enemy piece attacking >=2 valuable pieces of victim_color (or piece+king)."""
+    for ef in chess.SQUARES:
+        ap = board.piece_at(ef)
+        if not ap or ap.color == victim_color:
+            continue
+        if board.attackers(victim_color, ef) and not board.attackers(not victim_color, ef):
+            continue  # forker hangs for free, not a real threat
+        victims = []
+        for tsq in board.attacks(ef):
+            tp = board.piece_at(tsq)
+            if tp and tp.color == victim_color and (tp.piece_type == chess.KING or PIECE_VALS.get(tp.piece_type, 0) >= 3):
+                val = 99 if tp.piece_type == chess.KING else PIECE_VALS.get(tp.piece_type, 0)
+                victims.append((tsq, tp, val))
+        if len(victims) >= 2:
+            victims.sort(key=lambda v: -v[2])
+            fval = PIECE_VALS.get(ap.piece_type, 9)
+            if victims[0][2] > fval or any(v[1].piece_type == chess.KING for v in victims):
+                return {"fsq": chess.square_name(ef), "fpiece": PIECE_NAMES.get(ap.piece_type, "piece"),
+                        "v1": victims[0], "v2": victims[1]}
+    return None
+
+def detect_pin(board, victim_color):
+    """An absolute pin (to the king) on one of victim_color's pieces."""
+    for sq in chess.SQUARES:
+        p = board.piece_at(sq)
+        if not p or p.color != victim_color or p.piece_type == chess.KING:
+            continue
+        try:
+            if board.is_pinned(victim_color, sq):
+                return {"pinsq": chess.square_name(sq), "pinned": PIECE_NAMES.get(p.piece_type, "piece")}
+        except Exception:
+            continue
+    return None
+
 def classify_moment(board, top_lines, played_moves):
-    """Return (scenario, ctx). scenario='quiet' means stay silent."""
+    """Return (scenario, ctx). scenario='quiet' means stay silent. 9 teaching moments."""
     if not top_lines:
         return "quiet", {}
     player = board.turn
@@ -1404,66 +1581,93 @@ def classify_moment(board, top_lines, played_moves):
     fullmove = board.fullmove_number
     mat = total_non_king_material(board)
     best_uci = top_lines[0]["move"]
-    best_from = chess.square_name(best_uci.from_square)
-    ctx = {"best_from": best_from, "reaction": "neutral"}
+    ctx = {"best_from": chess.square_name(best_uci.from_square), "reaction": "neutral", "fullmove": fullmove}
 
-    # 1) opponent just threatens one of your pieces
+    fk = detect_fork(board, player)
+    if fk:
+        v1, v2 = fk["v1"], fk["v2"]
+        ctx.update({"reaction": "concerned", "fsq": fk["fsq"], "fpiece": fk["fpiece"],
+                    "sq": chess.square_name(v1[0]), "sq2": chess.square_name(v2[0]),
+                    "piece": PIECE_NAMES.get(v1[1].piece_type, "piece"),
+                    "f1": "your " + PIECE_NAMES.get(v1[1].piece_type, "piece") + " on " + chess.square_name(v1[0]),
+                    "f2": "your " + PIECE_NAMES.get(v2[1].piece_type, "piece") + " on " + chess.square_name(v2[0])})
+        return "opponent_fork", ctx
+
+    pin = detect_pin(board, player)
+    if pin and fullmove >= 4:
+        ctx.update({"reaction": "concerned"}); ctx.update(pin)
+        return "opponent_pin", ctx
+
     if my_loose:
         sq, pc = my_loose[0]
-        ctx.update({"sq": chess.square_name(sq), "piece": PIECE_NAMES.get(pc.piece_type, "piece"),
-                    "reaction": "concerned"})
-        return "opponent_threat", ctx
-    # 2) you can win material (clear best move, or a loose enemy piece to grab)
+        ctx.update({"sq": chess.square_name(sq), "piece": PIECE_NAMES.get(pc.piece_type, "piece"), "reaction": "concerned"})
+        if gap >= 150:
+            return "player_about_to_blunder", ctx
+        return "opponent_threat_single_piece", ctx
+
     if opp_loose and gap >= 120:
         sq, pc = opp_loose[0]
-        ctx.update({"tsq": chess.square_name(sq), "tpiece": PIECE_NAMES.get(pc.piece_type, "piece"),
-                    "reaction": "excited"})
-        return "tactical_opportunity", ctx
-    if gap >= 200:
-        ctx["reaction"] = "excited"
-        return "tactical_opportunity", ctx
-    # 3) haven't castled and it's getting late
+        ctx.update({"tsq": chess.square_name(sq), "tpiece": PIECE_NAMES.get(pc.piece_type, "piece"), "reaction": "excited"})
+        return "player_can_win_material", ctx
+    if gap >= 220:
+        ctx.update({"reaction": "excited", "tsq": chess.square_name(best_uci.to_square), "tpiece": "piece"})
+        return "player_can_win_material", ctx
+
     king_sq = board.king(player)
     home = chess.E1 if player == chess.WHITE else chess.E8
     if board.has_castling_rights(player) and fullmove > 8 and king_sq == home:
         ctx["reaction"] = "curious"
-        return "pre_castling", ctx
-    # 4) endgame with something to convert
-    if mat <= 20 and abs(my_eval) >= 150:
-        ctx["reaction"] = "neutral"
-        return "endgame_technique", ctx
-    # 5) decisive middlegame moment
-    if abs(my_eval) >= 250 and mat > 20:
+        return "critical_castling_decision", ctx
+
+    if fullmove <= 9 and undeveloped_count(board, player) >= 2:
         ctx["reaction"] = "curious"
-        return "critical_decision", ctx
+        return "opening_deviation", ctx
+
+    if mat <= 20 and abs(my_eval) >= 120:
+        ctx["reaction"] = "neutral"
+        return "endgame_technique_moment", ctx
+
     return "quiet", ctx
 
 def build_coach_dialogue(scenario, ctx, board, top_lines):
     """Two-phase dialogue + synced arrows/highlights, using the REAL engine move."""
     best_uci = top_lines[0]["move"]
-    try: best_san = board.san(best_uci)
-    except Exception: best_san = None
-    ctx = dict(ctx); ctx["best"] = best_san or "the best move"
+    try:
+        best_san = board.san(best_uci)
+    except Exception:
+        best_san = None
     bank = DIALOGUE.get(scenario)
     if not bank or not best_san:
         return None
+    ctx = dict(ctx); ctx["best"] = best_san
+    defaults = {"sq": "that square", "sq2": "that square", "piece": "piece", "tsq": "that square",
+                "tpiece": "piece", "fpiece": "piece", "fsq": "that square", "f1": "one piece",
+                "f2": "the other", "pinned": "piece", "pinsq": "that square", "fullmove": ""}
+    for k, v in defaults.items():
+        ctx.setdefault(k, v)
     question = _fmt(gm_phrase(bank["q"]), ctx)
-    reveal   = _fmt(gm_phrase(bank["r"]), ctx)
+    reveal = _fmt(gm_phrase(bank["r"]), ctx)
+    red, green = "#ff4d4d", "#26d07c"
     highlights, arrows = [], []
-    # question phase: point at the danger (red) or the target (green)
-    if scenario == "opponent_threat" and ctx.get("sq"):
-        highlights = [{"square": ctx["sq"], "color": "#ff4d4d", "label": "vulnerable"}]
-    elif scenario == "tactical_opportunity" and ctx.get("tsq"):
-        highlights = [{"square": ctx["tsq"], "color": "#26d07c", "label": "target"}]
-    # reveal phase: green arrow for the engine's move
-    arrows = [build_arrow(best_uci, "#26d07c")]
+    if scenario == "opponent_fork":
+        highlights = [{"square": ctx.get("sq"), "color": red, "label": "forked"},
+                      {"square": ctx.get("sq2"), "color": red, "label": "forked"}]
+        if ctx.get("fsq"):
+            arrows.append({"from": ctx["fsq"], "to": ctx.get("sq"), "color": red})
+    elif scenario == "opponent_pin":
+        highlights = [{"square": ctx.get("pinsq"), "color": red, "label": "pinned"}]
+    elif scenario in ("opponent_threat_single_piece", "player_about_to_blunder"):
+        highlights = [{"square": ctx.get("sq"), "color": red, "label": "vulnerable"}]
+    elif scenario == "player_can_win_material":
+        highlights = [{"square": ctx.get("tsq"), "color": green, "label": "target"}]
+    arrows.append(build_arrow(best_uci, green))
     return {
         "dialogue": [
             {"phase": "question", "text": question, "wait": True},
             {"phase": "reveal", "text": reveal, "wait": False},
         ],
-        "highlights": highlights,
-        "arrows": arrows,
+        "highlights": [h for h in highlights if h.get("square") and h.get("square") != "that square"],
+        "arrows": [a for a in arrows if a],
     }
 
 def piece_label(piece):
