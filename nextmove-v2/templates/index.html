@@ -12,7 +12,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 <link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
-<link rel="stylesheet" href="/static/css/style.css?v=p7">
+<link rel="stylesheet" href="/static/css/style.css?v=p9">
 </head>
 <body>
 
@@ -53,7 +53,7 @@
   </div>
   <div class="theme-section-label">Accent Color</div>
   <div class="theme-options">
-    <button class="theme-opt active" data-theme="cyan" onclick="setTheme('cyan')"><span style="background:#00d4ff"></span>Cyan</button>
+    <button class="theme-opt active" data-theme="cyan" onclick="setTheme('cyan')"><span style="background:#f0e6d2"></span>Cyan</button>
     <button class="theme-opt" data-theme="blue" onclick="setTheme('blue')"><span style="background:#4a9eff"></span>Blue</button>
     <button class="theme-opt" data-theme="purple" onclick="setTheme('purple')"><span style="background:#b388ff"></span>Purple</button>
     <button class="theme-opt" data-theme="green" onclick="setTheme('green')"><span style="background:#00e676"></span>Green</button>
@@ -75,24 +75,33 @@
   </div>
 </div>
 
-<!-- SIDEBAR -->
-<nav class="sidebar">
-  <div class="sidebar-logo"><span class="logo-icon">⬡</span> Chess<strong>Forge</strong></div>
-  <div class="sidebar-user">
-    <div class="user-avatar" id="user-avatar">?</div>
-    <div><div class="user-name" id="user-name">Guest</div><div class="user-xp-label" id="user-xp-label">0 XP</div></div>
+<!-- TOP BAR -->
+<nav class="topbar">
+  <div class="tb-left">
+    <div class="sidebar-logo"><span class="logo-icon">⬡</span> Chess<strong>Forge</strong></div>
   </div>
-  <ul class="nav-links">
-    <li><a href="#" class="nav-link active" data-page="coach">🎓 Play & Coach</a></li>
-    <li><a href="#" class="nav-link" data-page="training">🎯 Training</a></li>
-    <li><a href="#" class="nav-link" data-page="puzzles">🧩 Puzzles</a></li>
-  </ul>
-  <div class="sidebar-bottom">
-    <div class="xp-row"><span class="xp-label">XP</span><span id="xp-count">0</span></div>
-    <div class="xp-bar"><div class="xp-fill" id="xp-fill"></div></div>
-    <button class="upgrade-btn" id="upgrade-btn" onclick="goToPro()">⚡ Upgrade to Pro</button>
-    <a href="https://chessforge.org" class="home-btn">← Homepage</a>
-    <button class="logout-btn" id="logout-btn">Sign Out</button>
+  <div class="tb-center">
+    <ul class="nav-links">
+      <li><a href="#" class="nav-link active" data-page="coach">Play &amp; Coach</a></li>
+      <li><a href="#" class="nav-link" data-page="training">Training</a></li>
+      <li><a href="#" class="nav-link" data-page="puzzles">Puzzles</a></li>
+    </ul>
+  </div>
+  <div class="tb-right">
+    <div class="tb-xp"><span class="xp-label">XP</span> <span id="xp-count">0</span></div>
+    <button class="tb-avatar" id="avatar-btn" onclick="toggleUserMenu(event)" aria-label="Account menu">
+      <span class="user-avatar" id="user-avatar">?</span>
+    </button>
+    <div class="tb-menu hidden" id="tb-menu">
+      <div class="tb-menu-user">
+        <div class="user-name" id="user-name">Guest</div>
+        <div class="user-xp-label" id="user-xp-label">0 XP</div>
+      </div>
+      <div class="xp-bar"><div class="xp-fill" id="xp-fill"></div></div>
+      <button class="upgrade-btn" id="upgrade-btn" onclick="goToPro()">⚡ Upgrade to Pro</button>
+      <a href="https://chessforge.org" class="home-btn">← Homepage</a>
+      <button class="logout-btn" id="logout-btn">Sign Out</button>
+    </div>
   </div>
 </nav>
 
@@ -172,29 +181,8 @@
       <div class="coach-stage">
         <div class="coach-bubble" id="coach-bubble"><span id="coach-bubble-text">Hit <b>New Game</b> and I'll sit in — I'll talk you through it.</span></div>
         <div class="coach-thinking-mini hidden" id="coach-thinking"><span class="gm-dot-pulse"></span><span class="gm-dot-pulse"></span><span class="gm-dot-pulse"></span></div>
-        <div class="coach-big idle" id="coach-big">
-          <svg viewBox="0 0 200 220">
-            <defs><linearGradient id="blz2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#243044"/><stop offset="1" stop-color="#161d2a"/></linearGradient></defs>
-            <path d="M8 220 C8 158 52 138 100 138 C148 138 192 158 192 220 Z" fill="url(#blz2)"/>
-            <path d="M82 140 L100 138 L118 140 L109 168 L91 168 Z" fill="#0f1520"/>
-            <path d="M95 146 L105 146 L112 200 L100 212 L88 200 Z" fill="#00d4ff"/>
-            <rect x="87" y="120" width="26" height="30" rx="11" fill="#d99a6c"/>
-            <ellipse cx="100" cy="88" rx="44" ry="48" fill="#eab387"/>
-            <circle cx="57" cy="90" r="8.5" fill="#e0a878"/><circle cx="143" cy="90" r="8.5" fill="#e0a878"/>
-            <path d="M56 84 C54 42 84 30 100 30 C116 30 146 42 144 84 C140 66 130 58 118 56 C122 62 122 70 120 74 C114 58 96 54 84 58 C82 66 82 72 84 76 C74 66 62 68 56 84 Z" fill="#2a2018"/>
-            <path d="M74 78 Q84 72 94 77" stroke="#2a2018" stroke-width="4" fill="none" stroke-linecap="round"/>
-            <path d="M106 77 Q116 72 126 78" stroke="#2a2018" stroke-width="4" fill="none" stroke-linecap="round"/>
-            <g class="coach-eyes">
-              <ellipse cx="84" cy="90" rx="7.5" ry="8.5" fill="#fff"/><circle class="pupil" cx="85" cy="91" r="3.6" fill="#20242c"/>
-              <ellipse cx="116" cy="90" rx="7.5" ry="8.5" fill="#fff"/><circle class="pupil" cx="115" cy="91" r="3.6" fill="#20242c"/>
-            </g>
-            <path d="M100 95 L96 106 L104 106 Z" fill="#dd9a68"/>
-            <path class="coach-mouth" d="M86 114 Q100 126 114 114" stroke="#b5673c" stroke-width="4" fill="none" stroke-linecap="round"/>
-            <path d="M56 88 C54 52 146 52 144 88" stroke="#0f1520" stroke-width="6" fill="none"/>
-            <rect x="50" y="84" width="13" height="22" rx="6" fill="#0f1520"/>
-            <path d="M63 106 Q80 124 92 118" stroke="#0f1520" stroke-width="5" fill="none" stroke-linecap="round"/>
-            <circle cx="92" cy="118" r="5.5" fill="#00d4ff"/>
-          </svg>
+        <div class="coach-big idle entered" id="coach-big">
+          <img id="coach-face" class="coach-face" src="/static/coach/coach-neutral.svg" alt="Milo, your coach" draggable="false">
         </div>
         <div class="coach-name-tag">Milo <span class="coach-live"><span class="gm-dot"></span>your coach</span></div>
         <div class="coach-eval-row">
@@ -377,6 +365,11 @@
     <div class="train-due-list" id="train-due-list"></div>
   </div>
 
+  <div class="constellation-wrap hidden" id="constellation-wrap">
+    <div class="train-section-label">Weakness map <span class="cm-legend"><i style="background:#ff5d6c"></i>vulnerable <i style="background:#ff9f43"></i>learning <i style="background:#ffd54a"></i>building <i style="background:#26d07c"></i>automatic</span></div>
+    <div class="constellation" id="constellation"></div>
+  </div>
+
   <div class="train-section-label" id="train-section-label">Your weakness patterns</div>
   <div class="train-grid" id="train-grid"></div>
   <div class="train-mastered" id="train-mastered"></div>
@@ -454,6 +447,6 @@
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
-<script src="/static/js/main.js?v=p7"></script>
+<script src="/static/js/main.js?v=p9"></script>
 </body>
 </html>
