@@ -378,15 +378,15 @@ function showUpgradePrompt(msg){
   const existing=document.getElementById('upgrade-prompt');if(existing)existing.remove();
   const div=document.createElement('div');div.id='upgrade-prompt';
   div.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px)';
-  div.innerHTML=`<div style="background:#111118;border:1px solid #2a2a3a;border-radius:16px;padding:2.5rem;width:420px;max-width:95vw;text-align:center;box-shadow:0 0 60px rgba(0,212,255,.08)">
+  div.innerHTML=`<div style="background:#111118;border:1px solid #2a2a3a;border-radius:16px;padding:2.5rem;width:420px;max-width:95vw;text-align:center;box-shadow:0 0 60px rgba(240,230,210,.08)">
     <div style="font-size:2.5rem;margin-bottom:1rem">⚡</div>
-    <h2 style="font-size:1.4rem;font-weight:700;margin-bottom:.5rem;color:#00d4ff">Upgrade to Grandmaster</h2>
+    <h2 style="font-size:1.4rem;font-weight:700;margin-bottom:.5rem;color:#f0e6d2">Upgrade to Grandmaster</h2>
     <p style="color:#666680;font-size:.9rem;margin-bottom:1.5rem">${msg||'You have reached your free plan limit. Upgrade for unlimited analysis.'}</p>
     <div style="background:#18181f;border:1px solid #2a2a3a;border-radius:10px;padding:1.2rem;margin-bottom:1.5rem;text-align:left">
-      <div style="color:#00d4ff;font-weight:700;font-size:1.1rem;margin-bottom:.8rem">Grandmaster — $9/mo</div>
+      <div style="color:#f0e6d2;font-weight:700;font-size:1.1rem;margin-bottom:.8rem">Grandmaster — $9/mo</div>
       ${['Unlimited game analysis','Full psychological profiling','Custom drill generation','Blunder pattern tracking','Opening repertoire fixes'].map(f=>`<div style="color:#e8e8f0;font-size:.85rem;padding:.2rem 0">✅ ${f}</div>`).join('')}
     </div>
-    <button onclick="document.getElementById('upgrade-prompt').remove();goToPro()" style="width:100%;background:#00d4ff;color:#000;border:none;border-radius:10px;padding:.85rem;font-weight:700;font-size:.95rem;cursor:pointer;margin-bottom:.8rem">Get Pro Access — $9/mo ⚡</button>
+    <button onclick="document.getElementById('upgrade-prompt').remove();goToPro()" style="width:100%;background:#f0e6d2;color:#000;border:none;border-radius:10px;padding:.85rem;font-weight:700;font-size:.95rem;cursor:pointer;margin-bottom:.8rem">Get Pro Access — $9/mo ⚡</button>
     <button onclick="document.getElementById('upgrade-prompt').remove()" style="background:transparent;border:none;color:#666680;font-size:.82rem;cursor:pointer;text-decoration:underline">Maybe later</button>
   </div>`;
   document.body.appendChild(div);
@@ -403,7 +403,7 @@ function showUpgradePrompt(msg){
     window.history.replaceState({},'','/');
     setTimeout(()=>{
       const div=document.createElement('div');
-      div.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#00d4ff;color:#000;padding:1rem 2rem;border-radius:10px;font-weight:700;font-size:1rem;z-index:9999;box-shadow:0 4px 20px rgba(0,212,255,.4)';
+      div.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#f0e6d2;color:#000;padding:1rem 2rem;border-radius:10px;font-weight:700;font-size:1rem;z-index:9999;box-shadow:0 4px 20px rgba(240,230,210,.4)';
       div.textContent='🎉 Welcome to ChessForge Pro! Your account has been upgraded.';
       document.body.appendChild(div);
       setTimeout(()=>div.remove(),5000);
@@ -452,32 +452,68 @@ async function renderTrainingPage(force){
     } else dueBox.classList.add('hidden');
   }
   // weakness cards with muscle-memory meters
-  grid.innerHTML=(d.weaknesses||[]).map(w=>{
+  const ws=(d.weaknesses||[]);
+  grid.innerHTML=ws.map(w=>{
     const col=MM_COLORS[w.band]||'#7a7a9a';
-    return `<button class="train-card" onclick="TrainingDrill.start('${w.pattern}')">
-      <div class="train-card-head"><span class="train-card-name">${esc(w.pattern)}</span><span class="train-band" style="color:${col};border-color:${col}44">${esc(w.band)}</span></div>
-      <p class="train-card-note">${esc(w.note||'')}</p>
-      <div class="mm-bar"><div class="mm-fill" style="width:${w.strength}%;background:${col}"></div></div>
-      <div class="train-card-foot"><span>${w.strength}% muscle memory</span>${w.due_now?'<span class="due-pill">Due</span>':''}</div>
-    </button>`;
+    return `<div class="train-card">
+      <div class="train-card-main" onclick="TrainingDrill.start('${w.pattern}')">
+        <div class="train-card-head"><span class="train-card-name">${esc(w.pattern)}</span><span class="train-band" style="color:${col};border-color:${col}44">${esc(w.band)}</span></div>
+        <p class="train-card-note">${esc(w.note||'')}</p>
+        <div class="mm-bar"><div class="mm-fill" style="width:${w.strength}%;background:${col}"></div></div>
+        <div class="train-card-foot"><span>${w.strength}% muscle memory</span>${w.due_now?'<span class="due-pill">Due</span>':''}</div>
+      </div>
+      <button class="train-rewrite" onclick="TrainingDrill.start('${w.pattern}',{rewrite:true})">↺ Rewrite the mistake</button>
+    </div>`;
   }).join('');
+  buildConstellation(ws);
   // mastered
   const mBox=document.getElementById('train-mastered');
   if(mBox){ mBox.innerHTML = d.mastered ? `<span class="mastered-badge">🏅 ${d.mastered} pattern${d.mastered>1?'s':''} mastered (80%+)</span>` : ''; }
 }
 
+/* ── Weakness constellation: nodes sized by frequency, coloured by muscle memory ── */
+function buildConstellation(ws){
+  const wrap=document.getElementById('constellation-wrap'), el=document.getElementById('constellation');
+  if(!el||!wrap) return;
+  if(!ws || !ws.length){ wrap.classList.add('hidden'); return; }
+  wrap.classList.remove('hidden');
+  const W=680, H=250, pad=52;
+  const freq=w=>(w.count||w.frequency||w.mistakes||w.n||6);
+  const maxF=Math.max.apply(null, ws.map(freq).concat([1]));
+  const nodes=ws.map((w,i)=>{
+    const t=(i/ws.length)*Math.PI*2 + 0.6;
+    const cx=W/2 + Math.cos(t)*(150 - (i%2?36:0)) + ((i*29)%40-20);
+    const cy=H/2 + Math.sin(t)*(70 - (i%3?10:0));
+    const r=12 + freq(w)/maxF*22;
+    return {w, cx:Math.max(pad,Math.min(W-pad,cx)), cy:Math.max(pad,Math.min(H-pad,cy)), r:Math.max(12,Math.min(34,r))};
+  });
+  let links='';
+  if(nodes.length>1) for(let i=0;i<nodes.length;i++){ const a=nodes[i], b=nodes[(i+1)%nodes.length]; links+=`<line x1="${a.cx}" y1="${a.cy}" x2="${b.cx}" y2="${b.cy}" stroke="rgba(240,230,210,.09)" stroke-width="1"/>`; }
+  const circles=nodes.map(n=>{
+    const col=MM_COLORS[n.w.band]||'#7a7a9a';
+    return `<g class="cm-node" onclick="TrainingDrill.start('${n.w.pattern}')">
+      <circle cx="${n.cx}" cy="${n.cy}" r="${n.r}" fill="${col}22" stroke="${col}" stroke-width="2"/>
+      <circle cx="${n.cx}" cy="${n.cy}" r="${Math.max(3,n.r*0.28)}" fill="${col}"/>
+      <text x="${n.cx}" y="${n.cy+n.r+13}" text-anchor="middle" fill="#93918a" font-size="11" font-family="Satoshi,sans-serif">${esc(n.w.pattern)}</text>
+    </g>`;
+  }).join('');
+  el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block">${links}${circles}</svg>`;
+}
+
 /* ── Drill session — full-screen, one pattern, spaced repetition ── */
 const TrainingDrill = {
-  positions:[], idx:0, correct:0, pattern:'', streak:0, board:null, game:null, solved:false,
-  async start(pattern){
+  positions:[], idx:0, correct:0, pattern:'', streak:0, board:null, game:null, solved:false, rewrite:false,
+  async start(pattern, opts){
+    this.rewrite = !!(opts && opts.rewrite);
     let d;
     try{
-      const r=await fetch('/training/next',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pattern,count:8}),credentials:'include'});
+      const r=await fetch('/training/next',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pattern,count:this.rewrite?3:8}),credentials:'include'});
       d=await r.json();
     }catch(e){ return; }
     if(!d || !d.positions || !d.positions.length) return;
     this.positions=d.positions; this.idx=0; this.correct=0; this.pattern=d.pattern; this.streak=0;
-    document.getElementById('drill-pattern').textContent=d.pattern;
+    document.getElementById('drill-overlay').classList.toggle('rewrite', this.rewrite);
+    document.getElementById('drill-pattern').textContent=(this.rewrite?'Rewrite · ':'')+d.pattern;
     document.getElementById('drill-streak-count').textContent='0';
     document.getElementById('drill-summary').classList.add('hidden');
     document.querySelector('.drill-body').style.display='';
@@ -502,7 +538,7 @@ const TrainingDrill = {
     this.board.setPosition(p.fen);
     document.getElementById('drill-progress').textContent=`${this.idx+1} / ${this.positions.length}`;
     document.getElementById('drill-progress-fill').style.width=(this.idx/this.positions.length*100)+'%';
-    document.getElementById('drill-prompt').textContent=(p.side==='white'?'White':'Black')+' to move — find the best move.';
+    document.getElementById('drill-prompt').textContent=(p.side==='white'?'White':'Black')+(this.rewrite?' to move — rewrite the mistake. What should you have played?':' to move — find the best move.');
     document.getElementById('drill-feedback').classList.add('hidden');
     document.getElementById('drill-next').classList.add('hidden');
   },
@@ -520,7 +556,9 @@ const TrainingDrill = {
       this.correct++; this.streak++;
       this.board.setPosition(this.game.fen(),{lastMove:{from,to}});
       fb.className='drill-feedback good';
-      fb.innerHTML=`✔ <b>${esc(mv.san)}</b> — that's it. <span class="fb-tag">${esc(p.pattern)}</span> ${esc(p.hint||'')}`;
+      const rw = this.rewrite ? ' — this is how it should have gone.' : '';
+      fb.innerHTML=`✔ <b>${esc(mv.san)}</b> — that's it${rw?esc(rw):"."} <span class="fb-tag">${esc(p.pattern)}</span> ${esc(p.hint||'')}`;
+      if(this.rewrite && (p.continuation||p.line)) this._playLine(p.continuation||p.line);
       if(window.ChessSFX) ChessSFX.playWin();
     } else {
       this.game.undo(); this.board.setPosition(before);
@@ -532,6 +570,21 @@ const TrainingDrill = {
     document.getElementById('drill-streak-count').textContent=this.streak;
     document.getElementById('drill-next').classList.remove('hidden');
     return true;
+  },
+  _playLine(line){
+    // "See how it should have gone" — animate the engine continuation, if the backend provided one.
+    try{
+      const g=new Chess(this.game.fen());
+      const moves = Array.isArray(line) ? line : String(line).trim().split(/\s+/);
+      let i=0;
+      const step=()=>{
+        if(i>=moves.length || i>=6) return;
+        const tok=moves[i];
+        const mv = (typeof tok==='object') ? g.move(tok) : g.move(tok,{sloppy:true});
+        if(mv){ this.board.setPosition(g.fen(),{lastMove:{from:mv.from,to:mv.to}}); i++; setTimeout(step,650); }
+      };
+      setTimeout(step,750);
+    }catch(e){}
   },
   next(){ this.idx++; if(this.idx>=this.positions.length){ this._finish(); } else { this._load(); } },
   async _finish(){
@@ -555,7 +608,7 @@ const TrainingDrill = {
       <div class="ds-actions"><button class="onb-btn" onclick="TrainingDrill.exit()">Done</button><button class="onb-btn ghost" onclick="TrainingDrill.start('${this.pattern}')">Again</button></div>`;
     sum.classList.remove('hidden');
   },
-  exit(){ document.getElementById('drill-overlay').classList.add('hidden'); renderTrainingPage(true); }
+  exit(){ const ov=document.getElementById('drill-overlay'); ov.classList.add('hidden'); ov.classList.remove('rewrite'); this.rewrite=false; renderTrainingPage(true); }
 };
 window.TrainingDrill = TrainingDrill;
 document.querySelectorAll('.nav-link').forEach(l=>l.addEventListener('click',e=>{e.preventDefault();showPage(l.dataset.page);}));
@@ -938,10 +991,10 @@ function showMoveDots(moves, boardId){
     const hasPiece = State.puzzleGame.get(m.to);
     if(hasPiece){
       // Capture ring
-      dot.style.cssText = 'position:absolute;inset:0;border:4px solid rgba(0,212,255,.7);border-radius:50%;pointer-events:none;z-index:100;box-sizing:border-box';
+      dot.style.cssText = 'position:absolute;inset:0;border:4px solid rgba(240,230,210,.7);border-radius:50%;pointer-events:none;z-index:100;box-sizing:border-box';
     } else {
       // Move dot
-      dot.style.cssText = 'position:absolute;width:34%;height:34%;background:rgba(0,212,255,.5);border-radius:50%;top:33%;left:33%;pointer-events:none;z-index:100';
+      dot.style.cssText = 'position:absolute;width:34%;height:34%;background:rgba(240,230,210,.5);border-radius:50%;top:33%;left:33%;pointer-events:none;z-index:100';
     }
     el.style.position = 'relative';
     el.appendChild(dot);
@@ -973,7 +1026,7 @@ function onMouseoverPuzzleSquare(square){
   if(!piece || piece.color !== State.puzzleGame.turn()) return;
   const moves = State.puzzleGame.moves({square, verbose:true});
   if(!moves.length) return;
-  highlightSquare(square, 'rgba(0,212,255,.25)', 'puzzle-board');
+  highlightSquare(square, 'rgba(240,230,210,.25)', 'puzzle-board');
 }
 
 function onMouseoutPuzzleSquare(square){
@@ -1006,7 +1059,7 @@ function handlePuzzleSquareClick(square){
       // Not a valid move — maybe user clicked another own piece
       if(piece && piece.color === turn){
         State.selectedSquare = square;
-        highlightSquare(square, 'rgba(0,212,255,.4)', 'puzzle-board');
+        highlightSquare(square, 'rgba(240,230,210,.4)', 'puzzle-board');
         const moves = State.puzzleGame.moves({square, verbose:true});
         showMoveDots(moves, 'puzzle-board');
       }
@@ -1018,7 +1071,7 @@ function handlePuzzleSquareClick(square){
   if(piece && piece.color === turn){
     State.selectedSquare = square;
     clearAllHighlights('puzzle-board');
-    highlightSquare(square, 'rgba(0,212,255,.4)', 'puzzle-board');
+    highlightSquare(square, 'rgba(240,230,210,.4)', 'puzzle-board');
     const moves = State.puzzleGame.moves({square, verbose:true});
     showMoveDots(moves, 'puzzle-board');
   }
@@ -1181,7 +1234,7 @@ async function handleURLParams(){
     if(State.loggedIn){
       if(State.plan==='pro'){
         const div=document.createElement('div');
-        div.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#00d4ff;color:#000;padding:1rem 2rem;border-radius:10px;font-weight:700;z-index:9999';
+        div.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#f0e6d2;color:#000;padding:1rem 2rem;border-radius:10px;font-weight:700;z-index:9999';
         div.textContent='⭐ You are already on ChessForge Pro!';
         document.body.appendChild(div);setTimeout(()=>div.remove(),3000);
       } else goToPro();
@@ -1981,11 +2034,16 @@ function coachApplyMarks(d){
 
 /* ── The big coach character: reacts with moods (idle / think / alarm / happy) ── */
 const CoachFigure = (function(){
-  const fig = ()=>document.getElementById('coach-big');
-  function mood(m){ const F=fig(); if(!F) return; F.classList.remove('idle','think','alarm','happy'); F.classList.add(m||'idle'); }
-  function point(){}   // pointing is drawn on the board now
-  function rest(){}
-  return {point, rest, mood};
+  const EXPR = {idle:'neutral', think:'curious', alarm:'concerned', happy:'excited'};
+  const face = ()=>document.getElementById('coach-face');
+  const stage = ()=>document.getElementById('coach-big');
+  function _src(name){ const f=face(); if(f) f.setAttribute('src','/static/coach/coach-'+name+'.svg'); }
+  function mood(m){ const S=stage(); if(S){ S.classList.remove('idle','think','alarm','happy','pointing'); S.classList.add(m||'idle','entered'); } _src(EXPR[m]||'neutral'); }
+  function point(){ const S=stage(); if(S){ S.classList.add('entered','pointing'); } _src('point'); }   // extends the arm at the board
+  function rest(){ const S=stage(); if(S) S.classList.remove('pointing'); _src('neutral'); }
+  function enter(){ const S=stage(); if(S) S.classList.add('entered'); }
+  function exit(){ const S=stage(); if(S) S.classList.remove('entered'); }   // retreats off to the right
+  return {point, rest, mood, enter, exit};
 })();
 window.CoachFigure = CoachFigure;
 
@@ -2001,7 +2059,7 @@ const CoachDialogue = {
     if(BotState.board && BotState.board.clearMarks){
       BotState.board.clearMarks();
       (d.highlights||[]).forEach(h=>{ if(h && h.square) BotState.board.highlight(h.square, h.color); });
-      if(d.highlights && d.highlights[0] && BotState.board.point) BotState.board.point(d.highlights[0].square);
+      if(d.highlights && d.highlights[0] && BotState.board.point){ BotState.board.point(d.highlights[0].square); CoachFigure.point(); }
     }
     if(q){
       Coach.speak(q.text);
@@ -2030,17 +2088,21 @@ const CoachDialogue = {
   _renderEngage(scenario){
     const el = document.getElementById('coach-engage'); if(!el) return;
     const opts = ({
-      opponent_threat:   [['see','I see it'],['notsure','Not sure'],['show','Show me']],
-      tactical_opportunity:[['see','I found it'],['notsure','Not sure'],['show','Show me']],
-      pre_castling:      [['see','Castle it'],['notsure','Not yet'],['show','Why?']],
-      critical_decision: [['see','Got a plan'],['notsure','Not sure'],['show','Show me']],
-      endgame_technique: [['see','I know'],['notsure','Not sure'],['show','Show me']],
+      opponent_fork:                [['see','I see the fork'],['notsure','Not sure'],['show','Which do I keep?']],
+      opponent_pin:                 [['see','I see the pin'],['notsure','Not sure'],['show','How do I break it?']],
+      opponent_threat_single_piece: [['see','I see it'],['notsure','Not sure'],['show','Show me']],
+      player_can_win_material:      [['see','I found it'],['notsure','Not sure'],['show','Show me']],
+      player_about_to_blunder:      [['see','Good catch'],['notsure','What am I missing?'],['show','Show me']],
+      critical_castling_decision:   [['see','Castle it'],['notsure','Not yet'],['show','Why now?']],
+      opening_deviation:            [['see','Develop a piece'],['notsure','Not sure'],['show','Show me']],
+      endgame_technique_moment:     [['see','I know the plan'],['notsure','Not sure'],['show','Show me']],
+      player_found_brilliancy:      [['see','I saw it'],['notsure','Got lucky'],['show','Why so strong?']],
     })[scenario] || [['see','I see it'],['notsure','Not sure'],['show','Show me']];
     el.innerHTML = opts.map((o,i)=>`<button class="coach-engage-btn${i===opts.length-1?' show':''}" onclick="CoachDialogue.engage('${o[0]}')">${esc(o[1])}${i===opts.length-1?' →':''}</button>`).join('');
     el.classList.remove('hidden');
   },
   _mood(reaction){ return ({concerned:'alarm', excited:'happy', curious:'think', neutral:'idle'})[reaction] || 'idle'; },
-  reset(){ this.data=null; this.reveal=null; const el=document.getElementById('coach-engage'); if(el){ el.classList.add('hidden'); el.innerHTML=''; } }
+  reset(){ this.data=null; this.reveal=null; const el=document.getElementById('coach-engage'); if(el){ el.classList.add('hidden'); el.innerHTML=''; } if(window.CoachFigure) CoachFigure.exit(); }
 };
 window.CoachDialogue = CoachDialogue;
 
@@ -2403,6 +2465,18 @@ function showBoardLock(on){
 
 function askCoach(type){ Coach.ask(type); }
 
+// Top-bar account menu (behind the avatar)
+function toggleUserMenu(e){
+  if(e) e.stopPropagation();
+  const m=document.getElementById('tb-menu'); if(m) m.classList.toggle('hidden');
+}
+document.addEventListener('click',(e)=>{
+  const m=document.getElementById('tb-menu'); const btn=document.getElementById('avatar-btn');
+  if(!m||m.classList.contains('hidden')) return;
+  if(!m.contains(e.target) && btn && !btn.contains(e.target)) m.classList.add('hidden');
+});
+window.toggleUserMenu=toggleUserMenu;
+
 /* ── MCQ Modal — force engagement, no skip ──────────────────────────────── */
 const MCQ = (function(){
   let current = null;
@@ -2630,7 +2704,9 @@ class ForgeBoard {
     this.userArrows = [];   // {from,to} — user's own right-click arrows
     this.userHls = [];      // squares the user right-clicked to mark red
     this.el.appendChild(this.overlay);   // attach overlay first so square inserts have a valid anchor
-    this._renderSquares();
+    this.cells = {};        // square -> cell element (built ONCE, never destroyed on a move)
+    this.slots = {};        // square -> piece slot inside the cell
+    this._buildSquares();
     this._bindDrag();
   }
   _order(){
@@ -2640,9 +2716,10 @@ class ForgeBoard {
     const cols = this.orientation==='white' ? files : files.slice().reverse();
     return {rows, cols};
   }
-  _renderSquares(){
-    // remove existing squares (keep overlay)
+  // Build the 64 cells ONCE. Only runs on mount + flip — never on a move, so pieces never flash.
+  _buildSquares(){
     this.el.querySelectorAll('.fb-sq').forEach(s=>s.remove());
+    this.cells = {}; this.slots = {};
     const {rows, cols} = this._order();
     const frag = document.createDocumentFragment();
     rows.forEach((rank, ri)=>{
@@ -2656,43 +2733,69 @@ class ForgeBoard {
         if(this.lastMove && (this.lastMove.from===sq || this.lastMove.to===sq)) cell.classList.add('fb-last');
         if(this.checkSquare===sq) cell.classList.add('fb-check');
         if(this.selected===sq) cell.classList.add('fb-selected');
+        const slot = document.createElement('div');
+        slot.className = 'fb-piece-slot';
         const pc = this.pos[sq];
-        if(pc) cell.innerHTML = fbPieceEl(pc.type, pc.color);
+        if(pc) slot.innerHTML = fbPieceEl(pc.type, pc.color);
+        cell.appendChild(slot);
         // coordinate ticks on edges
         if(ri===7) cell.insertAdjacentHTML('beforeend','<span class="fb-coord file">'+file+'</span>');
         if(ci===0) cell.insertAdjacentHTML('beforeend','<span class="fb-coord rank">'+rank+'</span>');
+        this.cells[sq] = cell; this.slots[sq] = slot;
         frag.appendChild(cell);
       });
     });
     if(this.overlay && this.overlay.parentNode === this.el) this.el.insertBefore(frag, this.overlay);
     else this.el.appendChild(frag);
   }
+  _pieceKey(pc){ return pc ? pc.color+pc.type : ''; }
+  _paint(sq, pc){ const slot = this.slots[sq]; if(slot) slot.innerHTML = pc ? fbPieceEl(pc.type, pc.color) : ''; }
+  // Diff-based update: repaint ONLY the squares whose piece changed, then slide the moved piece.
+  // Never rebuilds the grid, so unchanged pieces never re-decode or flash.
   setPosition(fen, opts={}){
-    this.pos = {};
+    const next = {};
     const placement = (fen||'').split(' ')[0];
     if(placement){
       const ranks = placement.split('/');
       for(let r=0; r<8; r++){
-        const rankNum = 8 - r;
-        let f = 0;
+        const rankNum = 8 - r; let f = 0;
         for(const ch of ranks[r]){
           if(/\d/.test(ch)){ f += parseInt(ch,10); }
-          else {
-            const color = ch===ch.toUpperCase() ? 'w' : 'b';
-            const sq = 'abcdefgh'[f] + rankNum;
-            this.pos[sq] = {type: ch.toLowerCase(), color};
-            f++;
-          }
+          else { const color = ch===ch.toUpperCase()?'w':'b'; next['abcdefgh'[f]+rankNum] = {type:ch.toLowerCase(), color}; f++; }
         }
       }
     }
+    if(!this.cells || !Object.keys(this.cells).length) this._buildSquares();
+    // repaint only changed squares
+    const files='abcdefgh';
+    for(let f=0; f<8; f++) for(let r=1; r<=8; r++){
+      const sq = files[f]+r;
+      if(this._pieceKey(this.pos[sq]) !== this._pieceKey(next[sq])) this._paint(sq, next[sq]);
+    }
+    this.pos = next;
+    // decoration classes — toggle in place, no rebuild
+    this.el.querySelectorAll('.fb-sq.fb-last,.fb-sq.fb-check,.fb-sq.fb-selected').forEach(c=>c.classList.remove('fb-last','fb-check','fb-selected'));
     if(opts.lastMove) this.lastMove = opts.lastMove;
     if('checkSquare' in opts) this.checkSquare = opts.checkSquare;
-    this.selected = null;
-    this._renderSquares();
+    this.selected = null; this._clearDots();
+    if(this.lastMove){ const a=this.cells[this.lastMove.from], b=this.cells[this.lastMove.to]; if(a)a.classList.add('fb-last'); if(b)b.classList.add('fb-last'); }
+    if(this.checkSquare && this.cells[this.checkSquare]) this.cells[this.checkSquare].classList.add('fb-check');
+    // 200ms slide (FLIP) for the piece that just moved — only that one piece animates
+    if(opts.lastMove && opts.animate!==false){
+      const {from,to}=opts.lastMove;
+      const slot=this.slots[to], img=slot && slot.firstElementChild, cf=this.cells[from], ct=this.cells[to];
+      if(img && cf && ct){
+        const dx=cf.offsetLeft-ct.offsetLeft, dy=cf.offsetTop-ct.offsetTop;
+        if(dx||dy){
+          img.style.transition='none';
+          img.style.transform='translate('+dx+'px,'+dy+'px)';
+          requestAnimationFrame(()=>{ img.style.transition='transform .2s ease-out'; img.style.transform='translate(0,0)'; });
+        }
+      }
+    }
     if(this.overlay && this.clearUser) this.clearUser();
   }
-  flip(color){ this.orientation = color; this._renderSquares(); }
+  flip(color){ this.orientation = color; this._buildSquares(); }
   markLast(from,to){ this.lastMove = {from,to}; }
   setCheck(sq){ this.checkSquare = sq || null; }
   _cellFor(sq){ return this.el.querySelector('.fb-sq[data-square="'+sq+'"]'); }
