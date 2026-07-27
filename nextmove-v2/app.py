@@ -806,7 +806,7 @@ def stripe_webhook():
                     user["plan"]="pro"; user["plan_started"]=int(time.time()); upgraded=True; break
         if upgraded:
             save_db(db)
-            send_admin_email("New ChessForge Pro subscriber! 💰",f"User: {username or email}\nPlan: Pro ($9/mo)\nTime: {time.strftime('%Y-%m-%d %H:%M')}\nEst revenue: ${(sum(1 for u in db.values() if u.get('plan')=='pro'))*9}/mo")
+            send_admin_email("New ChessForge Pro subscriber! ",f"User: {username or email}\nPlan: Pro ($9/mo)\nTime: {time.strftime('%Y-%m-%d %H:%M')}\nEst revenue: ${(sum(1 for u in db.values() if u.get('plan')=='pro'))*9}/mo")
     if etype=="customer.subscription.deleted":
         obj=event.get("data",{}).get("object",{}); email=obj.get("customer_email","")
         if email:
@@ -1080,7 +1080,7 @@ def coach_position():
                 good = (eval_pawns > 0) == (player == chess.WHITE)
                 adv = abs(eval_pawns)
                 state = ("dead level" if adv < 0.3 else "slightly better" if adv < 0.8 else "clearly better" if adv < 1.6 else "much better" if adv < 3 else "winning")
-                text = f"📊 {'You are' if good else 'They are'} {state} ({'+' if eval_pawns>=0 else ''}{eval_pawns}). Engine's move: {best_san}."
+                text = f"{'You are' if good else 'They are'} {state} ({'+' if eval_pawns>=0 else ''}{eval_pawns}). Engine's move: {best_san}."
             return jsonify({
                 "silent": False, "scenario": request_type, "reaction": "neutral",
                 "dialogue": [{"phase": "reveal", "text": text, "wait": False}],
@@ -1160,14 +1160,140 @@ def detect_opening(san_moves):
 
 # Coach voice — modeled on how a hype GM coaches a beginner: casual, emotional,
 # Socratic, principle-naming. Big varied pools so it never repeats itself.
-VOICE_OPEN = ["Yo, hold up.","Okay okay, look.","Wait wait wait.","Bro, look at this.","Ooh, pay attention here.","Alright, eyes up.","Hmm, one sec.","Check this out.","Okay, real quick —","Notice something?","Hold on, dude.","Right, look.","Ayy, see it?","Stop — look at the board.","Okay, this is important.","Peep this."]
-VOICE_GOOD = ["Boom! That's it.","Yes! Nice.","Monster move.","Ohhh, beautiful.","That's the one, baby.","Sheesh, clean.","Big brain, dude.","That's nasty — I love it.","Yep, that's the engine move.","You saw that? Sick.","Textbook. Chef's kiss.","There it is!","That's a coach's move right there.","Sharp. Real sharp.","Okay okay, you cooked.","That's what I'm talking about."]
-VOICE_BAD  = ["Oh no, wait.","Ohhh dude, no.","Yikes.","Wait wait wait wait.","Uh oh.","Ooh, that one hurts.","Bro. Bro. Look.","Nooo, not that.","Ahh, that's rough.","Oof, careful.","Hmm, I don't love that.","Hold up — that's a problem.","Ehh, that stings.","Come on now, look.","That's a slip, dude.","Mmm, we gotta talk about this one."]
-VOICE_TACTIC = ["There's a shot here, I can feel it.","Somebody's hanging, dude — find it.","Tactic on the board. Calculate.","Ooh, this is sharp. Checks first.","Free stuff is floating around — grab it.","There's a punch here. Throw it.","Fork, pin, skewer — one of 'em is live.","Loose pieces, dude. LPDO — loose pieces drop off.","This position is BEGGING for a combo.","Count it out — there's material to win.","Don't play safe, there's a hit.","Eyes on every check and capture, bro.","This is a calculate spot, not a vibe spot.","Somebody left a piece — go get it.","Slow down and find the tactic.","There's a tell here — spot the weak piece."]
-VOICE_POS  = ["Quiet spot — improve your worst piece.","No fireworks, dude. Just good chess.","Slow position. Think plans.","Where's your saddest piece? Fix it.","Nothing forcing — build up.","This is a maneuvering moment, bro.","Small edges. Stack 'em.","Trade your bad piece for their good one.","Space, structure, squares. That's the game now.","Patience — it's not ready to blow up.","Ask what the position wants, dude.","Long game here. Don't rush.","Reposition, then strike.","Keep the tension — don't rush the trade.","Get a knight to an outpost if you can.","Boring is fine. Boring wins."]
-VOICE_CRIT = ["Okay — THIS is the moment.","Bro, the whole game turns here.","Don't rush this one, dude.","Critical. Slow way down.","Everything hinges on this move.","This is a games-won-or-lost spot.","Take your time. Big one.","Deep breath. This matters.","The plan lives or dies right here.","Make it count, baby.","This is a thinking move, not a reflex.","Get this right and you're winning.","Fork in the road — choose well.","No autopilot here, dude.","Remember this position.","Precision now. Lock in."]
-VOICE_THREAT = ["See what they just did? That's a threat.","That move wasn't random, bro — they want something.","They just set a trap. Spot it.","Don't ignore their last move — it's got teeth.","They're coming for a piece. Which one?","You're being threatened. Defend or counter first.","Their move attacks — what exactly?","Careful, dude, that had a point.","They've got an idea. What is it?","Uh oh — they're threatening something real."]
-SOCRATIC = ["What's their move threatening?","What's your worst piece right now?","Any checks, captures, or threats for YOU?","If you do nothing, what happens?","Which of your pieces is hanging?","Which file just opened up?","Is that a principled move, though?","Can you improve a piece for free?","Is your king safe enough to attack?","What did their last move give up?","Where's the weakest square in their camp?","Trade, push, or wait — which, and why?"]
+VOICE_OPEN = [
+    "Wait — count the attackers on that square first.",
+    "Hold on. Look at what his last move touched.",
+    "Stop. Every piece of yours needs a job here.",
+    "Eyes up — his last move carries a threat.",
+    "Before you move, scan the checks and captures.",
+    "Pause. Something on the board just changed.",
+    "Look again at the square he just left.",
+    "One second — check what he uncovered.",
+    "Careful here. The tension just went up.",
+    "Hm. His last move had a point.",
+    "Slow down — this is a calculating position.",
+    "Notice which line just opened.",
+    "Check the diagonals before you commit.",
+    "Look at your loose pieces first.",
+    "Hold up — count material before you decide.",
+    "There it is. His plan just showed itself.",
+]
+VOICE_GOOD = [
+    "That is the engine's top choice.",
+    "Correct — that keeps your initiative.",
+    "That move wins material cleanly.",
+    "Strong. You improved your worst piece.",
+    "That is the move a titled player finds.",
+    "Exactly right — tempo gained.",
+    "That defends and threatens at once.",
+    "Sharp calculation. That refutes his idea.",
+    "You found the only move that holds.",
+    "That is prophylaxis — you stopped his plan.",
+    "Precise. The structure stays healthy.",
+    "That seizes the outpost.",
+    "You saw the zwischenzug. Well done.",
+    "That trade favours your endgame.",
+    "Textbook technique in this structure.",
+    "That is the move the position demanded.",
+]
+VOICE_BAD = [
+    "That drops material on that square.",
+    "That move loses a tempo you needed.",
+    "That walks into his tactic.",
+    "That leaves the piece loose — LPDO.",
+    "That weakens the square in front of your king.",
+    "That gives up the initiative for nothing.",
+    "That move blocks your own bishop's diagonal.",
+    "That allows the fork you were avoiding.",
+    "That concedes the outpost permanently.",
+    "That trade helps his structure, not yours.",
+    "That ignores the threat he just made.",
+    "That puts the piece on its worst square.",
+    "That creates a hole he will occupy.",
+    "That loses the exchange after his recapture.",
+    "That leaves the back rank undefended.",
+    "That hands him a free developing move.",
+]
+VOICE_TACTIC = [
+    "There is a shot here — run the captures.",
+    "Something of his is loose. Find it.",
+    "Fork, pin or skewer is live in this position.",
+    "Loose pieces drop off — LPDO. Look.",
+    "Count every check before you move.",
+    "There is material to win here. Calculate.",
+    "A forcing sequence exists. Find the first move.",
+    "His king's cover has a gap. Exploit it.",
+    "This is a calculating position, not an intuition one.",
+    "One of his pieces is overloaded. Use it.",
+    "There is a desperado resource here.",
+    "A zwischenzug wins more than the recapture.",
+    "His back rank is weak. Check it.",
+    "Two of his pieces share a line. Skewer them.",
+    "The pinned piece cannot defend. Pile on.",
+    "A discovered attack is available. Spot it.",
+]
+VOICE_POS = [
+    "This is a manoeuvring position — improve your worst piece.",
+    "Nobody is winning material. Fix your structure.",
+    "The outpost is the prize in this position.",
+    "Trade your bad bishop, keep the good one.",
+    "Whoever takes the open file first stands better.",
+    "Space advantage means you avoid trades.",
+    "His weak colour complex is the long-term target.",
+    "A minority attack fits this pawn structure.",
+    "Prophylaxis first — stop his plan, then start yours.",
+    "Rooks belong on the open file here.",
+    "Your knight needs a safe advanced square.",
+    "Fix his pawn on its colour, then attack it.",
+    "Make luft before the back rank matters.",
+    "Improve your king's position while it is quiet.",
+    "Doubled pawns give you the half-open file.",
+    "Restrain his passer before you push yours.",
+]
+VOICE_CRIT = [
+    "This is the critical moment of the game.",
+    "The evaluation swings on this single move.",
+    "Take your time — this move decides the plan.",
+    "Precision required. Calculate two moves deep.",
+    "This is a fork in the road for your position.",
+    "Get this right and the initiative is yours.",
+    "Both plans are playable. Pick the one your structure supports.",
+    "This move commits you. Choose carefully.",
+    "One inaccuracy here and the advantage flips.",
+    "The whole middlegame plan starts with this move.",
+    "This is where the game is won or lost.",
+    "No autopilot — the position is sharp.",
+    "Candidate moves first, then calculate.",
+    "Remember this position. It repeats.",
+    "The tempo you spend here matters later.",
+    "Lock in. This move carries the game.",
+]
+VOICE_THREAT = [
+    "His last move created a real threat.",
+    "That move was not random — it attacks something.",
+    "He is threatening to win material next move.",
+    "Do not ignore his last move — it has teeth.",
+    "He is coming for one of your pieces.",
+    "You are being threatened. Defend or counter-attack.",
+    "His piece just gained a dangerous square.",
+    "That move sets a trap. Spot it.",
+    "He has an idea. Work out what it is.",
+    "He threatens to break through on that square.",
+]
+SOCRATIC = [
+    "What is his last move threatening?",
+    "Which of your pieces is worst placed right now?",
+    "Any checks, captures or threats for you?",
+    "If you pass, what does he play next?",
+    "Which of your pieces is currently loose?",
+    "Which file or diagonal just opened?",
+    "Can you improve a piece without losing tempo?",
+    "Is your king safe enough to start an attack?",
+    "What square did his last move give up?",
+    "Where is the weakest square in his camp?",
+    "Trade, push or wait — which does the structure want?",
+    "Which of his pieces is overloaded?",
+]
 
 def piece_label(piece):
     if not piece: return "piece"
@@ -1390,7 +1516,7 @@ DIALOGUE = {
       "{best}! Clean win — and you checked it wasn't a trap first. That's the discipline.",
       "Exactly — {best} wins the {tpiece}. Punishing loose pieces is how rating points are made.",
       "Yep, {best}. Material in the bank. Now convert — trade pieces when you're up.",
-      "Nice — {best}. He handed you the {tpiece}; you took it with both hands.",
+      "There it is — {best}. He left the {tpiece} loose and you punished it.",
       "{best}. Winning material is step one; simplifying toward the endgame is step two.",
     ],
   },
@@ -1477,7 +1603,7 @@ DIALOGUE = {
       "Passed pawns must be pushed — or blockaded. Which side are you on?",
       "Endgames reward activity. Your most passive piece — how do you fix it?",
       "King-and-pawn stuff is precise. Count the tempi. What's the winning square?",
-      "Simplify when ahead, complicate when behind. Which applies now?",
+      "Simplify when ahead, complicate when behind — what does your material count say?",
       "The rook belongs behind the passed pawn. Where's your rook going?",
       "Don't rush. Improve your worst piece first. Which is it?",
       "Opposition, zugzwang, triangulation — one decides this. Which?",
@@ -1496,22 +1622,22 @@ DIALOGUE = {
   },
   "player_found_brilliancy": {
     "q": [
-      "OH. Did you see that the whole time, or just feel it? Because that was clean.",
-      "Wait — that's a GREAT move. Do you know WHY it's so strong?",
-      "Sheesh! Tell me the point of that move — because it's a good one.",
-      "That's a coach's move. What did you spot that most people wouldn't?",
-      "Beautiful. Before I gush — do you see the follow-up that makes it work?",
-      "Yes! Calculation or intuition? Either way, I approve.",
-      "That's the engine's top pick, you know. What made you play it?",
+      "OH. Did you calculate that line, or feel it? Either way the tactic lands.",
+      "Wait — that is a strong move. Do you know which weakness it exploits?",
+      "Tell me the point of that move — which piece does it improve?",
+      "That is a coach's move. Which tactic did you spot there?",
+      "Before I gush — do you see the follow-up threat that makes it work?",
+      "Calculation or intuition? Either way that move wins material.",
+      "That is the engine's top pick. Which candidate moves did you compare?",
       "Ohhh, nasty. Do you see the threat you just created?",
     ],
     "r": [
       "That's the move the computer wants — {best}-level stuff. You're seeing the board like a player now. Hold onto that.",
       "Exactly why it's strong. Moves like that win games quietly. Remember the pattern.",
       "Yeah — brilliant. A threat AND a better piece, one move. Two jobs at once.",
-      "That's what mastery feels like — you didn't just react, you improved. Keep cooking.",
-      "Top move, full marks. When you find these, trust yourself and calculate the follow-up.",
-      "See? Not guessing anymore. That was real chess. Proud of that one.",
+      "That is mastery — you did not just react, you improved your worst piece.",
+      "Top move. When you find these, calculate the follow-up tactic before you commit.",
+      "Not guessing anymore — you saw the threat before it landed. That is prophylaxis.",
     ],
   },
 }
@@ -1564,6 +1690,183 @@ def detect_pin(board, victim_color):
         except Exception:
             continue
     return None
+
+ROUTINE = [
+    "{opp_san} is standard here. Development continues.",
+    "Recapture on {opp_to} is forced — nothing else holds.",
+    "His {opp_piece} takes {opp_to}. Noted.",
+    "{opp_san} — a book move in this structure.",
+    "That develops toward the centre. Fine.",
+    "His {opp_piece} on {opp_to} is doing little yet.",
+    "Quiet move. Your worst piece still needs a square.",
+    "{opp_san} keeps the tension without committing.",
+    "No threat yet. {opp_to} is covered.",
+    "He is improving a piece, not attacking.",
+    "That trade simplifies toward the endgame.",
+    "{opp_san} concedes the tempo. Use it.",
+    "Structure unchanged. Keep improving pieces.",
+    "His {opp_piece} guards {opp_to} now.",
+    "Nothing forcing. Your plan continues.",
+    "{opp_san} is a waiting move. Do not rush.",
+    "He blocked the file with {opp_san}.",
+    "That pawn move fixes his structure on {opp_to}.",
+    "His king's cover is intact after {opp_san}.",
+    "{opp_san} — the knight heads for a better square.",
+    "That guards the back rank. Sensible.",
+    "He took the open file with {opp_san}.",
+    "{opp_san} prepares to castle. Expect it next.",
+    "His {opp_piece} eyes {opp_to} but nothing lands.",
+    "Even material, even chances. Keep going.",
+    "{opp_san} is the theory move in this line.",
+    "That defends the pawn a second time.",
+    "No tactic available. Improve a piece.",
+    "He connected his rooks with {opp_san}.",
+    "{opp_san} — solid, no weaknesses created.",
+    "Your structure is fine. Watch {opp_to}.",
+    "He gained space with {opp_san}.",
+    "That knight retreat gives up the outpost.",
+    "{opp_san} unpins the piece. Tension gone.",
+    "He is playing prophylaxis with {opp_san}.",
+    "That bishop is bad behind his own pawns.",
+    "{opp_san} keeps the position closed.",
+    "Nothing hanging on either side right now.",
+    "His passer is restrained for now.",
+    "{opp_san} — the rook takes the seventh next.",
+    "That pawn push creates a hole on {opp_to}.",
+    "He is trading to reach the endgame.",
+    "Tempo move. Your initiative survives.",
+    "{opp_san} threatens nothing immediate.",
+    "The centre stays locked after {opp_san}.",
+    "His queen is safe on {opp_to} for now.",
+    "That covers the entry square. Careful.",
+    "{opp_san} is a repetition attempt.",
+    "The half-open file is still yours.",
+    "He is defending accurately here.",
+]
+NOTABLE = [
+    "His {opp_piece} on {opp_to} eyes your kingside — see the plan?",
+    "{opp_san} opens a file. Whose rook gets there first?",
+    "Your {piece} on {sq} has no retreat square. Does that worry you?",
+    "He just took the outpost on {opp_to}. Can you challenge it?",
+    "That pawn push left a hole. Which piece occupies it?",
+    "His {opp_piece} is overloaded — it guards two things. Exploit it?",
+    "You still have not castled. Is the centre safe enough?",
+    "{opp_san} prepares a pawn break. Do you stop it or allow it?",
+    "Your bishop is behind its own pawns. Trade it or free it?",
+    "He controls the open file. Contest it or find another plan?",
+    "His king has no luft. Is a back-rank idea available?",
+    "That trade would leave you a bad bishop. Take it anyway?",
+    "He is building toward a minority attack. Prophylaxis or counterplay?",
+    "Your knight on {sq} has no advanced square. Reroute it?",
+    "{opp_san} gains space. Do you strike at the centre now?",
+    "His passer needs restraining. Blockade or attack it?",
+    "You can win a tempo on his queen. Worth it?",
+    "That pin is uncomfortable. Break it now or later?",
+    "The seventh rank is available to a rook. Whose?",
+    "His weak colour complex is showing. Target it?",
+    "You have doubled pawns but a half-open file. Fair trade?",
+    "He offers a repetition. Accept or play on?",
+    "Your rook is passive on {sq}. Activate it?",
+    "The endgame favours your structure. Trade down?",
+]
+MEMORY_LINES = [
+    "Remember pushing that pawn on move {mem_move}? His {opp_piece} just used the hole it left.",
+    "Your king has sat on its home square since move {mem_move}. The centre is opening now.",
+    "You retreated a piece on move {mem_move} — it is still passive on {mem_sq}.",
+    "That pawn move on move {mem_move} weakened {mem_sq}. He is aiming at it now.",
+    "You had a tactic on move {mem_move} and passed it. The same idea is back.",
+    "Since move {mem_move} your rook has not moved. Time to activate it.",
+    "The structure you chose on move {mem_move} wanted a minority attack. Still does.",
+    "You traded your good bishop on move {mem_move}. That colour complex is weak now.",
+    "His knight has been eyeing {mem_sq} since move {mem_move}.",
+    "You spent tempo on move {mem_move} chasing his queen. He used it to develop.",
+    "That hole on {mem_sq} from move {mem_move} is now his outpost.",
+    "You have not made luft since move {mem_move}. The back rank matters here.",
+]
+
+BANNED_PHRASES = ["good move","nice","keep developing","watch your king safety","think carefully",
+                  "consider your options","that's interesting","that is interesting","try to control the center"]
+
+def line_is_concrete(text):
+    """A line must name a square/piece/move, use real chess vocabulary, or predict a consequence."""
+    t = (text or "").lower()
+    if re.search(r"[a-h][1-8]\b", t): return True                      # square or SAN move (e4, Nf3, exd5)
+    if re.search(r"\bo-o(?:-o)?\b", t): return True                    # castling
+    VOCAB = (r"fork|pin|skewer|lpdo|initiative|tempo|luft|outpost|prophylaxis|back rank|opposition|"
+             r"minority attack|colour complex|color complex|overload|zwischenzug|desperado|passer|"
+             r"structure|file|diagonal|centre|center|castle|castling|endgame|middlegame|opening|"
+             r"material|attacker|defender|discovered attack|blockade|repetition|seventh|check|capture|"
+             r"threat|threaten|defend|attack|develop|development|trade|hole|weak|passive|active|loose|"
+             r"hanging|recapture|promote|force|sacrifice|counterplay|breakthrough|plan|candidate|tactic|"
+             r"combination|square|rank|piece|pawn|knight|bishop|rook|queen|king|mate|exchange|blunder")
+    if re.search(r"\b(?:" + VOCAB + r")(?:s|es|ed|ing|ness|ly)?\b", t): return True
+    CONSEQ = r"if you|then he|next move|he plays|allow|lose|drop|concede|gain|win|cost|punish|refute"
+    if re.search(r"\b(?:" + CONSEQ + r")(?:s|es|ed|ing)?\b", t): return True
+    return False
+
+def line_is_clean(text):
+    t = (text or "").lower()
+    return not any(b in t for b in BANNED_PHRASES)
+
+def pick_line(pool, ctx=None, recent=None):
+    """Randomised, non-repeating (last 20) selection with placeholder fill."""
+    if not pool: return ""
+    recent = recent if recent is not None else []
+    cands = [l for l in pool if l not in recent] or list(pool)
+    raw = random.choice(cands)
+    recent.append(raw)
+    while len(recent) > 20: recent.pop(0)
+    return _fmt(raw, ctx or {})
+
+def _recent_store():
+    try:
+        r = session.get("recent_lines")
+        if not isinstance(r, list): r = []
+        return r
+    except Exception:
+        return []
+
+def engagement_for(scenario):
+    """Critical stops the game; notable asks briefly; routine just reacts."""
+    if scenario in ("opponent_fork","opponent_pin","player_about_to_blunder",
+                    "player_can_win_material","player_found_brilliancy"): return "critical"
+    if scenario in ("opponent_threat_single_piece","critical_castling_decision",
+                    "opening_deviation","endgame_technique_moment"): return "notable"
+    return "routine"
+
+def build_game_memory(played_moves):
+    """Track what happened earlier so GM Forge can refer back to it."""
+    mem = {"pawn_pushes": [], "uncastled_since": None, "retreats": [], "last_pawn_move": None}
+    for i, san in enumerate(played_moves or []):
+        n = i // 2 + 1
+        s = str(san)
+        if s and s[0] in "abcdefgh" and "x" not in s and len(s) <= 3:
+            mem["pawn_pushes"].append((n, s))
+            mem["last_pawn_move"] = (n, s)
+        if s in ("O-O", "O-O-O"): mem["uncastled_since"] = None
+    if mem["uncastled_since"] is None and len(played_moves or []) > 16:
+        mem["uncastled_since"] = 8
+    return mem
+
+def memory_ctx(mem):
+    lp = mem.get("last_pawn_move")
+    if not lp: return None
+    n, san = lp
+    sq = re.sub(r"[^a-h1-8]", "", san)[-2:] if len(re.sub(r"[^a-h1-8]", "", san)) >= 2 else "that square"
+    return {"mem_move": n, "mem_sq": sq}
+
+def validate_move_in_pv(san, top_lines, board):
+    """Every move GM Forge names must come from the engine's own lines for THIS position."""
+    if not san: return False
+    legal_pv = set()
+    for ln in (top_lines or []):
+        mv = ln.get("move")
+        if mv is None: continue
+        try:
+            if mv in board.legal_moves: legal_pv.add(board.san(mv))
+        except Exception:
+            pass
+    return san in legal_pv
 
 def classify_moment(board, top_lines, played_moves):
     """Return (scenario, ctx). scenario='quiet' means stay silent. 9 teaching moments."""
@@ -1741,7 +2044,7 @@ def build_socratic_question(board, weaknesses, last_bot_san, top_lines, played_m
 
     # 1) Opening teaching (only in opening phase)
     if position_type == "opening" and opening_name:
-        nudges.append(f"📖 We're in the {opening_name}. {opening_theme}")
+        nudges.append(f"We're in the {opening_name}. {opening_theme}")
         nudges.append("Opening rule: develop knights before bishops, castle by move 8, don't move the same piece twice. Which piece is your worst-developed right now?")
 
     # 2) Opponent's last move — Socratic challenge
@@ -1750,20 +2053,20 @@ def build_socratic_question(board, weaknesses, last_bot_san, top_lines, played_m
 
     # 3) Check — top priority
     if board.is_check():
-        nudges.append("⚠️ You're in check. King to safety FIRST. List your legal options — block, capture, move — then pick the safest.")
+        nudges.append("You're in check. King to safety FIRST. List your legal options — block, capture, move — then pick the safest.")
 
     # 4) My loose pieces (defensive scan)
     my_loose = find_loose_pieces(board, player_turn)
     if my_loose:
         sq, p = my_loose[0]
-        nudges.append(f"⚠️ Your {piece_label(p)} on {chess.square_name(sq)} looks vulnerable. Count attackers vs defenders. If attackers outnumber, you must move, defend, or trade — NOW.")
+        nudges.append(f"Your {piece_label(p)} on {chess.square_name(sq)} looks vulnerable. Count attackers vs defenders. If attackers outnumber, you must move, defend, or trade — NOW.")
         highlights.append(square_highlight(sq, "#ff4d4d", "vulnerable"))
 
     # 5) Opponent's loose pieces (offensive scan)
     opp_loose = find_loose_pieces(board, not player_turn)
     if opp_loose and not my_loose:
         sq, p = opp_loose[0]
-        nudges.append(f"👀 Their {piece_label(p)} on {chess.square_name(sq)} is loose. Can you win it — or use the threat of taking it to do something even bigger?")
+        nudges.append(f"Their {piece_label(p)} on {chess.square_name(sq)} is loose. Can you win it — or use the threat of taking it to do something even bigger?")
         highlights.append(square_highlight(sq, "#26d07c", "target"))
 
     # 6) Tactical / concrete move available
@@ -1776,14 +2079,14 @@ def build_socratic_question(board, weaknesses, last_bot_san, top_lines, played_m
             second_cp = (top_lines[1].get("score_cp") or 0) * sign
             gap = my_cp - second_cp
             if gap >= 150:
-                nudges.append(f"💡 {gm_phrase(VOICE_TACTIC)} One move stands clearly above the rest. Scan: checks first, then captures, then threats. Find it before moving.")
+                nudges.append(f"{gm_phrase(VOICE_TACTIC)} One move stands clearly above the rest. Scan: checks first, then captures, then threats. Find it before moving.")
                 arrows.append(build_arrow(best["move"], "#26d07c"))
             elif gap >= 60 and position_type == "critical_decision":
                 nudges.append(f"{gm_phrase(VOICE_CRIT)} The engine has a slight preference — but the real lesson is the plan. Why does this move work?")
 
     # 7) Position-type framing
     if position_type == "endgame":
-        nudges.append("🏁 Endgame. Activate the king — it's a fighting piece now, not a target. Push passed pawns. Trade pieces (not pawns) if ahead.")
+        nudges.append("Endgame. Activate the king — it's a fighting piece now, not a target. Push passed pawns. Trade pieces (not pawns) if ahead.")
     elif position_type == "critical_decision" and not my_loose and not board.is_check():
         nudges.append(f"{gm_phrase(VOICE_CRIT)} Eval is decisive — converting matters more than finding fireworks. Simplify when ahead, complicate when behind.")
     elif position_type == "positional" and not opp_loose and not my_loose:
@@ -1791,7 +2094,7 @@ def build_socratic_question(board, weaknesses, last_bot_san, top_lines, played_m
 
     # 8) Theme callouts (open files, bishop pair, etc.)
     for th in themes:
-        nudges.append(f"🎯 {th}")
+        nudges.append(f"{th}")
 
     # 9) King safety reminders
     if board.has_castling_rights(player_turn) and board.fullmove_number > 8 and not my_loose:
@@ -1801,7 +2104,7 @@ def build_socratic_question(board, weaknesses, last_bot_san, top_lines, played_m
     if "Hanging piece" in weaknesses and not my_loose and board.fullmove_number > 5:
         nudges.append("Your pattern: hanging pieces. LPDO — Loose Pieces Drop Off. Point at each of your pieces, confirm it's defended.")
     if "Missed tactic" in weaknesses and not opp_loose:
-        nudges.append("Your pattern: missed tactics. Every move, scan checks → captures → threats. In that order.")
+        nudges.append("Your pattern: missed tactics. Every move, scan checks captures threats. In that order.")
     if "Early queen development" in weaknesses and board.fullmove_number < 10:
         for sq in chess.SQUARES:
             p = board.piece_at(sq)
@@ -2000,30 +2303,30 @@ def coach_move_feedback():
         if lesson and severity in ("best", "ok", "inaccuracy"):
             parts.append(lesson)
         elif severity == "best":
-            parts.append(f"✅ {gm_phrase(VOICE_GOOD)} {san_played} was the top move.")
-            if new_opening: parts.append(f"📖 We've entered the {opening_name}. {opening_theme}")
+            parts.append(f"{gm_phrase(VOICE_GOOD)} {san_played} was the top move.")
+            if new_opening: parts.append(f"We've entered the {opening_name}. {opening_theme}")
             if best_pv: parts.append(f"Continuation: {best_pv}.")
         elif severity == "ok":
             if new_opening:
-                parts.append(f"📖 {gm_phrase(VOICE_GOOD)} {san_played} keeps us in the {opening_name}. {opening_theme}")
+                parts.append(f"{gm_phrase(VOICE_GOOD)} {san_played} keeps us in the {opening_name}. {opening_theme}")
             else:
-                parts.append(f"👍 {san_played} is playable.")
+                parts.append(f"{san_played} is playable.")
             if best_san and best_san != san_played:
                 parts.append(f"Engine's slight preference: {best_san}.")
         elif severity == "inaccuracy":
-            parts.append(f"🟡 {gm_phrase(VOICE_BAD)} {san_played} gives back a small edge.")
+            parts.append(f"{gm_phrase(VOICE_BAD)} {san_played} gives back a small edge.")
             if best_san:
                 parts.append(f"Cleaner: {best_san} ({best_pv}). Look at the line — see why it's stronger?")
                 arrows.append(build_arrow(best_move, "#f4c542"))
         elif severity == "mistake":
-            parts.append(f"❌ {gm_phrase(VOICE_BAD)} {san_played} costs about {drop//100}.{(drop%100)//10} pawns.")
+            parts.append(f"{gm_phrase(VOICE_BAD)} {san_played} costs about {drop//100}.{(drop%100)//10} pawns.")
             if best_san:
                 parts.append(f"The position needed {best_san}. Engine line: {best_pv}.")
                 arrows.append(build_arrow(best_move, "#ff9800"))
             if opp_san:
                 parts.append(f"Now your opponent gets {opp_san} — that's exactly the punishment you missed.")
         elif severity == "blunder":
-            parts.append(f"🛑 {gm_phrase(VOICE_BAD)} {san_played} is a blunder — drops {drop//100}+ pawns.")
+            parts.append(f"{gm_phrase(VOICE_BAD)} {san_played} is a blunder — drops {drop//100}+ pawns.")
             if best_san:
                 parts.append(f"You needed {best_san} ({best_pv}).")
                 arrows.append(build_arrow(best_move, "#ff4444"))
@@ -2032,7 +2335,7 @@ def coach_move_feedback():
             if "Hanging piece" in weaknesses:
                 parts.append("This is your pattern. LPDO — was every piece defended before you moved?")
             elif "Missed tactic" in weaknesses:
-                parts.append("This is your pattern. Checks → captures → threats. In that order. Every move.")
+                parts.append("This is your pattern. Checks captures threats. In that order. Every move.")
 
         # Forced MCQ on every blunder + mistake
         mcq = None
@@ -2172,26 +2475,31 @@ TRAIN_TYPES = [
 ]
 TRAIN_POOLS = {
     "Hanging piece": [
-        {"fen":"r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4","solution":"Ng5","side":"white","hint":"Two attackers on f7 — pile up."},
-        {"fen":"rnbq1rk1/ppp2ppp/3p1n2/4p3/2B1P3/2NP1N2/PPP2PPP/R1BQK2R w KQ - 0 7","solution":"Bxf7+","side":"white","hint":"Something's hanging on f7."},
-        {"fen":"r1bqkb1r/ppp2ppp/2np1n2/4p3/2B1P3/3P1N2/PPP2PPP/RNBQK2R w KQkq - 0 5","solution":"Ng5","side":"white","hint":"Attack two things at once."},
+        {"fen":"r1bqkb1r/ppp2ppp/2np4/4N3/8/8/PPPP1PPP/RNBQKB1R w KQkq - 0 6","solution":"Nf3","side":"white","hint":"Your knight on e5 has no defender."},
+        {"fen":"rnbqkbnr/ppp1pppp/8/3p4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2","solution":"exd5","side":"white","hint":"Your e4 pawn is attacked once, defended zero times."},
+        {"fen":"rnbqkb1r/pppp1ppp/5n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R b KQkq - 3 3","solution":"Nxe4","side":"black","hint":"Count the attackers on your e5 pawn."},
     ],
     "Missed tactic": [
-        {"fen":"r1bq1rk1/ppp2ppp/2np1n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w - - 0 8","solution":"Nd5","side":"white","hint":"A knight fork wins material."},
-        {"fen":"r2qkb1r/ppp2ppp/2np1n2/4p1B1/2B1P3/3P1N2/PPP2PPP/RN1QK2R b KQkq - 0 6","solution":"Nxe4","side":"black","hint":"Win a pawn tactically."},
+        {"fen":"6k1/8/8/3q4/8/8/6PP/3R2K1 w - - 0 1","solution":"Rxd5","side":"white","hint":"His queen on d5 has no defender."},
+        {"fen":"r3k2r/ppp2ppp/8/3N4/8/8/PPP2PPP/R3K2R w KQkq - 0 1","solution":"Nc7+","side":"white","hint":"A knight fork hits king and rook."},
+        {"fen":"6k1/8/8/8/8/8/1q6/1R4K1 w - - 0 1","solution":"Rxb2","side":"white","hint":"Loose piece on b2 — LPDO."},
+        {"fen":"r1b1k2r/pppp1ppp/2n2n2/2b5/2B1P3/2q2N2/PP1P1PPP/RNBQ1RK1 w kq - 0 8","solution":"Bxf7+","side":"white","hint":"Check first, then collect."},
     ],
     "King safety issue": [
-        {"fen":"r1bqk2r/pppp1ppp/2n2n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQ1RK1 b kq - 5 4","solution":"O-O","side":"black","hint":"Castle to safety NOW."},
-        {"fen":"rnbqkb1r/ppp2ppp/3p1n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 4","solution":"O-O","side":"white","hint":"Get the king tucked away."},
+        {"fen":"r1bqk2r/pppp1ppp/2n2n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQ1RK1 b kq - 5 4","solution":"O-O","side":"black","hint":"Your king is still in the centre."},
+        {"fen":"rnbqkb1r/ppp2ppp/3p1n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 4","solution":"O-O","side":"white","hint":"Castle before the centre opens."},
+        {"fen":"6k1/5ppp/8/8/8/8/5PPP/R5K1 w - - 0 1","solution":"h3","side":"white","hint":"No luft — make it before the back rank bites."},
     ],
     "Endgame mistake": [
-        {"fen":"8/8/8/3k4/8/3K4/3P4/8 w - - 0 1","solution":"Ke3","side":"white","hint":"Escort the pawn — king leads."},
-        {"fen":"8/8/8/8/8/4K3/4P3/4k3 w - - 0 1","solution":"Kd3","side":"white","hint":"Gain the opposition."},
+        {"fen":"8/8/8/3k4/8/3K4/3P4/8 w - - 0 1","solution":"Ke3","side":"white","hint":"King leads the pawn home."},
+        {"fen":"8/8/8/8/8/4K3/4P3/4k3 w - - 0 1","solution":"Kd3","side":"white","hint":"Take the opposition."},
         {"fen":"8/8/1k6/8/8/1K6/1P6/8 w - - 0 1","solution":"Kc4","side":"white","hint":"King in front of the pawn."},
+        {"fen":"8/5p2/6k1/8/6K1/8/5P2/8 w - - 0 1","solution":"Kf4","side":"white","hint":"Opposition decides this ending."},
     ],
     "Opening mistake": [
         {"fen":"r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3","solution":"Bc4","side":"white","hint":"Develop toward the centre."},
-        {"fen":"rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2","solution":"Nf3","side":"white","hint":"Knight hits the centre."},
+        {"fen":"rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2","solution":"Nf3","side":"white","hint":"Knights before bishops."},
+        {"fen":"rnbqkbnr/ppp2ppp/8/3pp3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 0 3","solution":"exd5","side":"white","hint":"Two minor pieces still at home."},
     ],
 }
 def default_training():
@@ -2207,8 +2515,80 @@ def ensure_patterns(tr, seed_from=None):
         if name not in names and name in TRAIN_POOLS:
             tr["patterns"][name] = {"strength": 12, "seen": 0, "correct": 0, "due": now, "interval_days": 1}
     return tr
+
+def _attacked_loose(board, color):
+    for sq in chess.SQUARES:
+        pc = board.piece_at(sq)
+        if not pc or pc.color != color or pc.piece_type == chess.KING: continue
+        att = board.attackers(not color, sq); dfn = board.attackers(color, sq)
+        if att and len(att) > len(dfn): return True
+    return False
+
+def _wins_material_available(board):
+    me = board.turn
+    for mv in board.legal_moves:
+        if board.is_capture(mv):
+            tgt = board.piece_at(mv.to_square)
+            if tgt and not board.attackers(not me, mv.to_square): return True
+            if tgt and PIECE_VALS.get(tgt.piece_type,0) > PIECE_VALS.get(board.piece_at(mv.from_square).piece_type,0):
+                return True
+        b2 = board.copy(); b2.push(mv)
+        if detect_fork(b2, not me): return True
+    return False
+
+def _back_rank_soft(board, color):
+    k = board.king(color)
+    if k is None: return False
+    home = 0 if color == chess.WHITE else 7
+    if chess.square_rank(k) != home: return False
+    for df in (-1, 0, 1):
+        f = chess.square_file(k) + df
+        if not 0 <= f <= 7: continue
+        fwd = chess.square(f, home + (1 if color == chess.WHITE else -1))
+        pc = board.piece_at(fwd)
+        if not pc or pc.piece_type != chess.PAWN or pc.color != color: return False
+    return True
+
+def position_has_pattern(board, pattern):
+    """Server-side gate — a drill position must actually contain the pattern being drilled."""
+    me = board.turn
+    if pattern == "Hanging piece":     return _attacked_loose(board, me)
+    if pattern == "Missed tactic":     return _wins_material_available(board) or detect_fork(board, not me) is not None
+    if pattern == "King safety issue":
+        home = chess.E1 if me == chess.WHITE else chess.E8
+        return _back_rank_soft(board, me) or (board.has_castling_rights(me) and board.king(me) == home)
+    if pattern == "Endgame mistake":   return total_non_king_material(board) <= 12
+    if pattern == "Opening mistake":   return board.fullmove_number <= 12 and undeveloped_count(board, me) >= 2
+    return True
+
+def validated_pool(name):
+    out = []
+    for pos in TRAIN_POOLS.get(name, []):
+        try:
+            b = chess.Board(pos["fen"])
+        except Exception:
+            continue
+        if not position_has_pattern(b, name):   # discarded, never served
+            continue
+        try:
+            if pos.get("solution") and b.parse_san(pos["solution"]) not in b.legal_moves: continue
+        except Exception:
+            continue
+        out.append(pos)
+    return out
+
+def interleave_partners(training, name, k=2):
+    """Once a pattern reaches 60% strength, mix in other patterns so the user must discriminate."""
+    pats = (training or {}).get("patterns", {})
+    me = pats.get(name, {})
+    if (me.get("strength") or 0) < 60: return []
+    others = [n for n, v in pats.items() if n != name and (v.get("strength") or 0) < 80]
+    random.shuffle(others)
+    return others[:k]
+
 def drill_positions(name, count=8):
-    pool = TRAIN_POOLS.get(name) or TRAIN_POOLS["Missed tactic"]
+    pool = validated_pool(name) or validated_pool("Missed tactic")
+    if not pool: return []
     out = []
     while len(out) < count:
         out.extend(random.sample(pool, min(len(pool), count - len(out))))
@@ -2316,6 +2696,107 @@ def training_progress():
     mastered = [n for n, p in tr["patterns"].items() if p.get("strength", 0) >= 80]
     return jsonify({"weekly": weekly, "mastered": mastered, "streak": tr["streak"],
                     "patterns": {n: p.get("strength", 0) for n, p in tr["patterns"].items()}})
+
+
+TRAIN_LESSONS = {
+ "Hanging piece": {
+   "title":"Loose pieces drop off",
+   "body":["A piece is hanging when more enemy pieces attack it than yours defend it. It costs nothing to check, and it is the single most common way rating points leak away.",
+           "The habit that prevents it: after every opponent move, name the squares that move now attacks. Then name your own pieces sitting on those squares.",
+           "Do it before you look for your own plan. Threats first, plans second."],
+   "habit":"After his move, list what it attacks. Then list what of yours is undefended.",
+   "vocab":"LPDO — loose pieces drop off."},
+ "Missed tactic": {
+   "title":"Checks, captures, threats",
+   "body":["A tactic is a short forcing sequence that wins material or mates. It exists because a piece is loose, overloaded, pinned, or on the same line as something valuable.",
+           "The habit: every single move, scan the forcing moves in order — checks first, then captures, then threats. Most missed tactics were simply never looked for.",
+           "Forcing moves limit his replies, which makes them fast to calculate."],
+   "habit":"Scan checks, then captures, then threats — every move, in that order.",
+   "vocab":"Fork, pin, skewer, discovered attack, overloaded piece."},
+ "King safety issue": {
+   "title":"The king comes first",
+   "body":["A king in the centre with open lines nearby is a permanent liability. Castling connects your rooks and removes the king from the files that open first.",
+           "Back-rank danger is the quiet version of the same problem: a castled king with three unmoved pawns has no escape square.",
+           "The habit: castle by move eight unless there is a concrete reason not to, and make luft before your rooks leave the back rank."],
+   "habit":"Castle early. Make luft before the back rank matters.",
+   "vocab":"Luft — the escape square a pawn move gives your king."},
+ "Endgame mistake": {
+   "title":"Endgames are precision",
+   "body":["With few pieces left, small things decide the result: the opposition, whether your king is in front of the pawn, and which side moves first.",
+           "The habit: activate the king, put the rook behind the passed pawn, and improve your worst piece before pushing anything.",
+           "Do not rush. In an endgame a single careless tempo flips the result."],
+   "habit":"King first, rook behind the passer, improve the worst piece.",
+   "vocab":"Opposition, zugzwang, passer, triangulation."},
+ "Opening mistake": {
+   "title":"Develop, centre, castle",
+   "body":["The opening has three jobs: develop your pieces, fight for the centre, and get the king safe. Every move should do at least one of them.",
+           "The habit: before you move, name your worst-placed piece and ask whether this move improves it. Avoid moving the same piece twice or bringing the queen out early.",
+           "A pawn grab that costs three tempi of development is not a pawn grab."],
+   "habit":"Every opening move develops, fights for the centre, or helps you castle.",
+   "vocab":"Tempo, development, the centre."},
+}
+TRAIN_DISTRACTORS = {
+ "Hanging piece":   ["a6","h6","Rb1","Qe2"],
+ "Missed tactic":   ["Qd2","h3","Rfe1","a4"],
+ "King safety issue":["Qe2","a3","Rg1","b4"],
+ "Endgame mistake": ["Kd2","a4","Kf2","h4"],
+ "Opening mistake": ["h3","a3","Qh5","Rg1"],
+}
+TRAIN_FEEDBACK = {
+ "Hanging piece":   ("You were most likely looking for your own plan and treated his move as noise.",
+                     "It is not noise: his last move added an attacker, so the piece now has more attackers than defenders and simply drops.",
+                     "Threats first, plans second. Every move, name what his move attacks."),
+ "Missed tactic":   ("You probably played the natural developing move without scanning the forcing options.",
+                     "A forcing move was available that wins material outright, and forcing moves must be checked before quiet ones.",
+                     "Checks, captures, threats — in that order, every single move."),
+ "King safety issue":("You likely judged the position as quiet and postponed castling for one more developing move.",
+                     "The centre opens faster than you can finish developing, and the king is then stuck on the file that opens.",
+                     "Castle by move eight unless you can name a concrete reason not to."),
+ "Endgame mistake": ("You probably pushed the pawn first because it looks like progress.",
+                     "Pushing before the king escorts it loses the opposition, and the defending king then holds the draw.",
+                     "King leads, pawn follows. Take the opposition before you push."),
+ "Opening mistake": ("You most likely chased material or made a move that felt active.",
+                     "It costs tempo while pieces stay at home, and development is the currency of the opening.",
+                     "Every opening move develops, fights for the centre, or helps you castle."),
+}
+
+@app.route("/training/lesson", methods=["POST"])
+@login_required
+def training_lesson():
+    data = request.get_json(force=True) or {}
+    name = data.get("pattern") or TRAIN_TYPES[0][0]
+    lesson = TRAIN_LESSONS.get(name) or list(TRAIN_LESSONS.values())[0]
+    pool = validated_pool(name)
+    guided = pool[0] if pool else None
+    want, thinking = None, None
+    fb = TRAIN_FEEDBACK.get(name)
+    distract = [d for d in TRAIN_DISTRACTORS.get(name, [])]
+    mcq = None
+    if guided:
+        try:
+            b = chess.Board(guided["fen"])
+            legal_distract = []
+            for d in distract:
+                try:
+                    if b.parse_san(d) in b.legal_moves and d != guided["solution"]:
+                        legal_distract.append(d)
+                except Exception:
+                    continue
+            opts = [guided["solution"]] + legal_distract[:2]
+            random.shuffle(opts)
+            mcq = {"fen": guided["fen"], "options": opts, "answer": guided["solution"],
+                   "side": guided.get("side", "white")}
+        except Exception:
+            mcq = None
+    return jsonify({
+        "pattern": name,
+        "lesson": {"title": lesson["title"], "body": lesson["body"],
+                   "habit": lesson["habit"], "vocab": lesson["vocab"]},
+        "guided": guided,
+        "mcq": mcq,
+        "feedback": {"thinking": fb[0], "breaks": fb[1], "rule": fb[2]} if fb else None,
+        "interleave": False,
+    })
 
 @app.route("/health")
 def health():
