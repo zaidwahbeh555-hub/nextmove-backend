@@ -2283,6 +2283,211 @@ window.addEventListener('resize', function(){
 });
 
 /* ── Two-phase coaching: ask -> (player engages) -> reveal, with synced marks ── */
+
+/* ══════════ CoachMoment — sequenced dialogue, tile-tap, MCQ, help, stop sign ══════════ */
+const CoachMoment = {
+  data:null, step:0, timer:0, tapHandler:null, revealed:false, answered:false,
+  start(d){
+    this.stop();
+    if(!d || d.silent) return;
+    this.data=d; this.step=0; this.revealed=false; this.answered=false;
+    if(window.CoachFigure) CoachFigure.mood(({critical:'alarm',opportunity:'happy',notable:'think'})[d.intensity]||'idle');
+    if(d.intensity==='opportunity'){ StopSign.show(d); }
+    if(d.blocking){ document.body.classList.add('coach-blocking'); BotState.boardLocked=true; }
+    else { BotState.boardLocked=false; }
+    this._playStep();
+  },
+  _playStep(){
+    const d=this.data; if(!d) return;
+    const steps=d.dialogue||[];
+    if(this.step>=steps.length){ this._afterSteps(); return; }
+    const s=steps[this.step];
+    Coach.speak(s.text);
+    this._dim(s.point||[]);
+    if(s.point && s.point.length && window.ForgePointer){
+      if(s.point.length>1) ForgePointer.sequence(s.point, 900);   // sweep A -> B
+      else ForgePointer.pointAt(s.point[0]);
+    }
+    this._renderStepMeta();
+    this.step++;
+    this.timer=setTimeout(()=>this._playStep(), 1400);            // 1.4s cadence
+  },
+  skip(){                                                          // click anywhere skips ahead
+    clearTimeout(this.timer);
+    const steps=(this.data&&this.data.dialogue)||[];
+    if(this.step<steps.length){ this._playStep(); } else { this._afterSteps(); }
+  },
+  _renderStepMeta(){
+    const el=document.getElementById('coach-stepmeta'); if(!el||!this.data) return;
+    const n=(this.data.dialogue||[]).length;
+    el.textContent='Step '+Math.min(this.step+1,n)+' of '+n+'  ·  '+
+      String(this.data.intensity||'').toUpperCase()+'  ·  '+String(this.data.pattern||'').replace(/_/g,' ').toUpperCase();
+  },
+  _afterSteps(){
+    clearTimeout(this.timer);
+    this._renderHelp();
+    const q=(this.data&&this.data.question)||{kind:'none'};
+    if(q.kind==='tile_tap') this._tileTap(q);
+    else if(q.kind==='mcq') this._mcq(q);
+    else if(this.data && this.data.blocking) this._release();
+  },
+  /* ── 3d. tile-tap on the real board ── */
+  _tileTap(q){
+    const el=document.getElementById('coach-engage'); if(!el) return;
+    document.body.classList.add('tile-tap-mode');
+    el.classList.remove('hidden');
+    el.innerHTML='<div class="tap-prompt">'+esc(q.prompt||'Tap the square.')+'</div>';
+    let wrong=0; const self=this;
+    this.tapHandler=function(e){
+      const cell=e.target.closest && e.target.closest('.fb-sq'); if(!cell) return;
+      e.preventDefault(); e.stopPropagation();
+      const sq=cell.dataset.square;
+      if((q.correct||[]).indexOf(sq)!==-1){
+        cell.classList.add('tap-right');
+        if(window.CoachFigure) CoachFigure.mood('proud');
+        Coach.speak('That is the one. '+esc(sq)+' is the square everything hangs on.');
+        self._endTap(); self._release();
+      } else {
+        wrong++;
+        cell.classList.add('tap-wrong');
+        setTimeout(()=>cell.classList.remove('tap-wrong'), 500);
+        if(wrong>=2){
+          Coach.speak('Here it is.');
+          if(window.ForgePointer && (q.correct||[]).length) ForgePointer.pointAt(q.correct[0]);
+          const c=document.querySelector('.fb-sq[data-square="'+q.correct[0]+'"]');
+          if(c) c.classList.add('tap-right');
+          self._endTap(); self._release();
+        } else {
+          Coach.speak(q.on_wrong||'Not that one - look again.');
+          if(window.CoachFigure) CoachFigure.mood('alarm');
+        }
+      }
+    };
+    document.addEventListener('click', this.tapHandler, true);
+  },
+  _endTap(){
+    if(this.tapHandler){ document.removeEventListener('click', this.tapHandler, true); this.tapHandler=null; }
+    document.body.classList.remove('tile-tap-mode');
+    setTimeout(()=>document.querySelectorAll('.tap-right').forEach(c=>c.classList.remove('tap-right')), 1200);
+  },
+  /* ── 3c. MCQ in the bubble ── */
+  _mcq(q){
+    const el=document.getElementById('coach-engage'); if(!el) return;
+    el.classList.remove('hidden');
+    el.innerHTML='<div class="tap-prompt">'+esc(q.prompt||'')+'</div>'+
+      (q.options||[]).map((o,i)=>'<button class="coach-engage-btn" data-i="'+i+'" onclick="CoachMoment.answerMCQ('+i+')">'+
+        '<u>'+(i+1)+'</u> '+esc(o)+'</button>').join('');
+  },
+  answerMCQ(i){
+    const q=(this.data&&this.data.question)||{};
+    const ok = i===q.answer_index;
+    this.answered=true;
+    Coach.speak(ok ? ('Correct. '+(q.explain_right||'')) : ('Not quite. '+(q.on_wrong||'')));
+    if(window.CoachFigure) CoachFigure.mood(ok?'proud':'alarm');
+    if(!ok && (q.correct||[]).length && window.ForgePointer) ForgePointer.pointAt(q.correct[0]);
+    this._release();
+  },
+  /* ── 3e. the three help buttons ── */
+  _renderHelp(){
+    const box=document.getElementById('coach-help'); if(!box||!this.data) return;
+    const h=this.data.help||{};
+    box.classList.remove('hidden');
+    box.innerHTML=
+      (h.concept_label?'<button class="help-btn" onclick="CoachMoment.showConcept()">'+esc(h.concept_label)+'</button>':'')+
+      (h.hint?'<button class="help-btn" onclick="CoachMoment.showHint()">Hint</button>':'')+
+      (h.answer_move?'<button class="help-btn" onclick="CoachMoment.showAnswer()">Answer</button>':'');
+  },
+  showConcept(){ const h=(this.data||{}).help||{}; Coach.speak(h.concept_text||''); },
+  showHint(){ const h=(this.data||{}).help||{}; Coach.speak(h.hint||''); },
+  showAnswer(){
+    const h=(this.data||{}).help||{};
+    this.revealed=true;                                   // tracked for post-game training
+    Coach.speak(h.answer_text||'');
+    if(h.answer_move && window.BotState && BotState.board){
+      const d=this.data;
+      if(d && d.answer_from && d.answer_to && BotState.board.arrow) BotState.board.arrow(d.answer_from,d.answer_to,'#2DE1FF');
+    }
+    if(window.GameLog) GameLog.markRevealed(this.data);
+    this._release();
+  },
+  _dim(keep){
+    document.querySelectorAll('.fb-sq.sq-focus').forEach(c=>c.classList.remove('sq-focus'));
+    if(!this.data || !this.data.blocking) return;
+    (keep||[]).forEach(sq=>{
+      const c=document.querySelector('.fb-sq[data-square="'+sq+'"]');
+      if(c) c.classList.add('sq-focus');
+    });
+  },
+  _release(){
+    document.body.classList.remove('coach-blocking');
+    document.querySelectorAll('.fb-sq.sq-focus').forEach(c=>c.classList.remove('sq-focus'));
+    BotState.boardLocked=false;
+    Coach.setStatus('Your move.');
+    setTimeout(()=>{ if(window.ForgePointer) ForgePointer.retract(); }, 1800);
+  },
+  stop(){
+    clearTimeout(this.timer); this._endTap();
+    document.body.classList.remove('coach-blocking');
+    const e=document.getElementById('coach-engage'); if(e){ e.classList.add('hidden'); e.innerHTML=''; }
+    const h=document.getElementById('coach-help'); if(h){ h.classList.add('hidden'); h.innerHTML=''; }
+    StopSign.hide();
+  }
+};
+window.CoachMoment = CoachMoment;
+
+/* ══════════ 3a. Non-blocking stop sign — draggable, board stays live ══════════ */
+const StopSign = {
+  el:null, drag:null,
+  show(d){
+    this.hide();
+    const wrap=document.querySelector('.gm-board-wrap'); if(!wrap) return;
+    const n=document.createElement('div');
+    n.className='stop-sign'; n.id='stop-sign';
+    n.innerHTML='<svg viewBox="0 0 48 48" aria-hidden="true">'+
+      '<path d="M15.2 4h17.6L44 15.2v17.6L32.8 44H15.2L4 32.8V15.2Z" fill="#E24B4A" stroke="#0D0D14" stroke-width="2.4" stroke-linejoin="round"/>'+
+      '<path d="M16 24h16" stroke="#F7F9FF" stroke-width="4" stroke-linecap="round"/></svg>'+
+      '<span>Wait - there is something here for you.</span>';
+    wrap.appendChild(n); this.el=n;
+    n.addEventListener('pointerdown', e=>this._down(e));
+    setTimeout(()=>n.classList.add('in'), 20);
+  },
+  _down(e){
+    const r=this.el.getBoundingClientRect();
+    this.drag={dx:e.clientX-r.left, dy:e.clientY-r.top};
+    this.el.setPointerCapture(e.pointerId);
+    this.el.classList.add('dragging');
+    const move=ev=>{
+      if(!this.drag) return;
+      const p=this.el.parentNode.getBoundingClientRect();
+      this.el.style.left=(ev.clientX-p.left-this.drag.dx)+'px';
+      this.el.style.top=(ev.clientY-p.top-this.drag.dy)+'px';
+      this.el.style.transform='none';
+    };
+    const up=()=>{ this.drag=null; this.el.classList.remove('dragging');
+      document.removeEventListener('pointermove',move); document.removeEventListener('pointerup',up); };
+    document.addEventListener('pointermove',move); document.addEventListener('pointerup',up);
+  },
+  hide(){ if(this.el && this.el.parentNode) this.el.parentNode.removeChild(this.el); this.el=null; }
+};
+window.StopSign = StopSign;
+
+/* ══════════ game log -> post-game review ══════════ */
+const GameLog = {
+  moments:[],
+  record(d, moveNo){
+    if(!d || d.silent) return;
+    if(d.intensity!=='critical' && d.intensity!=='opportunity') return;
+    this.moments.push({move_no:moveNo||0, pattern:d.pattern, cost_cp:Math.abs(Math.round((d.eval||0)*100)),
+                       outcome:'seen', fen:d.fen||null});
+  },
+  markRevealed(d){
+    const m=this.moments[this.moments.length-1]; if(m) m.outcome='revealed';
+  },
+  markSolved(){ const m=this.moments[this.moments.length-1]; if(m) m.outcome='solved'; },
+  reset(){ this.moments=[]; }
+};
+window.GameLog = GameLog;
+
 const CoachDialogue = {
   data:null, reveal:null,
   start(d){
@@ -2630,7 +2835,8 @@ const Coach = (function(){
     }
     // there's a teaching moment — run the two-phase ask -> reveal
     setStatus('Coach is asking…');
-    CoachDialogue.start(d);
+    if(d && d.intensity){ GameLog.record(d, (BotState.game && BotState.game.history().length)||0); CoachMoment.start(d); }
+    else CoachDialogue.start(d);
   }
   // Review the move the player just made. On a blunder/mistake, PAUSE (red overlay)
   // and hold the bot's reply until the player decides. Otherwise, play on.
@@ -2694,7 +2900,8 @@ const Coach = (function(){
       setThinking(false);
       if(typeof d.eval === 'number') updateEvalBar(d.eval);
       if(d.silent){ speak("Position's calm — nothing loud to say. Just play a solid move."); CoachFigure.mood('idle'); return; }
-      CoachDialogue.start(d);   // hint/explain = single reveal; quiz = full ask -> reveal
+      if(d && d.intensity){ GameLog.record(d, (BotState.game && BotState.game.history().length)||0); CoachMoment.start(d); }
+    else CoachDialogue.start(d);   // hint/explain = single reveal; quiz = full ask -> reveal
     }catch(e){ setThinking(false); }
   }
   return {afterBotMove, reviewPlayerMove, ask, reset, speak, renderQuestions, renderFeedback, setStatus, setThinking, renderPositionBadge, renderTheory};
