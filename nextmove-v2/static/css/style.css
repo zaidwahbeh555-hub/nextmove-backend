@@ -1257,3 +1257,34 @@ button:active{transform:translateY(0) scale(.985)}
 .stage-body{min-width:0}
 @media(max-width:1080px){.drill-body,.stage-shell{grid-template-columns:1fr}
   #drill-board,.stage-board-col>div{min-width:0;max-width:520px;margin:0 auto}}
+
+/* ══════════ Coaching primitives: sequencing, tile-tap, help, stop sign ══════════ */
+.coach-stepmeta{font-size:12px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);margin-bottom:8px;min-height:14px}
+.coach-help{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.coach-help.hidden{display:none}
+.help-btn{background:var(--surface-2);border:1px solid transparent;color:var(--text-2);border-radius:999px;
+  padding:6px 14px;font-size:12px;font-weight:500;cursor:pointer;font-family:var(--font-ui)}
+.help-btn:hover{background:var(--surface-3);color:var(--text-1);border-color:var(--stroke-hot)}
+.tap-prompt{font-size:13px;color:var(--text-1);margin-bottom:8px;font-weight:500}
+/* 3b. blocking: dim everything except the squares under discussion */
+body.coach-blocking .fb-sq{opacity:.55;transition:opacity var(--t-enter) var(--ease)}
+body.coach-blocking .fb-sq.sq-focus{opacity:1;box-shadow:inset 0 0 0 2px var(--cyan);z-index:3}
+body.coach-blocking .gm-board-wrap{cursor:not-allowed}
+/* 3d. tile-tap: board at full luminance, everything else recedes */
+body.tile-tap-mode .fb-sq{cursor:pointer}
+body.tile-tap-mode .gm-side,body.tile-tap-mode .gm-mode-cards,body.tile-tap-mode .gm-toolbar{opacity:.45}
+body.tile-tap-mode .coach-stage{opacity:1}
+.fb-sq.tap-right{box-shadow:inset 0 0 0 3px var(--cyan);animation:tapPulse .6s var(--ease)}
+.fb-sq.tap-wrong{box-shadow:inset 0 0 0 3px #E24B4A;animation:tapShake .4s var(--ease)}
+@keyframes tapPulse{0%{transform:scale(1)}45%{transform:scale(1.06)}100%{transform:scale(1)}}
+@keyframes tapShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
+/* 3a. draggable stop sign — never blocks the board */
+.stop-sign{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(.9);
+  display:flex;align-items:center;gap:10px;background:var(--surface-2);border-radius:12px;
+  padding:10px 14px 10px 10px;cursor:grab;z-index:60;opacity:0;
+  transition:opacity var(--t-modal) var(--ease),transform var(--t-modal) var(--ease);
+  box-shadow:0 8px 32px rgba(0,0,0,.5);touch-action:none;max-width:280px}
+.stop-sign.in{opacity:1;transform:translate(-50%,-50%) scale(1)}
+.stop-sign.dragging{cursor:grabbing;opacity:.92}
+.stop-sign svg{width:34px;height:34px;flex-shrink:0}
+.stop-sign span{font-size:13px;color:var(--text-1);line-height:1.35}
