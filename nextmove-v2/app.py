@@ -1054,9 +1054,15 @@ def coach_position():
         return jsonify({"silent": True})
 
     try:
+        moment = None
         with chess.engine.SimpleEngine.popen_uci(sf) as engine:
             engine.configure({"Threads": 1, "Hash": 32})
             top_lines = analyse_pv(engine, board, depth=12, multipv=3)
+            if top_lines and request_type == "position":
+                try:
+                    moment = build_moment(board, top_lines, played_moves, engine)
+                except Exception:
+                    moment = None
         if not top_lines:
             return jsonify({"silent": True})
         eval_pawns = round((top_lines[0].get("score_cp") or 0) / 100, 1)
@@ -1089,6 +1095,20 @@ def coach_position():
             })
 
         # ── Default: classify the moment and build a two-phase question -> reveal ──
+        # ── new-shape moment (fork / hanging / opportunity / trapped) ──
+        if moment:
+            mv_named = moment.get("help", {}).get("answer_move")
+            if mv_named and not validate_move_in_pv(mv_named, top_lines, board):
+                moment["help"]["answer_move"] = None
+                moment["help"]["answer_text"] = "No verified engine move for this position."
+            moment["silent"] = False
+            moment["scenario"] = moment.get("pattern")
+            moment["engagement"] = moment["intensity"]
+            moment["best_move_san"] = best_san
+            moment["reaction"] = {"critical":"concerned","opportunity":"excited",
+                                  "notable":"curious"}.get(moment["intensity"], "neutral")
+            return jsonify(moment)
+
         scenario, ctx = classify_moment(board, top_lines, played_moves)
         level = engagement_for(scenario)
         recent = _recent_store()
@@ -2014,6 +2034,212 @@ def factual_line(board, level, ctx, played_moves):
     if level == "notable":
         return f"{opp_san} — nothing forcing yet. Which of your pieces is worst placed right now?"
     return f"{opp_san}. Nothing hanging on either side. Improve your worst piece."
+
+
+# ══════════════ geometry detection — python-chess facts, engine-verified later ══════════════
+def geo_fork(board, victim_color):
+    """One enemy piece attacking >=2 valuable pieces of victim_color."""
+    out=[]
+    for ef in chess.SQUARES:
+        ap=board.piece_at(ef)
+        if not ap or ap.color==victim_color: continue
+        hits=[]
+        for t in board.attacks(ef):
+            tp=board.piece_at(t)
+            if tp and tp.color==victim_color and (tp.piece_type==chess.KING or PIECE_VALS.get(tp.piece_type,0)>=3):
+                hits.append((chess.square_name(t), PIECE_NAMES.get(tp.piece_type,"piece"),
+                             99 if tp.piece_type==chess.KING else PIECE_VALS.get(tp.piece_type,0)))
+        if len(hits)>=2:
+            hits.sort(key=lambda h:-h[2])
+            out.append({"from":chess.square_name(ef),"piece":PIECE_NAMES.get(ap.piece_type,"piece"),
+                        "targets":hits,
+                        "defenders":[chess.square_name(s) for s in board.attackers(not victim_color, ef)],
+                        "attackers":[chess.square_name(s) for s in board.attackers(victim_color, ef)]})
+    return out
+
+def geo_hanging(board, color):
+    out=[]
+    for sq in chess.SQUARES:
+        pc=board.piece_at(sq)
+        if not pc or pc.color!=color or pc.piece_type==chess.KING: continue
+        a=board.attackers(not color,sq); d=board.attackers(color,sq)
+        if a and len(a)>len(d):
+            out.append({"square":chess.square_name(sq),"piece":PIECE_NAMES.get(pc.piece_type,"piece"),
+                        "attackers":len(a),"defenders":len(d)})
+    return out
+
+def geo_trapped(board, color):
+    out=[]
+    for sq in chess.SQUARES:
+        pc=board.piece_at(sq)
+        if not pc or pc.color!=color or pc.piece_type in (chess.KING,chess.PAWN): continue
+        dests=[m.to_square for m in board.legal_moves if m.from_square==sq]
+        if dests and all(board.attackers(not color,d) for d in dests):
+            out.append({"square":chess.square_name(sq),"piece":PIECE_NAMES.get(pc.piece_type,"piece")})
+    return out
+
+def geo_overload(board, color):
+    """A defender responsible for two or more of its own pieces."""
+    out=[]
+    for sq in chess.SQUARES:
+        pc=board.piece_at(sq)
+        if not pc or pc.color!=color: continue
+        duties=[chess.square_name(t) for t in board.attacks(sq)
+                if board.piece_at(t) and board.piece_at(t).color==color
+                and board.piece_at(t).piece_type!=chess.PAWN]
+        if len(duties)>=2 and board.attackers(not color,sq):
+            out.append({"square":chess.square_name(sq),"piece":PIECE_NAMES.get(pc.piece_type,"piece"),"duties":duties})
+    return out
+
+def capture_verdicts(board, target_sq, top_lines, engine=None, depth=14):
+    """For every legal capture of target_sq, what does the engine actually think?"""
+    res=[]
+    best_cp = None
+    if top_lines:
+        best_cp = top_lines[0].get("score_cp")
+    sign = 1 if board.turn==chess.WHITE else -1
+    for mv in board.legal_moves:
+        if mv.to_square!=target_sq or not board.is_capture(mv): continue
+        san=board.san(mv)
+        cp=None
+        for ln in (top_lines or []):
+            if ln.get("move")==mv: cp=ln.get("score_cp")
+        if cp is None and engine is not None:
+            try:
+                b2=board.copy(); b2.push(mv)
+                cp=engine.analyse(b2, chess.engine.Limit(depth=depth))["score"].white().score(mate_score=10000)
+            except Exception: cp=None
+        loss = None if (cp is None or best_cp is None) else (best_cp-cp)*sign
+        res.append({"san":san,"cp":cp,"loss_cp":loss})
+    res.sort(key=lambda r:(r["loss_cp"] if r["loss_cp"] is not None else 9999))
+    return res
+
+CONCEPTS = {
+ "fork":("What is a fork?","One piece attacks two or more of your pieces at the same time. You can usually only save one, so the defender has to decide which loss hurts least - or find a move that answers both, like a check or a counter-threat."),
+ "pin":("What is a pin?","A piece is pinned when moving it would expose something more valuable behind it. A pin to the king is absolute - the piece legally cannot move. Break it by challenging the pinner, blocking the line, or moving the piece behind."),
+ "hanging":("What does hanging mean?","A piece is hanging when more enemy pieces attack it than yours defend it. It costs nothing to check every move, and it is the most common way rating points leak away. Loose pieces drop off."),
+ "overload":("What is an overloaded piece?","A defender with two jobs at once. Take away one duty - usually by capturing or attacking the thing it guards - and the other collapses, because it cannot be in two places."),
+ "trapped":("What is a trapped piece?","A piece whose every legal square is covered by the opponent. It is not captured yet, but it has nowhere to go, so the opponent can take their time and win it."),
+ "back_rank":("What is a back-rank weakness?","Your king sits on the back rank behind unmoved pawns with no escape square. A rook or queen reaching that rank is mate. The fix is luft - a quiet pawn move that opens a hole for the king."),
+}
+
+
+def build_moment(board, top_lines, played_moves, engine=None):
+    """The coaching brain. Geometry from python-chess, every claim checked against the engine."""
+    me = board.turn
+    sign = 1 if me == chess.WHITE else -1
+    best_uci = top_lines[0]["move"] if top_lines else None
+    try: best_san = board.san(best_uci) if best_uci else None
+    except Exception: best_san = None
+    eval_cp = (top_lines[0].get("score_cp") or 0) if top_lines else 0
+    eval_pawns = round(eval_cp/100, 2)
+    gap = 0
+    if len(top_lines) >= 2:
+        gap = ((top_lines[0].get("score_cp") or 0) - (top_lines[1].get("score_cp") or 0)) * sign
+
+    forks   = geo_fork(board, me)
+    hanging = geo_hanging(board, me)
+    opp_hang= geo_hanging(board, not me)
+    trapped = geo_trapped(board, me)
+
+    # ── CRITICAL: you are forked ──
+    if forks:
+        f = forks[0]
+        tsq = chess.parse_square(f["from"])
+        verdicts = capture_verdicts(board, tsq, top_lines, engine)
+        t1, t2 = f["targets"][0], f["targets"][1]
+        steps = [
+            {"text": "Stop. Look at that " + f["piece"] + " before you touch anything.", "point": [f["from"]]},
+            {"text": "It is hitting both of these - your " + t1[1] + " on " + t1[0] +
+                     " and your " + t2[1] + " on " + t2[0] + ". That is a fork.",
+             "point": [t1[0], t2[0]]},
+        ]
+        if f["defenders"]:
+            steps.append({"text": "And it is defended from " + f["defenders"][0] +
+                                  ", so simply taking it does not win it.", "point": [f["defenders"][0]]})
+        # the reframe is DERIVED from what the engine actually says about the captures
+        if verdicts and all((v["loss_cp"] or 0) >= 100 for v in verdicts):
+            steps.append({"text": "So the question is not which piece to capture with - every capture here loses "
+                                  "material. The question is whether you can remove the defender, or move one of "
+                                  "the attacked pieces with tempo so the fork stops mattering.", "point": []})
+        elif len(verdicts) >= 2 and (verdicts[-1]["loss_cp"] or 0) - (verdicts[0]["loss_cp"] or 0) >= 100:
+            steps.append({"text": "You are weighing " + verdicts[0]["san"] + " against " + verdicts[-1]["san"] +
+                                  " as if they are the same choice. They are not - one of them costs about " +
+                                  str(round((verdicts[-1]["loss_cp"] or 0)/100, 1)) + " pawns more than the other. "
+                                  "The real question is which piece you still want on the board after the recapture.",
+                          "point": []})
+        elif verdicts:
+            steps.append({"text": "The capture works here, but only because of what comes after it. "
+                                  "Look at the recapture before you commit.", "point": [f["from"]]})
+        concept_lbl, concept_txt = CONCEPTS["fork"]
+        return {
+            "intensity":"critical", "pattern":"fork", "concept":"fork", "blocking":True,
+            "dialogue": steps,
+            "question": {"kind":"tile_tap",
+                         "prompt":"Tap the square that is causing all of this.",
+                         "correct":[f["from"]], "options":[],
+                         "on_wrong":"Not that one - look at the square his last move landed on."},
+            "help": {"concept_label":concept_lbl, "concept_text":concept_txt,
+                     "hint":"Look at your " + t1[1] + " on " + t1[0] + " and your " + t2[1] + " on " + t2[0] +
+                            " - what do they have in common right now?",
+                     "answer_move": best_san,
+                     "answer_text": ("The engine plays " + best_san + " here (" + format(eval_pawns, "+.2f") + ")."
+                                     ) if best_san else "No engine move available."},
+            "eval": eval_pawns,
+            "verdicts": verdicts,
+        }
+
+    # ── CRITICAL: a piece of yours is hanging ──
+    if hanging:
+        h = hanging[0]
+        concept_lbl, concept_txt = CONCEPTS["hanging"]
+        return {
+            "intensity":"critical", "pattern":"hanging", "concept":"hanging", "blocking":True,
+            "dialogue":[
+                {"text":"Careful - your " + h["piece"] + " on " + h["square"] + " has " + str(h["attackers"]) +
+                        " attackers and " + str(h["defenders"]) + " defenders.", "point":[h["square"]]},
+                {"text":"That is not a trade, that is a loss. Defend it, move it, or make a bigger threat.",
+                 "point":[h["square"]]}],
+            "question":{"kind":"tile_tap","prompt":"Tap the piece that is hanging.",
+                        "correct":[h["square"]],"options":[],
+                        "on_wrong":"Not that one - count attackers against defenders again."},
+            "help":{"concept_label":concept_lbl,"concept_text":concept_txt,
+                    "hint":"Count the attackers and the defenders on every piece you own.",
+                    "answer_move":best_san,
+                    "answer_text":("The engine plays " + best_san + ".") if best_san else ""},
+            "eval":eval_pawns,
+        }
+
+    # ── OPPORTUNITY: something is there for you, but nothing is forced ──
+    if opp_hang or gap >= 150:
+        tgt = opp_hang[0]["square"] if opp_hang else chess.square_name(best_uci.to_square)
+        concept_lbl, concept_txt = CONCEPTS["fork"]
+        return {
+            "intensity":"opportunity", "pattern":"win_material", "concept":"fork", "blocking":False,
+            "dialogue":[{"text":"Wait - there is something here for you.", "point":[tgt]}],
+            "question":{"kind":"tile_tap","prompt":"Tap the piece you think you can win.",
+                        "correct":[tgt],"options":[],
+                        "on_wrong":"Not that one - look for the piece with no defender."},
+            "help":{"concept_label":concept_lbl,"concept_text":concept_txt,
+                    "hint":"Run the forcing moves: checks first, then captures, then threats.",
+                    "answer_move":best_san,
+                    "answer_text":("The engine plays " + best_san + ".") if best_san else ""},
+            "eval":eval_pawns,
+        }
+
+    # ── TRAPPED piece: notable ──
+    if trapped:
+        t = trapped[0]
+        concept_lbl, concept_txt = CONCEPTS["trapped"]
+        return {"intensity":"notable","pattern":"trapped","concept":"trapped","blocking":False,
+            "dialogue":[{"text":"Your " + t["piece"] + " on " + t["square"] +
+                                 " has no safe square right now. Does that worry you?","point":[t["square"]]}],
+            "question":{"kind":"none","prompt":"","correct":[],"options":[],"on_wrong":""},
+            "help":{"concept_label":concept_lbl,"concept_text":concept_txt,
+                    "hint":"Check every square that piece can reach.","answer_move":best_san,
+                    "answer_text":("The engine plays " + best_san + ".") if best_san else ""},
+            "eval":eval_pawns}
+    return None
 
 def classify_moment(board, top_lines, played_moves):
     """Return (scenario, ctx). scenario='quiet' means stay silent. 9 teaching moments."""
@@ -2992,6 +3218,128 @@ def training_lesson():
         "mcq": mcq,
         "feedback": {"thinking": fb[0], "breaks": fb[1], "rule": fb[2]} if fb else None,
         "interleave": False,
+    })
+
+
+TRAP_BIAS = {
+ "Hanging piece":    "leaves_loose",
+ "Missed tactic":    "offers_tactic",
+ "King safety issue":"pressures_king",
+ "Endgame mistake":  "simplifies",
+ "Opening mistake":  "invites_development_error",
+}
+
+def _trap_score(board_after, user_color, bias):
+    """How likely is this position to expose the user's weakness? Higher = better bait."""
+    s = 0
+    if bias == "leaves_loose":
+        s += 3 * len(geo_hanging(board_after, user_color))
+        s += 2 * len(geo_fork(board_after, user_color))
+    elif bias == "offers_tactic":
+        s += 3 * len(geo_hanging(board_after, not user_color))
+        if _wins_material_available(board_after): s += 2
+    elif bias == "pressures_king":
+        k = board_after.king(user_color)
+        if k is not None:
+            s += len(board_after.attackers(not user_color, k)) * 4
+            for sq in board_after.attacks(k):
+                if board_after.attackers(not user_color, sq): s += 1
+        if _back_rank_soft(board_after, user_color): s += 3
+    elif bias == "simplifies":
+        s += max(0, 30 - total_non_king_material(board_after)) // 4
+    elif bias == "invites_development_error":
+        s += undeveloped_count(board_after, user_color) * 2
+    return s
+
+def choose_trap_move(board, engine, patterns, user_color, window_cp=60, depth=12):
+    """Pick among engine-approved moves the one most likely to create the user's weakness shape.
+    Never plays a move more than window_cp below the best - the bot still plays credible chess."""
+    try:
+        info = engine.analyse(board, chess.engine.Limit(depth=depth), multipv=5)
+    except Exception:
+        return None, None, None
+    items = info if isinstance(info, list) else [info]
+    cands = []
+    sign = 1 if board.turn == chess.WHITE else -1
+    for i in items:
+        pv = i.get("pv") or []
+        if not pv: continue
+        sc = i.get("score")
+        cp = sc.white().score(mate_score=10000) if sc is not None else None
+        cands.append((pv[0], cp))
+    if not cands: return None, None, None
+    best_cp = cands[0][1]
+    bias = None
+    for pat in (patterns or []):
+        if pat in TRAP_BIAS: bias = TRAP_BIAS[pat]; break
+    pool = []
+    for mv, cp in cands:
+        if cp is None or best_cp is None: continue
+        loss = (best_cp - cp) * sign
+        if loss <= window_cp:                      # hard gate: never worse than 60cp below best
+            pool.append((mv, cp, loss))
+    if not pool:
+        return cands[0][0], cands[0][1], 0
+    if not bias:
+        return pool[0][0], pool[0][1], pool[0][2]
+    scored = []
+    for mv, cp, loss in pool:
+        b2 = board.copy(); b2.push(mv)
+        scored.append((_trap_score(b2, user_color, bias), -loss, mv, cp, loss))
+    scored.sort(key=lambda t: (t[0], t[1]), reverse=True)
+    top = scored[0]
+    return top[2], top[3], top[4]
+
+@app.route("/trap-move", methods=["POST"])
+def trap_move():
+    """Trap Trainer bot move. Returns the move plus proof it stayed inside the 60cp window."""
+    data = request.get_json(silent=True) or {}
+    fen = data.get("fen", "")
+    patterns = data.get("patterns") or []
+    sf = find_stockfish()
+    if not sf or not fen: return jsonify({"error": "unavailable"}), 400
+    try: board = chess.Board(fen)
+    except Exception: return jsonify({"error": "bad fen"}), 400
+    if board.is_game_over(): return jsonify({"game_over": True})
+    user_color = chess.BLACK if board.turn == chess.WHITE else chess.WHITE
+    with chess.engine.SimpleEngine.popen_uci(sf) as engine:
+        engine.configure({"Threads": 1, "Hash": 32})
+        mv, cp, loss = choose_trap_move(board, engine, patterns, user_color)
+    if mv is None: return jsonify({"error": "no move"}), 500
+    san = board.san(mv)
+    return jsonify({"move": mv.uci(), "san": san, "eval_cp": cp,
+                    "loss_vs_best_cp": loss, "within_window": (loss or 0) <= 60,
+                    "targeting": (patterns or [None])[0]})
+
+@app.route("/game-review", methods=["POST"])
+def game_review():
+    """Post-game: every critical moment, what it cost, and which drill to route to."""
+    data = request.get_json(silent=True) or {}
+    moves = data.get("played_moves") or []
+    moments = data.get("moments") or []          # collected client-side during the game
+    sf = find_stockfish()
+    by_pattern, worst = {}, None
+    for m in moments:
+        pat = m.get("pattern") or "unknown"
+        by_pattern[pat] = by_pattern.get(pat, 0) + 1
+        cost = m.get("cost_cp") or 0
+        if worst is None or cost > (worst.get("cost_cp") or 0): worst = m
+    headline = "A quiet game - nothing decisive went wrong."
+    if worst:
+        pat = worst.get("pattern", "a pattern")
+        headline = ("The game turned on move " + str(worst.get("move_no", "?")) +
+                    ", where a " + str(pat).replace("_", " ") + " cost you " +
+                    str(round((worst.get("cost_cp") or 0)/100, 1)) + " pawns.")
+    pat_to_drill = {"fork":"Missed tactic","hanging":"Hanging piece","win_material":"Missed tactic",
+                    "trapped":"Hanging piece","back_rank":"King safety issue"}
+    drill = pat_to_drill.get((worst or {}).get("pattern"), "Missed tactic")
+    return jsonify({
+        "headline": headline,
+        "moments": moments,
+        "patterns": [{"pattern": k, "count": v} for k, v in sorted(by_pattern.items(), key=lambda x: -x[1])],
+        "prescription": {"drill": drill, "label": "Train this - 4 minutes",
+                         "then": "Play a Trap Trainer game targeting this pattern"},
+        "total_moves": len(moves),
     })
 
 @app.route("/health")
