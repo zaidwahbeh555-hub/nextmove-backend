@@ -386,7 +386,7 @@ function showUpgradePrompt(msg){
       <div style="color:#22E5FF;font-weight:700;font-size:1.1rem;margin-bottom:.8rem">Grandmaster — $9/mo</div>
       ${['Unlimited game analysis','Full psychological profiling','Custom drill generation','Blunder pattern tracking','Opening repertoire fixes'].map(f=>`<div style="color:#e8e8f0;font-size:.85rem;padding:.2rem 0"> ${f}</div>`).join('')}
     </div>
-    <button onclick="document.getElementById('upgrade-prompt').remove();goToPro()" style="width:100%;background:#22E5FF;color:#000;border:none;border-radius:10px;padding:.85rem;font-weight:700;font-size:.95rem;cursor:pointer;margin-bottom:.8rem">Get Pro Access — $9/mo </button>
+    <button onclick="document.getElementById('upgrade-prompt').remove();goToPro()" style="width:100%;background:#22E5FF;color:#0D0D14;border:none;border-radius:10px;padding:.85rem;font-weight:700;font-size:.95rem;cursor:pointer;margin-bottom:.8rem">Get Pro Access — $9/mo </button>
     <button onclick="document.getElementById('upgrade-prompt').remove()" style="background:transparent;border:none;color:#666680;font-size:.82rem;cursor:pointer;text-decoration:underline">Maybe later</button>
   </div>`;
   document.body.appendChild(div);
@@ -403,7 +403,7 @@ function showUpgradePrompt(msg){
     window.history.replaceState({},'','/');
     setTimeout(()=>{
       const div=document.createElement('div');
-      div.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#22E5FF;color:#000;padding:1rem 2rem;border-radius:10px;font-weight:700;font-size:1rem;z-index:9999;box-shadow:0 4px 20px rgba(240,230,210,.4)';
+      div.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#22E5FF;color:#0D0D14;padding:1rem 2rem;border-radius:10px;font-weight:700;font-size:1rem;z-index:9999;box-shadow:0 4px 20px rgba(240,230,210,.4)';
       div.textContent='Welcome to ChessForge Pro! Your account has been upgraded.';
       document.body.appendChild(div);
       setTimeout(()=>div.remove(),5000);
@@ -523,6 +523,17 @@ const TrainingStages = {
     document.getElementById('stage-shell').classList.remove('hidden');
     this.render();
   },
+  showBoard(fen, side){
+    if(!fen || !window.ForgeBoard) return;
+    const el=document.getElementById('stage-board'); if(!el) return;
+    try{
+      if(!this._board || this._boardEl!==el){
+        this._board=new ForgeBoard('stage-board',{interactive:false,orientation:(side==='black'?'black':'white')});
+        this._boardEl=el;
+      } else if(side){ this._board.flip(side==='black'?'black':'white'); }
+      this._board.setPosition(fen);
+    }catch(e){}
+  },
   rail(){
     return STAGE_NAMES.map((n,i)=>`<div class="stage-dot ${i<this.stage?'done':(i===this.stage?'now':'')}"></div>`).join('');
   },
@@ -537,37 +548,30 @@ const TrainingStages = {
         <div class="stage-habit"><b>The habit</b><span>${esc(L.habit)}</span></div>
         <p class="stage-p" style="font-size:13px;color:var(--text-low)">${esc(L.vocab)}</p>
         <button class="stage-next" onclick="TrainingStages.next()">Show me an example</button>`;
+      this.showBoard(d.guided && d.guided.fen, d.guided && d.guided.side);
     } else if(this.stage===1){
       const g = d.guided;
       el.innerHTML = `<div class="stage-kicker">Stage 2 of 5 — ${esc(STAGE_NAMES[1])}</div>
         <div class="stage-h">Watch the thought process</div>
         <p class="stage-p">GM Forge walks this position out loud. You are not solving yet — you are watching how the scan works.</p>
-        <div id="stage-board" style="max-width:340px;margin:1rem 0"></div>
         <p class="stage-p" id="guided-say">${esc((g&&g.hint)||L.habit)}</p>
         <button class="stage-next" onclick="TrainingStages.next()">I follow — let me try</button>`;
-      if(g && window.ForgeBoard){
-        try{
-          const b=new ForgeBoard('stage-board',{interactive:false,orientation:(g.side==='black'?'black':'white')});
-          b.setPosition(g.fen);
-        }catch(e){}
+      this.showBoard(g && g.fen, g && g.side);
+      if(g && g.fen && window.CoachFigure){        // he points at the square the example is about
+        const sq=(g.solution||'').match(/[a-h][1-8]/);
+        if(sq) setTimeout(function(){ CoachFigure.point(sq[0]); }, 500);
       }
     } else if(this.stage===2){
       const m = d.mcq;
       if(!m){ this.next(); return; }
       el.innerHTML = `<div class="stage-kicker">Stage 3 of 5 — ${esc(STAGE_NAMES[2])}</div>
         <div class="stage-h">Which move does the position want?</div>
-        <div id="mcq-board" style="max-width:300px;margin:.6rem 0 1rem"></div>
         <div id="mcq-opts">${m.options.map((o,i)=>
           `<button class="mcq-opt" data-mv="${esc(o)}" onclick="TrainingStages.choose('${esc(o)}',this)">
              <span class="ltr">${'ABC'[i]}</span><span>${esc(o)}</span>
              <span class="sel-check"><svg class="ic"><use href="#ic-check"/></svg></span></button>`).join('')}</div>
         <div id="conf-wrap"></div><div id="mcq-fb"></div>`;
-      if(window.ForgeBoard){
-        try{
-          const b=new ForgeBoard('mcq-board',{interactive:false,orientation:(m.side==='black'?'black':'white')});
-          b.setPosition(m.fen);
-        }catch(e){}
-      }
+      this.showBoard(m.fen, m.side);
     }
   },
   choose(mv, btn){
@@ -1362,7 +1366,7 @@ async function handleURLParams(){
     if(State.loggedIn){
       if(State.plan==='pro'){
         const div=document.createElement('div');
-        div.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#22E5FF;color:#000;padding:1rem 2rem;border-radius:10px;font-weight:700;z-index:9999';
+        div.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#22E5FF;color:#0D0D14;padding:1rem 2rem;border-radius:10px;font-weight:700;z-index:9999';
         div.textContent='You are already on ChessForge Pro!';
         document.body.appendChild(div);setTimeout(()=>div.remove(),3000);
       } else goToPro();
@@ -2028,7 +2032,7 @@ function renderPremiumLesson(){
   window._premiumMCQIdx = 0;
   window._premiumMCQScore = 0;
 
-  const stepsHTML = content.steps.map((s,i)=>`<div style="display:flex;gap:.7rem;align-items:flex-start;margin-bottom:.5rem;font-size:.85rem;color:var(--muted)"><span style="background:var(--cyan);color:#000;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;flex-shrink:0">${i+1}</span>${s}</div>`).join('');
+  const stepsHTML = content.steps.map((s,i)=>`<div style="display:flex;gap:.7rem;align-items:flex-start;margin-bottom:.5rem;font-size:.85rem;color:var(--muted)"><span style="background:var(--cyan);color:#0D0D14;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;flex-shrink:0">${i+1}</span>${s}</div>`).join('');
 
   premDiv.innerHTML = `
     <div class="premium-lesson-card">
@@ -2091,7 +2095,7 @@ function answerPremiumMCQ(chosen){
   area.appendChild(feedback);
   const nextBtn = document.createElement('button');
   nextBtn.textContent = idx+1 < mcq.length ? 'Next Question ' : 'Finish Quiz';
-  nextBtn.style.cssText = 'margin-top:.6rem;background:var(--cyan);color:#000;border:none;border-radius:8px;padding:.5rem 1.2rem;font-weight:700;cursor:pointer;font-family:var(--font-ui);';
+  nextBtn.style.cssText = 'margin-top:.6rem;background:var(--cyan);color:#0D0D14;border:none;border-radius:8px;padding:.5rem 1.2rem;font-weight:700;cursor:pointer;font-family:var(--font-ui);';
   nextBtn.onclick = ()=>{ window._premiumMCQIdx++; showPremiumMCQ(window._premiumMCQIdx); };
   area.appendChild(nextBtn);
 }
@@ -2294,11 +2298,16 @@ const CoachDialogue = {
       if(hs.length>1) CoachFigure.pointSeq(hs); else if(hs.length===1) CoachFigure.point(hs[0]);
       if(hs.length) document.body.classList.add('forge-focus');
     }
-    if(q){
+    const blocking = (d.blocking === true) || (d.engagement === 'critical');
+    if(q && blocking){
       Coach.speak(q.text);
-      this._renderEngage(d.scenario);  // contextual response buttons — the only interaction
-      BotState.boardLocked = true;     // can't move until you answer
-      Coach.setStatus('GM Forge\'s asking — answer first.');
+      this._renderEngage(d.scenario);   // chips inside the bubble — the only way forward
+      BotState.boardLocked = true;      // critical only: cannot move until answered
+      Coach.setStatus('GM Forge is asking - answer first.');
+    } else if(q){
+      Coach.speak(q.text);              // notable: a short question, board stays free
+      BotState.boardLocked = false;
+      Coach.setStatus('Your move.');
     } else {
       this._reveal('see');             // hint/explain style: straight to the point
     }
