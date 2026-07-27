@@ -1090,14 +1090,74 @@ def coach_position():
 
         # ── Default: classify the moment and build a two-phase question -> reveal ──
         scenario, ctx = classify_moment(board, top_lines, played_moves)
-        if scenario == "quiet":
-            return jsonify({"silent": True, "eval": eval_pawns, "best_move_san": best_san})
+        level = engagement_for(scenario)
+        recent = _recent_store()
+
+        # context describing the opponent's last move, for routine/notable lines
+        last_san = played_moves[-1] if played_moves else None
+        opp_to = None
+        if last_san:
+            sqs = re.findall(r"[a-h][1-8]", str(last_san))
+            opp_to = sqs[-1] if sqs else None
+        opp_piece = "piece"
+        if opp_to:
+            try:
+                pc = board.piece_at(chess.parse_square(opp_to))
+                if pc: opp_piece = PIECE_NAMES.get(pc.piece_type, "piece")
+            except Exception:
+                pass
+        light = dict(ctx)
+        light.update({"opp_san": last_san or "that move", "opp_to": opp_to or "that square",
+                      "opp_piece": opp_piece, "best": best_san or "the engine move"})
+
+        # ROUTINE — he always says something, but it never blocks the game
+        if level == "routine" or scenario == "quiet":
+            mem = build_game_memory(played_moves)
+            mctx = memory_ctx(mem)
+            if mctx and len(played_moves) > 12 and random.random() < 0.25:
+                text = pick_line(MEMORY_LINES, dict(light, **mctx), recent)   # refer back
+            else:
+                text = factual_line(board, "routine", light, played_moves)
+            try: session["recent_lines"] = recent
+            except Exception: pass
+            return jsonify({
+                "silent": False, "engagement": "routine", "scenario": scenario,
+                "reaction": "neutral", "blocking": False,
+                "dialogue": [{"phase": "reveal", "text": text, "wait": False}],
+                "arrows": [], "highlights": [],
+                "eval": eval_pawns, "best_move_san": best_san,
+            })
+
+        # NOTABLE — one short question, still non-blocking
+        if level == "notable":
+            text = factual_line(board, "notable", light, played_moves)
+            try: session["recent_lines"] = recent
+            except Exception: pass
+            hl = []
+            if ctx.get("sq"):
+                hl = [{"square": ctx["sq"], "color": "#22E5FF", "label": "look here"}]
+            return jsonify({
+                "silent": False, "engagement": "notable", "scenario": scenario,
+                "reaction": ctx.get("reaction", "curious"), "blocking": False,
+                "dialogue": [{"phase": "question", "text": text, "wait": False}],
+                "arrows": [], "highlights": hl,
+                "eval": eval_pawns, "best_move_san": best_san,
+            })
+
+        # CRITICAL — full stop: point, ask, lock the board
         built = build_coach_dialogue(scenario, ctx, board, top_lines)
         if not built:
-            return jsonify({"silent": True, "eval": eval_pawns, "best_move_san": best_san})
+            text = pick_line(ROUTINE, light, recent)
+            return jsonify({"silent": False, "engagement": "routine", "scenario": scenario,
+                            "reaction": "neutral", "blocking": False,
+                            "dialogue": [{"phase": "reveal", "text": text, "wait": False}],
+                            "arrows": [], "highlights": [],
+                            "eval": eval_pawns, "best_move_san": best_san})
         mcq = maybe_build_mcq(board, top_lines, position_type="tactical" if scenario == "tactical_opportunity" else "positional", force=False)
         return jsonify({
             "silent": False,
+            "engagement": "critical",
+            "blocking": True,
             "scenario": scenario,
             "reaction": ctx.get("reaction", "neutral"),
             "dialogue": built["dialogue"],
@@ -1868,6 +1928,93 @@ def validate_move_in_pv(san, top_lines, board):
             pass
     return san in legal_pv
 
+
+def _open_files(board):
+    out = []
+    for f in range(8):
+        if not any((board.piece_at(chess.square(f, r)) or None) and
+                   board.piece_at(chess.square(f, r)).piece_type == chess.PAWN for r in range(8)):
+            out.append("abcdefgh"[f])
+    return out
+
+def _doubled_files(board, color):
+    out = []
+    for f in range(8):
+        n = sum(1 for r in range(8)
+                for pc in [board.piece_at(chess.square(f, r))]
+                if pc and pc.piece_type == chess.PAWN and pc.color == color)
+        if n > 1: out.append("abcdefgh"[f])
+    return out
+
+def _knight_outposts(board, color):
+    """Knights on the 4th-6th rank defended by a own pawn and not challengeable by an enemy pawn."""
+    out = []
+    for sq in chess.SQUARES:
+        pc = board.piece_at(sq)
+        if not pc or pc.piece_type != chess.KNIGHT or pc.color != color: continue
+        r = chess.square_rank(sq)
+        adv = r >= 3 if color == chess.WHITE else r <= 4
+        if not adv: continue
+        pawn_guard = any(board.piece_at(a) and board.piece_at(a).piece_type == chess.PAWN and
+                         board.piece_at(a).color == color for a in board.attackers(color, sq))
+        if pawn_guard: out.append(chess.square_name(sq))
+    return out
+
+def factual_line(board, level, ctx, played_moves):
+    """Build a line that is actually TRUE of this position — never generic filler."""
+    me = board.turn
+    them = not me
+    n = board.fullmove_number
+    opp_san = ctx.get("opp_san") or "that move"
+    opp_to = ctx.get("opp_to")
+    opp_piece = ctx.get("opp_piece") or "piece"
+    facts = []
+
+    king_sq = board.king(me)
+    home = chess.E1 if me == chess.WHITE else chess.E8
+    if board.has_castling_rights(me) and king_sq == home and n >= 6:
+        facts.append(f"Your king is still on {chess.square_name(home)} at move {n}. "
+                     f"Castle now, or is the centre closed enough to wait?")
+    ofs = _open_files(board)
+    if ofs:
+        facts.append(f"The {ofs[0]}-file is open. Whose rook takes it first?")
+    outs = _knight_outposts(board, them)
+    if outs:
+        facts.append(f"His knight sits on {outs[0]}, defended by a pawn — a real outpost. "
+                     f"Can you challenge it or trade it off?")
+    mine_out = _knight_outposts(board, me)
+    if mine_out:
+        facts.append(f"Your knight on {mine_out[0]} is a genuine outpost. Keep it there — "
+                     f"what would you trade to hold that square?")
+    dbl = _doubled_files(board, me)
+    if dbl:
+        facts.append(f"You have doubled pawns on the {dbl[0]}-file. That gives you the half-open file — "
+                     f"is that worth the weakness?")
+    if board.is_check():
+        facts.append(f"You are in check from {opp_san}. Block, capture or move — which keeps most of your position?")
+    if opp_to:
+        try:
+            tsq = chess.parse_square(opp_to)
+            hit = [chess.square_name(s) for s in board.attacks(tsq)
+                   if board.piece_at(s) and board.piece_at(s).color == me]
+            if hit:
+                facts.append(f"His {opp_piece} on {opp_to} now eyes {hit[0]}. Does that change your plan?")
+        except Exception:
+            pass
+    mat = total_non_king_material(board)
+    if mat <= 14:
+        facts.append(f"Only {mat} points of material left. Endgame rules now — where does your king belong?")
+    if n <= 8 and undeveloped_count(board, me) >= 2:
+        facts.append(f"You still have {undeveloped_count(board, me)} minor pieces at home on move {n}. "
+                     f"Which one develops with tempo?")
+
+    if facts:
+        random.shuffle(facts)
+        return facts[0]
+    if level == "notable":
+        return f"{opp_san} — nothing forcing yet. Which of your pieces is worst placed right now?"
+    return f"{opp_san}. Nothing hanging on either side. Improve your worst piece."
+
 def classify_moment(board, top_lines, played_moves):
     """Return (scenario, ctx). scenario='quiet' means stay silent. 9 teaching moments."""
     if not top_lines:
@@ -2475,31 +2622,74 @@ TRAIN_TYPES = [
 ]
 TRAIN_POOLS = {
     "Hanging piece": [
-        {"fen":"r1bqkb1r/ppp2ppp/2np4/4N3/8/8/PPPP1PPP/RNBQKB1R w KQkq - 0 6","solution":"Nf3","side":"white","hint":"Your knight on e5 has no defender."},
-        {"fen":"rnbqkbnr/ppp1pppp/8/3p4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2","solution":"exd5","side":"white","hint":"Your e4 pawn is attacked once, defended zero times."},
-        {"fen":"rnbqkb1r/pppp1ppp/5n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R b KQkq - 3 3","solution":"Nxe4","side":"black","hint":"Count the attackers on your e5 pawn."},
+        {"fen":"rnbqkb1r/1p1pp2p/2p2np1/p4p2/2PP3N/4P3/PPQ2PPP/RNB1KB1R b KQkq - 1 6","solution":"Bg7","side":"black","hint":"Count the attackers and defenders on that square."},
+        {"fen":"rnbqk2r/3p2bp/2p3pn/pP2pp2/3P3N/4P2P/PP3PP1/RNBQKB1R w KQkq - 0 11","solution":"g3","side":"white","hint":"Count the attackers and defenders on that square."},
+        {"fen":"rnbqk2r/3p2bp/2p3pn/pP2pp2/3P4/4PN1P/PP3PP1/RNBQKB1R b KQkq - 1 11","solution":"e4","side":"black","hint":"Count the attackers and defenders on that square."},
+        {"fen":"rn2k2r/2q2n1p/2ppb1p1/pP1P1p2/P6P/R1P1PN2/4BPP1/2BQK2R w Kkq - 3 22","solution":"b6","side":"white","hint":"Count the attackers and defenders on that square."},
+        {"fen":"1n2k1r1/r1P4p/2p1P1pn/p2p1p2/P1P4P/RQ2PN2/4BPP1/2B1K2R b K - 0 26","solution":"Na6","side":"black","hint":"Count the attackers and defenders on that square."},
+        {"fen":"4k1r1/r1Pn3p/2p1P1pn/p2p1p2/P1P4P/RQ2PN2/4BPP1/2B1K2R w K - 1 27","solution":"Qb8+","side":"white","hint":"Count the attackers and defenders on that square."},
+        {"fen":"4k1r1/r1P4p/1np1P1pn/p2p1p2/P1P4P/R1Q1PN2/4BPP1/2B1K2R w K - 3 28","solution":"cxd5","side":"white","hint":"Count the attackers and defenders on that square."},
+        {"fen":"4k1r1/r1P4p/1np1P1pn/p1Pp1p2/P6P/R1Q1PN2/4BPP1/2B1K2R b K - 0 28","solution":"Nc8","side":"black","hint":"Count the attackers and defenders on that square."},
+        {"fen":"6r1/r1P1k2p/1np1P1pn/p1Pp1p2/P6P/R1Q1PN2/4BPP1/2B1K2R w K - 1 29","solution":"cxb6","side":"white","hint":"Count the attackers and defenders on that square."},
+        {"fen":"6r1/r1P1k2p/1Pp1P1pn/p2p1p2/P6P/R1Q1PN2/4BPP1/2B1K2R b K - 0 29","solution":"Rga8","side":"black","hint":"Count the attackers and defenders on that square."},
+        {"fen":"r5r1/2P1k2p/1Pp1P1pn/p2p1p2/P6P/R1Q1PN2/4BPP1/2B1K2R w K - 1 30","solution":"Qc5+","side":"white","hint":"Count the attackers and defenders on that square."},
+        {"fen":"r5r1/2P1k2p/1Pp1P1pn/p1Qp1p2/P6P/R3PN2/4BPP1/2B1K2R b K - 2 30","solution":"Kf6","side":"black","hint":"Count the attackers and defenders on that square."},
     ],
     "Missed tactic": [
-        {"fen":"6k1/8/8/3q4/8/8/6PP/3R2K1 w - - 0 1","solution":"Rxd5","side":"white","hint":"His queen on d5 has no defender."},
-        {"fen":"r3k2r/ppp2ppp/8/3N4/8/8/PPP2PPP/R3K2R w KQkq - 0 1","solution":"Nc7+","side":"white","hint":"A knight fork hits king and rook."},
-        {"fen":"6k1/8/8/8/8/8/1q6/1R4K1 w - - 0 1","solution":"Rxb2","side":"white","hint":"Loose piece on b2 — LPDO."},
-        {"fen":"r1b1k2r/pppp1ppp/2n2n2/2b5/2B1P3/2q2N2/PP1P1PPP/RNBQ1RK1 w kq - 0 8","solution":"Bxf7+","side":"white","hint":"Check first, then collect."},
+        {"fen":"rnbqkb1r/3p3p/2p3pn/pP2pp2/3P4/4PN1P/PP3PP1/RNBQKB1R w KQkq - 2 12","solution":"Nxe5","side":"white","hint":"Run the forcing moves: checks, then captures, then threats."},
+        {"fen":"rnbqk2r/3p2bp/2p3pn/pP2Np2/3P4/4P2P/PP3PP1/RNBQKB1R w KQkq - 1 13","solution":"Bd2","side":"white","hint":"Run the forcing moves: checks, then captures, then threats."},
+        {"fen":"rn2k2r/3b1n1p/1qpp2p1/pP1P1p2/P6P/R1b1PN2/1P3PP1/2BQKB1R w Kkq - 0 20","solution":"bxc3","side":"white","hint":"Run the forcing moves: checks, then captures, then threats."},
+        {"fen":"rn2k2r/2q2n1p/2ppb1p1/pP1P1p2/P6P/R1P1PN2/4BPP1/2BQK2R w Kkq - 3 22","solution":"dxe6","side":"white","hint":"Run the forcing moves: checks, then captures, then threats."},
+        {"fen":"rn2k2r/2q2n1p/2p1P1p1/pP1p1p2/P6P/R1P1PN2/4BPP1/2BQK2R w Kkq - 0 23","solution":"b6","side":"white","hint":"Run the forcing moves: checks, then captures, then threats."},
+        {"fen":"1n2k2r/r1q4p/2p1P1pn/pP1p1p2/P1P4P/RQ2PN2/4BPP1/2B1K2R w Kk - 1 25","solution":"b6","side":"white","hint":"Run the forcing moves: checks, then captures, then threats."},
+        {"fen":"1n2k1r1/r1q4p/1Pp1P1pn/p2p1p2/P1P4P/RQ2PN2/4BPP1/2B1K2R w K - 1 26","solution":"bxc7","side":"white","hint":"Run the forcing moves: checks, then captures, then threats."},
+        {"fen":"1n2k1r1/r1P4p/2p1P1pn/p2p1p2/P1P4P/RQ2PN2/4BPP1/2B1K2R b K - 0 26","solution":"Ke7","side":"black","hint":"Run the forcing moves: checks, then captures, then threats."},
+        {"fen":"4k1r1/r1Pn3p/2p1P1pn/p2p1p2/P1P4P/RQ2PN2/4BPP1/2B1K2R w K - 1 27","solution":"Qb8+","side":"white","hint":"Run the forcing moves: checks, then captures, then threats."},
+        {"fen":"4k1r1/r1Pn3p/2p1P1pn/p2p1p2/P1P4P/R1Q1PN2/4BPP1/2B1K2R b K - 2 27","solution":"Rxc7","side":"black","hint":"Run the forcing moves: checks, then captures, then threats."},
+        {"fen":"4k1r1/r1P4p/1np1P1pn/p1Pp1p2/P6P/R1Q1PN2/4BPP1/2B1K2R b K - 0 28","solution":"Nc8","side":"black","hint":"Run the forcing moves: checks, then captures, then threats."},
+        {"fen":"6r1/r1P1k2p/1np1P1pn/p1Pp1p2/P6P/R1Q1PN2/4BPP1/2B1K2R w K - 1 29","solution":"cxb6","side":"white","hint":"Run the forcing moves: checks, then captures, then threats."},
     ],
     "King safety issue": [
-        {"fen":"r1bqk2r/pppp1ppp/2n2n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQ1RK1 b kq - 5 4","solution":"O-O","side":"black","hint":"Your king is still in the centre."},
-        {"fen":"rnbqkb1r/ppp2ppp/3p1n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 4","solution":"O-O","side":"white","hint":"Castle before the centre opens."},
-        {"fen":"6k1/5ppp/8/8/8/8/5PPP/R5K1 w - - 0 1","solution":"h3","side":"white","hint":"No luft — make it before the back rank bites."},
+        {"fen":"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1","solution":"e3","side":"white","hint":"King safety first — castle or make luft."},
+        {"fen":"rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR b KQkq - 0 1","solution":"d5","side":"black","hint":"King safety first — castle or make luft."},
+        {"fen":"rnbqkbnr/ppppp1pp/8/5p2/3P4/8/PPP1PPPP/RNBQKBNR w KQkq - 0 2","solution":"c4","side":"white","hint":"King safety first — castle or make luft."},
+        {"fen":"rnbqkbnr/ppppp1pp/8/5p2/2PP4/8/PP2PPPP/RNBQKBNR b KQkq - 0 2","solution":"Nf6","side":"black","hint":"King safety first — castle or make luft."},
+        {"fen":"rnbqkbnr/ppppp2p/6p1/5p2/2PP4/8/PP2PPPP/RNBQKBNR w KQkq - 0 3","solution":"h4","side":"white","hint":"King safety first — castle or make luft."},
+        {"fen":"rnbqkbnr/ppppp2p/6p1/5p2/2PP4/5N2/PP2PPPP/RNBQKB1R b KQkq - 1 3","solution":"Nf6","side":"black","hint":"King safety first — castle or make luft."},
+        {"fen":"rnbqkb1r/ppppp2p/5np1/5p2/2PP4/5N2/PP2PPPP/RNBQKB1R w KQkq - 2 4","solution":"Nc3","side":"white","hint":"King safety first — castle or make luft."},
+        {"fen":"rnbqkb1r/ppppp2p/5np1/5p2/2PP4/5N2/PPQ1PPPP/RNB1KB1R b KQkq - 3 4","solution":"c6","side":"black","hint":"King safety first — castle or make luft."},
+        {"fen":"rnbqkb1r/pp1pp2p/2p2np1/5p2/2PP4/5N2/PPQ1PPPP/RNB1KB1R w KQkq - 0 5","solution":"e3","side":"white","hint":"King safety first — castle or make luft."},
+        {"fen":"rnbqkb1r/pp1pp2p/2p2np1/5p2/2PP4/4PN2/PPQ2PPP/RNB1KB1R b KQkq - 0 5","solution":"Na6","side":"black","hint":"King safety first — castle or make luft."},
+        {"fen":"rnbqkb1r/1p1pp2p/2p2np1/p4p2/2PP4/4PN2/PPQ2PPP/RNB1KB1R w KQkq - 0 6","solution":"Nc3","side":"white","hint":"King safety first — castle or make luft."},
+        {"fen":"rnbqkb1r/1p1pp2p/2p2np1/p4p2/2PP3N/4P3/PPQ2PPP/RNB1KB1R b KQkq - 1 6","solution":"Bg7","side":"black","hint":"King safety first — castle or make luft."},
     ],
     "Endgame mistake": [
-        {"fen":"8/8/8/3k4/8/3K4/3P4/8 w - - 0 1","solution":"Ke3","side":"white","hint":"King leads the pawn home."},
-        {"fen":"8/8/8/8/8/4K3/4P3/4k3 w - - 0 1","solution":"Kd3","side":"white","hint":"Take the opposition."},
-        {"fen":"8/8/1k6/8/8/1K6/1P6/8 w - - 0 1","solution":"Kc4","side":"white","hint":"King in front of the pawn."},
-        {"fen":"8/5p2/6k1/8/6K1/8/5P2/8 w - - 0 1","solution":"Kf4","side":"white","hint":"Opposition decides this ending."},
+        {"fen":"8/2k5/8/8/8/3K4/1R6/6N1 w - - 0 1","solution":"Kd2","side":"white","hint":"King leads. Take the opposition before you push."},
+        {"fen":"8/5P1k/8/8/8/8/3K4/8 w - - 0 1","solution":"f8=Q","side":"white","hint":"King leads. Take the opposition before you push."},
+        {"fen":"8/2r3K1/8/8/4P3/8/7P/7k w - - 0 1","solution":"Kf6","side":"white","hint":"King leads. Take the opposition before you push."},
+        {"fen":"3r4/6K1/k7/8/8/8/8/8 w - - 0 1","solution":"Kf6","side":"white","hint":"King leads. Take the opposition before you push."},
+        {"fen":"8/5p2/3B4/8/8/5P2/1K5k/8 b - - 0 1","solution":"Kg2","side":"black","hint":"King leads. Take the opposition before you push."},
+        {"fen":"7k/8/4K3/8/8/8/P7/8 w - - 0 1","solution":"Kf7","side":"white","hint":"King leads. Take the opposition before you push."},
+        {"fen":"1k6/1R6/4N3/4p2K/8/8/8/8 b - - 0 1","solution":"Kxb7","side":"black","hint":"King leads. Take the opposition before you push."},
+        {"fen":"7K/8/8/8/8/5p2/2k5/8 b - - 0 1","solution":"Kd3","side":"black","hint":"King leads. Take the opposition before you push."},
+        {"fen":"8/8/8/1k2p3/8/7K/8/n7 b - - 0 1","solution":"Kc4","side":"black","hint":"King leads. Take the opposition before you push."},
+        {"fen":"2k5/2p5/8/8/8/8/8/6K1 b - - 0 1","solution":"Kb7","side":"black","hint":"King leads. Take the opposition before you push."},
+        {"fen":"8/8/3P4/8/8/4K3/6k1/6N1 w - - 0 1","solution":"d7","side":"white","hint":"King leads. Take the opposition before you push."},
+        {"fen":"8/r7/8/8/2p5/8/1k6/3K4 b - - 0 1","solution":"Re7","side":"black","hint":"King leads. Take the opposition before you push."},
     ],
     "Opening mistake": [
-        {"fen":"r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3","solution":"Bc4","side":"white","hint":"Develop toward the centre."},
-        {"fen":"rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2","solution":"Nf3","side":"white","hint":"Knights before bishops."},
-        {"fen":"rnbqkbnr/ppp2ppp/8/3pp3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 0 3","solution":"exd5","side":"white","hint":"Two minor pieces still at home."},
+        {"fen":"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1","solution":"e4","side":"white","hint":"Develop, fight for the centre, get the king safe."},
+        {"fen":"rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR b KQkq - 0 1","solution":"Nf6","side":"black","hint":"Develop, fight for the centre, get the king safe."},
+        {"fen":"rnbqkbnr/ppppp1pp/8/5p2/3P4/8/PPP1PPPP/RNBQKBNR w KQkq - 0 2","solution":"c4","side":"white","hint":"Develop, fight for the centre, get the king safe."},
+        {"fen":"rnbqkbnr/ppppp1pp/8/5p2/2PP4/8/PP2PPPP/RNBQKBNR b KQkq - 0 2","solution":"d6","side":"black","hint":"Develop, fight for the centre, get the king safe."},
+        {"fen":"rnbqkbnr/ppppp2p/6p1/5p2/2PP4/8/PP2PPPP/RNBQKBNR w KQkq - 0 3","solution":"h4","side":"white","hint":"Develop, fight for the centre, get the king safe."},
+        {"fen":"rnbqkbnr/ppppp2p/6p1/5p2/2PP4/5N2/PP2PPPP/RNBQKB1R b KQkq - 1 3","solution":"Bg7","side":"black","hint":"Develop, fight for the centre, get the king safe."},
+        {"fen":"rnbqkb1r/ppppp2p/5np1/5p2/2PP4/5N2/PP2PPPP/RNBQKB1R w KQkq - 2 4","solution":"g3","side":"white","hint":"Develop, fight for the centre, get the king safe."},
+        {"fen":"rnbqkb1r/ppppp2p/5np1/5p2/2PP4/5N2/PPQ1PPPP/RNB1KB1R b KQkq - 3 4","solution":"Nc6","side":"black","hint":"Develop, fight for the centre, get the king safe."},
+        {"fen":"rnbqkb1r/pp1pp2p/2p2np1/5p2/2PP4/5N2/PPQ1PPPP/RNB1KB1R w KQkq - 0 5","solution":"Nc3","side":"white","hint":"Develop, fight for the centre, get the king safe."},
+        {"fen":"rnbqkb1r/pp1pp2p/2p2np1/5p2/2PP4/4PN2/PPQ2PPP/RNB1KB1R b KQkq - 0 5","solution":"Bg7","side":"black","hint":"Develop, fight for the centre, get the king safe."},
+        {"fen":"rnbqkb1r/1p1pp2p/2p2np1/p4p2/2PP4/4PN2/PPQ2PPP/RNB1KB1R w KQkq - 0 6","solution":"Nc3","side":"white","hint":"Develop, fight for the centre, get the king safe."},
+        {"fen":"rnbqkb1r/1p1pp2p/2p2np1/p4p2/2PP3N/4P3/PPQ2PPP/RNB1KB1R b KQkq - 1 6","solution":"d6","side":"black","hint":"Develop, fight for the centre, get the king safe."},
     ],
 }
 def default_training():
@@ -2782,6 +2972,12 @@ def training_lesson():
                         legal_distract.append(d)
                 except Exception:
                     continue
+            if len(legal_distract) < 2:      # top up from real legal moves so there are always 3 options
+                for mv in b.legal_moves:
+                    s = b.san(mv)
+                    if s != guided["solution"] and s not in legal_distract:
+                        legal_distract.append(s)
+                    if len(legal_distract) >= 2: break
             opts = [guided["solution"]] + legal_distract[:2]
             random.shuffle(opts)
             mcq = {"fen": guided["fen"], "options": opts, "answer": guided["solution"],
