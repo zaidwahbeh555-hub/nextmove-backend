@@ -1,8 +1,8 @@
 /* ChessForge Pro v6 — Complete JS */
-const PIECE_THEME = '/static/pieces/custom/{piece}.svg';
+const PIECE_THEME = '/static/custom/{piece}.svg';
 
 const LESSONS={
-  tactics:{title:'Tactics: Forks, Pins & Skewers',subtitle:'The most powerful short-term weapons in chess',priority:'high',icon:'⚔',sections:[
+  tactics:{title:'Tactics: Forks, Pins & Skewers',subtitle:'The most powerful short-term weapons in chess',priority:'high',icon:'',sections:[
     {heading:'What are tactics?',body:'Tactics are short sequences of moves that win material or force checkmate. Unlike strategy, tactics are concrete and decisive. <strong>Most club-level games are decided by tactics</strong> — either a player spots one, or falls into one.'},
     {heading:'The Fork',body:'A fork attacks two or more enemy pieces simultaneously. The opponent can only save one — you win the other. <strong>Knights are the best forking pieces</strong> because their L-shaped movement is easy to overlook.'},
     {tip:'Before every move, ask: "Can any of my pieces attack two things at once from any square?"'},
@@ -13,7 +13,7 @@ const LESSONS={
     {warning:'The #1 reason players miss tactics: they stop looking after finding one candidate move. Always check if something stronger exists.'},
     {heading:'Your daily drill',body:'<strong>Solve 10 puzzles every day.</strong> 10 minutes of consistent daily practice will transform your tactical vision within 2-3 months. Your Puzzles tab has positions from YOUR actual games.'},
   ]},
-  blunders:{title:'How to Stop Blundering',subtitle:'The single biggest rating booster at every level',priority:'high',icon:'🚫',sections:[
+  blunders:{title:'How to Stop Blundering',subtitle:'The single biggest rating booster at every level',priority:'high',icon:'',sections:[
     {heading:'Why we blunder',body:'Blunders rarely happen because you dont know chess — they happen because you didn\'t check before moving. The most common causes: moving too fast, emotional reactions, not scanning the whole board, and "hope chess" (assuming the opponent wont find the response).'},
     {heading:'The one-move check — do this EVERY move',body:'Before touching any piece, run this mental checklist:',steps:['<strong>Am I walking into check or losing a piece immediately?</strong>','<strong>Did my move leave anything undefended?</strong> Scan all your pieces.','<strong>What is my opponent threatening on their next move?</strong>','<strong>Is my king safe?</strong>','Only then — make the move.']},
     {tip:'The chess engine makes its move instantly. The difference isnt speed — its that the engine checks everything. Slow down, even when you\'re sure.'},
@@ -22,7 +22,7 @@ const LESSONS={
     {warning:'If you ever say "I didn\'t see that" after a game — you weren\'t looking. Train yourself to look every time, even in completely won positions.'},
     {heading:'Time pressure',body:'<strong>Blunder rates spike dramatically in time pressure.</strong> When under 30 seconds, simplify — do not calculate complex variations. A 5-second pause before every move will cut your blunder rate by more than half.'},
   ]},
-  kingsafety:{title:'King Safety',subtitle:'Your king is not a piece to play with — until the endgame',priority:'high',icon:'👑',sections:[
+  kingsafety:{title:'King Safety',subtitle:'Your king is not a piece to play with — until the endgame',priority:'high',icon:'',sections:[
     {heading:'Why king safety is everything',body:'Chess has one goal: checkmate the king. Every other advantage only matters if your king survives to use it. A single king safety lapse can undo 30 perfect moves.'},
     {heading:'Rule 1: Castle in the first 10 moves',body:'Castling moves your king to safety AND connects your rooks. There\'s almost never a valid reason to delay castling past move 10. Castle as soon as your minor pieces are developed.'},
     {tip:'If you\'re past move 10 and haven\'t castled, ask yourself why. If there\'s no concrete tactical reason — castle immediately.'},
@@ -31,7 +31,7 @@ const LESSONS={
     {heading:'Rule 3: Watch the back rank',body:'Once pieces are exchanged, your back rank becomes a target. If your king is behind unmoved pawns, a rook or queen can deliver back-rank mate. Play h3 or g3 early in rook endgames to create an escape square.'},
     {heading:'Signs your king is in danger',body:'',steps:['Opponent has rooks or queens pointing toward your king\'s wing','Your king-side pawns have moved or been traded','All your pieces are on the opposite side of the board','You cannot castle and the center files are open','Your opponent has a knight outpost near your king']},
   ]},
-  openings:{title:'Opening Principles That Actually Work',subtitle:'Stop memorising moves. Start understanding why.',priority:'medium',icon:'📖',sections:[
+  openings:{title:'Opening Principles That Actually Work',subtitle:'Stop memorising moves. Start understanding why.',priority:'medium',icon:'',sections:[
     {heading:'Why you\'re doing openings wrong',body:'Most players try to memorise opening moves without understanding why. This falls apart the moment the opponent deviates. Instead, master these 4 principles — they apply to every opening ever played.'},
     {heading:'Principle 1: Control the center',body:'The center squares (e4, e5, d4, d5) control the most of the board. Pieces placed in or aimed at the center are significantly more powerful. Open with <strong>1.e4 or 1.d4</strong> to claim central space immediately.'},
     {tip:'A knight in the center attacks up to 8 squares. A knight on the rim attacks only 2.'},
@@ -41,7 +41,7 @@ const LESSONS={
     {heading:'Principle 4: No early queen',body:'Bringing the queen out early lets the opponent attack it with minor pieces while developing for free. Keep the queen back until minor pieces are active.'},
     {heading:'The correct sequence',body:'',steps:['Move 1: e4 or d4','Moves 2-3: Develop both knights','Moves 3-5: Develop both bishops','Moves 5-8: Castle','Only then: Activate the queen']},
   ]},
-  capitalize:{title:'How to Punish Your Opponent\'s Mistakes',subtitle:'Turn their errors into decisive wins',priority:'medium',icon:'💥',sections:[
+  capitalize:{title:'How to Punish Your Opponent\'s Mistakes',subtitle:'Turn their errors into decisive wins',priority:'medium',icon:'',sections:[
     {heading:'Games are given away, not won',body:'At club level, most decisive games are decided by mistakes rather than brilliant play. The player who makes the last major mistake usually loses. So two skills matter equally: avoiding your own mistakes AND capitalising on your opponent\'s.'},
     {heading:'Step 1: Ask "why did they play that?"',body:'After every opponent move, before thinking about your own plans, ask: "Why did they just do that? What are they threatening?" If you cannot find a good reason for their move, they may have blundered.'},
     {tip:'If an opponent move seems random or pointless, look harder. Either you\'re missing something, or they are.'},
@@ -50,7 +50,7 @@ const LESSONS={
     {heading:'Step 4: Don\'t let them back in',body:'The biggest mistake after your opponent blunders: letting them recover.',steps:['Simplify into a winning endgame when possible','Don\'t go for complications you haven\'t calculated','Trade pieces when ahead in material','Keep your own king safe']},
     {warning:'When you\'re winning, slow down even more than usual. Excitement causes blunders. The win isnt yours until its over.'},
   ]},
-  calculation:{title:'How to Calculate Properly',subtitle:'See further, miss less, win more',priority:'high',icon:'🔢',sections:[
+  calculation:{title:'How to Calculate Properly',subtitle:'See further, miss less, win more',priority:'high',icon:'',sections:[
     {heading:'What is calculation?',body:'Calculation is the process of visualising sequences of moves in your head before making them. It\'s one of the most trainable skills in chess and directly determines your tactical strength.'},
     {heading:'The CANDIDATE method',body:'When you spot a promising position, identify 2-3 candidate moves before calculating any of them. This prevents you from tunnel-visioning on the first thing you see.',steps:['Find all forcing moves first (checks, captures, threats)','Then look for tactical ideas','Finally consider positional moves','Only then calculate each candidate in detail']},
     {tip:'The best move is rarely the first one you see. Always look for something better before committing.'},
@@ -59,7 +59,7 @@ const LESSONS={
     {heading:'Visualisation training',body:'',steps:['Set up a position and close your eyes','Try to visualise where pieces would be after 3 moves','Open eyes and verify','Repeat — this builds your mental board'],},
     {warning:'Calculating 10 moves of a wrong variation is worse than calculating 3 moves of the right one. Quality over quantity.'},
   ]},
-  threats:{title:'Evaluating Threats',subtitle:'See what your opponent is planning before its too late',priority:'high',icon:'⚠️',sections:[
+  threats:{title:'Evaluating Threats',subtitle:'See what your opponent is planning before its too late',priority:'high',icon:'',sections:[
     {heading:'The most important question in chess',body:'After every single opponent move, ask: <strong>"What is my opponent threatening?"</strong> This one habit will eliminate the majority of your losses. Most blunders happen not because we dont know tactics, but because we ignore the opponent\'s plans.'},
     {heading:'Types of threats',body:'<strong>Immediate threats:</strong> Can win material or checkmate next move. Must be dealt with immediately.\n\n<strong>Long-term threats:</strong> Plans the opponent is building toward. Can often be countered while making your own move.\n\n<strong>Positional threats:</strong> Subtle improvements like occupying an outpost or opening a file.'},
     {heading:'How to assess a threat',body:'When you identify a threat, ask: "If I dont respond, what happens?" Then evaluate how bad that outcome actually is. Sometimes the best response to a threat is to create a bigger counter-threat.'},
@@ -67,7 +67,7 @@ const LESSONS={
     {heading:'The threat of the threat',body:'Advanced players think one level deeper — they consider not just the current threat, but what threat the opponent will make AFTER you respond. This prevents walking from one problem into another.'},
     {heading:'Threat evaluation checklist',body:'',steps:['What can my opponent do if I ignore their move?','Is the threat immediate or long-term?','Can I counter-attack instead of defending?','If I defend, does it create new threats for me?','After my move, what will they do next?']},
   ]},
-  pieces:{title:'Using Your Pieces Effectively',subtitle:'Good pieces win games. Passive pieces lose them.',priority:'medium',icon:'♞',sections:[
+  pieces:{title:'Using Your Pieces Effectively',subtitle:'Good pieces win games. Passive pieces lose them.',priority:'medium',icon:'',sections:[
     {heading:'The fundamental principle',body:'Every piece should be on its best possible square. A bad piece — a knight on the rim, a bishop blocked by its own pawns — is nearly worthless regardless of how many pieces you have. <strong>Every move, ask: "Is this piece doing its job?"</strong>'},
     {heading:'Knights: outposts are everything',body:'A knight needs a stable base to be effective. An <strong>outpost</strong> is a square in enemy territory that no enemy pawn can attack. A knight on an outpost in the center is a monster piece.'},
     {tip:'To create a knight outpost, trade the pawn that would attack it. Then march your knight in — your opponent cannot kick it out.'},
@@ -76,7 +76,7 @@ const LESSONS={
     {heading:'The queen: power with care',body:'The queen is most effective coordinating with other pieces. Don\'t bring it out early. A queen alone achieves little — its the combination of queen plus rooks, bishops, or knights that creates unstoppable threats.'},
     {heading:'Piece coordination check',body:'',steps:['Is any of my pieces doing nothing useful?','Can I trade my worst piece for a well-placed enemy piece?','Is there an outpost for a knight?','Are my rooks on open or half-open files?','Are all my pieces working toward the same plan?']},
   ]},
-  endgame:{title:'Endgame Fundamentals',subtitle:'Where games are won and lost at every level',priority:'medium',icon:'🏁',sections:[
+  endgame:{title:'Endgame Fundamentals',subtitle:'Where games are won and lost at every level',priority:'medium',icon:'',sections:[
     {heading:'Why the endgame matters',body:'Most players spend 90% of study time on openings. But at club level, games reach the endgame constantly — and the player who knows basic endgame technique almost always converts the win. These are not optional extras.'},
     {heading:'Activate your king immediately',body:'In the opening and middlegame, the king hides. In the endgame, the king becomes a powerful fighting piece. <strong>The most common endgame mistake: leaving the king passive.</strong> March your king toward the center or passed pawns the moment queens come off.'},
     {tip:'Every tempo your king spends passively in the endgame is a tempo your opponent uses to activate their king or advance pawns.'},
@@ -85,7 +85,7 @@ const LESSONS={
     {heading:'Rook endgames essentials',body:'<strong>Rooks belong behind passed pawns</strong> (yours or your opponent\'s).\n<strong>Know the Lucena and Philidor positions</strong> cold — the two most important rook endgame techniques.'},
     {heading:'Simplify when winning',body:'',steps:['When ahead in material, trade pieces (not pawns)','Keep rooks active — put them behind passed pawns','The side with more pawns should try to create a passed pawn','Use your king aggressively']},
   ]},
-  pawnstructure:{title:'Pawn Structure',subtitle:'Pawns are the soul of chess',priority:'medium',icon:'♙',sections:[
+  pawnstructure:{title:'Pawn Structure',subtitle:'Pawns are the soul of chess',priority:'medium',icon:'',sections:[
     {heading:'Why pawns matter',body:'Pawns are the only pieces that cannot move backward. Every pawn move creates a permanent structural change. Understanding pawn structure means understanding what plans are available to both sides.'},
     {heading:'Pawn weaknesses to avoid',body:'<strong>Isolated pawn:</strong> A pawn with no friendly pawns on adjacent files. It needs piece protection and is a permanent target.\n\n<strong>Doubled pawns:</strong> Two pawns on the same file. One of them can never be protected by the other and they block each other.\n\n<strong>Backward pawn:</strong> A pawn that cannot be advanced without being captured, left behind by its neighbors.'},
     {tip:'Before making a pawn move, ask: "Will this pawn be a weakness or a strength?" Most pawn weaknesses are permanent.'},
@@ -93,7 +93,7 @@ const LESSONS={
     {heading:'Open and half-open files',body:'When a pawn is traded, it opens files for rooks. The player who controls open files controls the game. Place your rooks on open files and semi-open files (files with only your opponent\'s pawns).'},
     {heading:'Pawn chains',body:'A pawn chain is a diagonal line of pawns protecting each other. <strong>Attack the base of the pawn chain</strong> — the back pawn that supports the whole structure. The head of the chain is strong; the base is weak.'},
   ]},
-  planning:{title:'How to Make a Plan',subtitle:'Chess without a plan is just moving pieces',priority:'medium',icon:'🗺',sections:[
+  planning:{title:'How to Make a Plan',subtitle:'Chess without a plan is just moving pieces',priority:'medium',icon:'',sections:[
     {heading:'Why most players dont have a plan',body:'Most club players react to threats without ever having a clear plan. They move whatever piece looks active or responds to the opponent\'s last move. This reactive style means they\'re always a step behind.'},
     {heading:'How to form a plan',body:'After every move, assess the position:',steps:['What are the imbalances? (material, space, piece activity, pawn structure)','What does each side\'s ideal position look like?','What is preventing you from reaching that ideal position?','Make a move that improves your worst-placed piece or achieves part of the plan']},
     {tip:'A bad plan is better than no plan at all. Having a direction to work toward prevents random moves.'},
@@ -101,7 +101,7 @@ const LESSONS={
     {heading:'Common plans to know',body:'',steps:['Minority attack: advance 2 pawns against 3 to create a weakness','Exchange sacrifice: give a rook for a bishop/knight to gain positional compensation','Piece sacrifice: give material for long-term positional advantage','King march: activate the king in the endgame']},
     {heading:'Changing plans',body:'A plan should be updated when the position changes. If your opponent makes a move that disrupts your plan, re-evaluate rather than blindly continuing.'},
   ]},
-  exchanges:{title:'When to Trade Pieces',subtitle:'Knowing when to simplify changes everything',priority:'medium',icon:'🔄',sections:[
+  exchanges:{title:'When to Trade Pieces',subtitle:'Knowing when to simplify changes everything',priority:'medium',icon:'',sections:[
     {heading:'The exchange decision',body:'One of the most important decisions in chess is whether to trade pieces or avoid trades. There\'s no universal answer — it depends entirely on the position. Here are the guidelines.'},
     {heading:'Trade when you\'re ahead',body:'When you have more material, <strong>simplify by trading pieces</strong> (not pawns). Fewer pieces means your material advantage becomes more decisive. In a king and pawn endgame, extra material almost always wins.'},
     {heading:'Avoid trades when cramped',body:'When your position is cramped and your pieces have limited scope, trades give you more room. But if you\'re already active, avoid trades that give your opponent breathing room.'},
@@ -110,7 +110,7 @@ const LESSONS={
     {heading:'The exchange sacrifice',body:'Sometimes giving a rook for a bishop or knight is correct. This "exchange sacrifice" makes sense when:\n- Your piece has no good moves and will be permanently passive\n- You get a massive positional advantage in return\n- You disrupt the opponent\'s pawn structure'},
     {heading:'When NOT to trade',body:'',steps:['When your piece is your strongest attacker','When trading gives the opponent an open file','When you\'re attacking and the piece is essential to the attack','When the trade releases tension you want to maintain']},
   ]},
-  initiative:{title:'Playing with Initiative',subtitle:'The player who attacks decides the game',priority:'medium',icon:'⚡',sections:[
+  initiative:{title:'Playing with Initiative',subtitle:'The player who attacks decides the game',priority:'medium',icon:'',sections:[
     {heading:'What is initiative?',body:'Initiative means your opponent must respond to your threats rather than pursuing their own plans. The player with initiative dictates the flow of the game. Maintaining initiative is often more important than winning material.'},
     {heading:'How to gain initiative',body:'',steps:['Develop faster than your opponent in the opening','Create threats your opponent must respond to','Open files and diagonals for your pieces','Attack the king before it has castled','Keep your pieces coordinated and active']},
     {tip:'Every tempo you spend responding to your opponent\'s threats is a tempo you\'re not using to build your own attack.'},
@@ -118,7 +118,7 @@ const LESSONS={
     {heading:'Counter-initiative',body:'When your opponent has the initiative, look for counterplay rather than pure defence. A successful counter-attack is far more effective than passive defence. Ask: "Can I create a bigger threat on the other side of the board?"'},
     {heading:'Sacrificing for initiative',body:'Sometimes giving material to maintain initiative is completely correct. A pawn sacrifice that opens lines, brings all your pieces into the attack, and prevents your opponent from castling can be worth far more than the pawn.'},
   ]},
-  defense:{title:'How to Defend',subtitle:'Great defence is a skill — not just "not blundering"',priority:'medium',icon:'🛡',sections:[
+  defense:{title:'How to Defend',subtitle:'Great defence is a skill — not just "not blundering"',priority:'medium',icon:'',sections:[
     {heading:'Defence is underrated',body:'Most chess improvement content focuses on attack. But the ability to defend accurately under pressure is what separates players who survive complications from those who collapse. Defence is a learnable skill.'},
     {heading:'The defensive mindset',body:'When under attack, the instinct is to panic and make impulsive moves. Instead:\n\n1. Take a deep breath\n2. Assess the ACTUAL danger (not perceived)\n3. Find the most accurate defence\n4. Look for counter-chances'},
     {tip:'Most attacks can be defended if you calculate carefully. The attacker needs everything to work. The defender only needs one good move.'},
@@ -126,7 +126,7 @@ const LESSONS={
     {heading:'Prophylactic thinking',body:'Great defenders dont wait for threats to materialise — they prevent them. Prophylaxis means making moves that stop your opponent\'s plans before they become dangerous. Ask yourself: "What is my opponent planning? Can I stop it now at minimal cost?"'},
     {heading:'When to defend, when to counter-attack',body:'',steps:['If the attack is decisive, defend accurately','If the attack is slow, counter-attack immediately','If material equal, look for simplification','If losing, complicate — dont go quietly']},
   ]},
-  coordinates:{title:'Board Vision & Coordinates',subtitle:'See the whole board, not just where you\'re looking',priority:'medium',icon:'🗺',sections:[
+  coordinates:{title:'Board Vision & Coordinates',subtitle:'See the whole board, not just where you\'re looking',priority:'medium',icon:'',sections:[
     {heading:'Why board vision matters',body:'Many tactical mistakes happen not because players dont know the tactics, but because they literally dont see the whole board. Pieces in the corner or on the far side get ignored. Developing consistent, wide board vision is trainable.'},
     {heading:'The 64-square habit',body:'After every opponent move, before thinking about your own plans, do a quick scan of all 64 squares. It takes 3 seconds. Look for:\n- Undefended pieces\n- Pieces that have changed their attack patterns\n- New diagonals or files that opened'},
     {tip:'Specifically look at pieces that haven\'t moved recently — they\'re often the ones that get forgotten and left hanging.'},
@@ -134,7 +134,7 @@ const LESSONS={
     {heading:'Piece awareness drill',body:'Before making any move, point to every one of your pieces and ask: "Is this piece safe? Is it doing something useful?" This sounds simple but most blunders happen to pieces we\'ve mentally forgotten about.'},
     {heading:'Peripheral vision',body:'',steps:['When calculating a line, periodically check the whole board','Don\'t get so focused on one area that you miss a piece elsewhere','Use process of elimination — if you cannot find the opponent\'s threat, check every piece systematically']},
   ]},
-  mindset:{title:'Chess Mindset & Psychology',subtitle:'The mental game that decides who wins',priority:'medium',icon:'🧠',sections:[
+  mindset:{title:'Chess Mindset & Psychology',subtitle:'The mental game that decides who wins',priority:'medium',icon:'',sections:[
     {heading:'Chess is 50% psychology',body:'At equal technical levels, the player with the stronger mental game wins. This includes: staying calm under pressure, bouncing back from mistakes, not tilting after a bad game, and maintaining focus throughout a long game.'},
     {heading:'After a blunder',body:'The moment you blunder, two things can happen:\n\n1. You panic, your calculation gets worse, you blunder again — you lose.\n2. You take a breath, reset mentally, find the best defence — you might still draw or win.\n\n<strong>The game isnt over when you blunder. It\'s over when you give up.</strong>'},
     {tip:'The most dangerous time in chess is the move AFTER you make a mistake. That\'s when players tilt and make a second, even worse mistake.'},
@@ -150,7 +150,7 @@ const LESSONS={
     {heading:'Managing time pressure',body:'When down to less than 2 minutes:\n1. Stop calculating long variations\n2. Look for the most forcing moves (checks, captures)\n3. Simplify the position if possible\n4. Trust your instincts — your first idea is often good enough'},
     {heading:'Building the time advantage',body:'Try to reach the time control (or endgame) with more time than your opponent. Players who consistently outplay opponents in time pressure develop it as a skill. Move confidently in simple positions to bank time for complex ones.'},
   ]},
-  patterns:{title:'Pattern Recognition',subtitle:'The foundation of chess strength',priority:'high',icon:'🔍',sections:[
+  patterns:{title:'Pattern Recognition',subtitle:'The foundation of chess strength',priority:'high',icon:'',sections:[
     {heading:'What is pattern recognition?',body:'Chess masters dont calculate everything from scratch — they recognise familiar patterns and know the correct responses almost instantly. This "chunking" of knowledge is what makes strong players faster and more accurate.'},
     {heading:'Types of patterns',body:'<strong>Tactical patterns:</strong> Forks, pins, skewers, back-rank mates, smothered mates, discovered attacks.\n\n<strong>Positional patterns:</strong> Outposts, bishop pairs, pawn majorities, rook on 7th.\n\n<strong>Opening patterns:</strong> Standard development schemes, common pawn breaks.\n\n<strong>Endgame patterns:</strong> Opposition, Lucena/Philidor, triangulation.'},
     {tip:'Every puzzle you solve correctly adds a pattern to your mental library. Consistent puzzle training is the most efficient way to build pattern recognition.'},
@@ -158,7 +158,7 @@ const LESSONS={
     {heading:'Pattern vs calculation',body:'Strong players use pattern recognition to quickly identify candidate moves, then use calculation to verify them. Pure calculation without patterns is slow and error-prone. Pure patterns without calculation leads to tactical blunders.'},
     {heading:'Building your pattern library',body:'',steps:['Solve 10 puzzles daily, even if its just 5 minutes','Review games of great players and note recurring themes','After losing, identify the tactical or positional pattern you missed','Study endgame positions until you can recognise them instantly']},
   ]},
-  strategy:{title:'Strategic Chess',subtitle:'The long-term thinking that creates winning positions',priority:'medium',icon:'♟',sections:[
+  strategy:{title:'Strategic Chess',subtitle:'The long-term thinking that creates winning positions',priority:'medium',icon:'',sections:[
     {heading:'Tactics vs strategy',body:'Tactics are about immediate gains — winning material or giving checkmate. Strategy is about building a position where tactics work in your favor. Strategy creates the conditions; tactics execute them.'},
     {heading:'Imbalances',body:'Great chess thinking starts by identifying the imbalances — the differences between the two positions. Common imbalances:\n\n- Material: who has more pieces or pawns?\n- Space: who controls more of the board?\n- Piece activity: whose pieces are better placed?\n- Pawn structure: who has weaknesses/strengths?\n- King safety: whose king is safer?'},
     {tip:'The player who correctly identifies the imbalances and chooses the right plan based on them wins more games than any brilliant calculator.'},
@@ -166,7 +166,7 @@ const LESSONS={
     {heading:'Piece vs piece decisions',body:'<strong>Bishop pair advantage:</strong> Two bishops vs bishop and knight, or two knights. The bishop pair is powerful in open positions.\n<strong>Knight vs bishop:</strong> Knights are better in closed positions with fixed pawn structures. Bishops shine in open games.'},
     {heading:'Strategic thinking process',body:'',steps:['Assess the current imbalances in the position','Determine whose position is better and why','Find the plan that improves your position or exploits the opponent\'s weakness','Execute the plan move by move while responding to threats']},
   ]},
-  rooks:{title:'Mastering Rook Play',subtitle:'The most underutilised piece at club level',priority:'medium',icon:'♜',sections:[
+  rooks:{title:'Mastering Rook Play',subtitle:'The most underutilised piece at club level',priority:'medium',icon:'',sections:[
     {heading:'Why rooks are underused',body:'At club level, rooks are often the last pieces to become active. Players develop minor pieces, castle, then forget about their rooks. Strong players prioritise rook activation and treat open files as highways to victory.'},
     {heading:'Rooks need open files',body:'A rook on a closed file is nearly useless. Your first priority should always be: <strong>put your rooks on open or semi-open files.</strong> Double rooks on an open file for maximum pressure.'},
     {tip:'Before making a positional move, ask: "Does this help or hurt my rooks?" Every time you open a file, your rooks benefit.'},
@@ -174,7 +174,7 @@ const LESSONS={
     {heading:'Rooks behind passed pawns',body:'In endgames, always place your rook BEHIND a passed pawn — yours or your opponent\'s. Behind your passed pawn, the rook pushes it forward. Behind your opponent\'s, it restricts it.'},
     {heading:'Rook endgame technique',body:'',steps:['Put your king in front of your passed pawn', 'Place your rook behind your passed pawn','Cut off the enemy king from the queening square','Use the Lucena and Philidor positions as your foundation','Trade rooks into a won king-pawn endgame when ahead']},
   ]},
-  bishops:{title:'The Power of Bishops',subtitle:'Long-range dominance when used correctly',priority:'medium',icon:'♗',sections:[
+  bishops:{title:'The Power of Bishops',subtitle:'Long-range dominance when used correctly',priority:'medium',icon:'',sections:[
     {heading:'The bishop\'s strength',body:'Bishops are long-range pieces that can control an entire diagonal from across the board. In open positions, bishops are often stronger than knights. The bishop pair — having both bishops when the opponent doesnt — is considered a significant advantage.'},
     {heading:'Good bishop vs bad bishop',body:'A <strong>good bishop</strong> has open diagonals and is not blocked by its own pawns. A <strong>bad bishop</strong> is blocked by pawns fixed on the same color squares it travels. Avoid fixing your pawns on the same color as your bishop.'},
     {tip:'When placing pawns in the opening and middlegame, ask: "Is this pawn going on the same color as my bishop?" If yes, reconsider.'},
@@ -182,7 +182,7 @@ const LESSONS={
     {heading:'Fianchetto',body:'A fianchettoed bishop (developed to g2/b2 or g7/b7) controls a long diagonal and is often very powerful. It\'s particularly strong when pointing at the opponent\'s castled king or controlling the center from a distance.'},
     {heading:'Trading bishop for knight',body:'',steps:['Trade your bad bishop for an active enemy knight','Keep your good bishop and trade the opponent\'s','In endgames, a bishop is usually better than a knight with passed pawns on both sides of the board']},
   ]},
-  knights:{title:'Knight Mastery',subtitle:'The tricky piece that controls the board',priority:'medium',icon:'♞',sections:[
+  knights:{title:'Knight Mastery',subtitle:'The tricky piece that controls the board',priority:'medium',icon:'',sections:[
     {heading:'What makes knights special',body:'Knights are the only pieces that jump over other pieces. Their L-shaped movement means they\'re unpredictable and can surprise opponents. Unlike bishops, knights can access all 64 squares regardless of position color.'},
     {heading:'Knights need outposts',body:'An <strong>outpost</strong> is a square in the opponent\'s territory that cannot be attacked by an enemy pawn. A knight on an outpost is one of the most powerful pieces in chess — its a permanent fixture that the opponent cannot remove.'},
     {tip:'To create a knight outpost, trade the pawn that defends that square. Then station your knight there permanently.'},
@@ -190,7 +190,7 @@ const LESSONS={
     {heading:'Knight manoeuvres',body:'Knights often need several moves to reach their ideal squares. Plan these manoeuvres in advance — a knight heading to c5 might need to go Nd3-b4-c6-d4 or similar. Calculate the path and ensure its safe.'},
     {heading:'The octopus knight',body:'A knight placed on a central square that cannot be attacked is called an "octopus" knight. From d5 or e5 (for White), a knight attacks 8 squares and coordinates with other pieces to dominate the entire board. Achieving this structure is often a winning advantage.'},
   ]},
-  queenplay:{title:'Queen Play',subtitle:'The most powerful piece — used wisely',priority:'medium',icon:'♛',sections:[
+  queenplay:{title:'Queen Play',subtitle:'The most powerful piece — used wisely',priority:'medium',icon:'',sections:[
     {heading:'The queen\'s role',body:'The queen is the most powerful piece but also the most easily misused. Beginners bring it out too early. Advanced players sometimes under-activate it. The key is understanding WHEN and WHERE the queen belongs.'},
     {heading:'Don\'t centralise too early',body:'Bringing the queen out before developing other pieces gives the opponent tempo: they develop a piece while attacking your queen. Every time your queen runs away from an attack, your opponent gains time. Develop minor pieces first.'},
     {tip:'The queen is most powerful when the position is open and your other pieces are already active. Then it can coordinate with everything.'},
@@ -199,7 +199,7 @@ const LESSONS={
     {heading:'Queen in the endgame',body:'In queen endgames, activity is everything. A centralised queen that gives perpetual check threats or creates passed pawns is far stronger than a passive queen. King safety becomes critical — a queen can deliver checkmate alone with the king in the corner.'},
     {heading:'When to trade queens',body:'',steps:['Trade queens when you have a material advantage','Keep queens when you need counterplay','Trade queens to neutralise opponent\'s attack','Avoid queen trades when your queen is the only active piece']},
   ]},
-  attacking:{title:'How to Attack the King',subtitle:'The art of the decisive assault',priority:'medium',icon:'🔥',sections:[
+  attacking:{title:'How to Attack the King',subtitle:'The art of the decisive assault',priority:'medium',icon:'',sections:[
     {heading:'When to attack',body:'Not every position calls for a direct attack. You should attack when:\n- You have more pieces aimed at the king\'s area\n- Your opponent\'s king hasn\'t castled or has castled into a weak structure\n- You have a pawn storm already in motion\n- Your opponent\'s pieces are on the wrong side of the board'},
     {heading:'Prerequisites for a successful attack',body:'',steps:['Open files or diagonals pointing at the king','More attacking pieces than the defender has defenders','No immediate counter-attacks from the opponent','Calculation showing the attack works']},
     {tip:'The most common mistake in attacks: starting before the position is ready. Make sure ALL your pieces are participating before sacrificing material.'},
@@ -207,7 +207,7 @@ const LESSONS={
     {heading:'The exchange sacrifice',body:'Giving a rook for a bishop or knight to destroy the king\'s defensive cover is a common attacking theme. If it removes the key defender and opens lines to the king, the exchange sacrifice is often sound.'},
     {heading:'Mating nets',body:'A mating net is a position where the king cannot escape checkmate regardless of what it does. Build mating nets by:\n1. Cut off king escape squares\n2. Bring all attacking pieces to bear\n3. Deliver the final blow'},
   ]},
-  practical:{title:'Practical Decision Making',subtitle:'Chess is a game of decisions — make better ones',priority:'medium',icon:'🎯',sections:[
+  practical:{title:'Practical Decision Making',subtitle:'Chess is a game of decisions — make better ones',priority:'medium',icon:'',sections:[
     {heading:'The practical approach',body:'In a game, you rarely have time for complete analysis. Practical chess means making good-enough decisions quickly — finding moves that are hard to refute even if not always technically best.'},
     {heading:'When to complicate',body:'Create complications when:\n- You\'re losing — a complicated position gives you more chances\n- Your opponent is in time pressure\n- The position favors the side that calculates better (usually the stronger player)\n\nAvoid complications when winning — a simple, technical win is always best.'},
     {tip:'If you have a good move, play it. You dont need to find the best move every time — good enough usually wins.'},
@@ -215,7 +215,7 @@ const LESSONS={
     {heading:'Prophylaxis in practice',body:'The most practical skill: preventing your opponent\'s plans before they materialise. Every move, ask: "What is my opponent planning for next move? Can I stop it now?" This prevents 90% of tactical disasters.'},
     {heading:'Decision-making framework',body:'',steps:['Identify what your opponent is threatening','Find 2-3 candidate moves that address the threat','Calculate each briefly','Choose the one that creates the most problems for the opponent','Sanity check: any blunders?','Play it']},
   ]},
-  improvement:{title:'How to Actually Improve',subtitle:'The most efficient path to a higher rating',priority:'high',icon:'📈',sections:[
+  improvement:{title:'How to Actually Improve',subtitle:'The most efficient path to a higher rating',priority:'high',icon:'',sections:[
     {heading:'Why most players stop improving',body:'Most club players plateau because they play the same games the same way without structured review. Playing 100 games without analysis gives you 100 repetitions of the same mistakes. Playing 10 games with deep analysis gives you 10 lessons.'},
     {heading:'The improvement formula',body:'',steps:['Play a game (use a time control with increment — not blitz)','After the game, analyse it WITHOUT an engine first','Write down what you think you did wrong','THEN check with the engine','Focus on positions where your assessment was wrong']},
     {tip:'Analysing without the engine first is the most important step. It forces you to use your own judgment, which is what improves.'},
@@ -246,7 +246,7 @@ function hideEl(id){const e=document.getElementById(id);if(e)e.classList.add('hi
 function setXP(val){
   State.xp=val;
   document.getElementById('xp-count').textContent=val;
-  document.getElementById('user-xp-label').textContent=(State.plan==='pro'?'⭐ Pro · ':'')+val+' XP';
+  document.getElementById('user-xp-label').textContent=(State.plan==='pro'?'Pro · ':'')+val+'XP';
   document.getElementById('xp-fill').style.width=Math.min((val%500)/500*100,100)+'%';
 }
 async function awardXP(amount,type,lessonId){
@@ -379,14 +379,14 @@ function showUpgradePrompt(msg){
   const div=document.createElement('div');div.id='upgrade-prompt';
   div.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px)';
   div.innerHTML=`<div style="background:#111118;border:1px solid #2a2a3a;border-radius:16px;padding:2.5rem;width:420px;max-width:95vw;text-align:center;box-shadow:0 0 60px rgba(240,230,210,.08)">
-    <div style="font-size:2.5rem;margin-bottom:1rem">⚡</div>
-    <h2 style="font-size:1.4rem;font-weight:700;margin-bottom:.5rem;color:#f0e6d2">Upgrade to Grandmaster</h2>
+    <div style="font-size:2.5rem;margin-bottom:1rem"></div>
+    <h2 style="font-size:1.4rem;font-weight:700;margin-bottom:.5rem;color:#22E5FF">Upgrade to Grandmaster</h2>
     <p style="color:#666680;font-size:.9rem;margin-bottom:1.5rem">${msg||'You have reached your free plan limit. Upgrade for unlimited analysis.'}</p>
     <div style="background:#18181f;border:1px solid #2a2a3a;border-radius:10px;padding:1.2rem;margin-bottom:1.5rem;text-align:left">
-      <div style="color:#f0e6d2;font-weight:700;font-size:1.1rem;margin-bottom:.8rem">Grandmaster — $9/mo</div>
-      ${['Unlimited game analysis','Full psychological profiling','Custom drill generation','Blunder pattern tracking','Opening repertoire fixes'].map(f=>`<div style="color:#e8e8f0;font-size:.85rem;padding:.2rem 0">✅ ${f}</div>`).join('')}
+      <div style="color:#22E5FF;font-weight:700;font-size:1.1rem;margin-bottom:.8rem">Grandmaster — $9/mo</div>
+      ${['Unlimited game analysis','Full psychological profiling','Custom drill generation','Blunder pattern tracking','Opening repertoire fixes'].map(f=>`<div style="color:#e8e8f0;font-size:.85rem;padding:.2rem 0"> ${f}</div>`).join('')}
     </div>
-    <button onclick="document.getElementById('upgrade-prompt').remove();goToPro()" style="width:100%;background:#f0e6d2;color:#000;border:none;border-radius:10px;padding:.85rem;font-weight:700;font-size:.95rem;cursor:pointer;margin-bottom:.8rem">Get Pro Access — $9/mo ⚡</button>
+    <button onclick="document.getElementById('upgrade-prompt').remove();goToPro()" style="width:100%;background:#22E5FF;color:#000;border:none;border-radius:10px;padding:.85rem;font-weight:700;font-size:.95rem;cursor:pointer;margin-bottom:.8rem">Get Pro Access — $9/mo </button>
     <button onclick="document.getElementById('upgrade-prompt').remove()" style="background:transparent;border:none;color:#666680;font-size:.82rem;cursor:pointer;text-decoration:underline">Maybe later</button>
   </div>`;
   document.body.appendChild(div);
@@ -403,8 +403,8 @@ function showUpgradePrompt(msg){
     window.history.replaceState({},'','/');
     setTimeout(()=>{
       const div=document.createElement('div');
-      div.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#f0e6d2;color:#000;padding:1rem 2rem;border-radius:10px;font-weight:700;font-size:1rem;z-index:9999;box-shadow:0 4px 20px rgba(240,230,210,.4)';
-      div.textContent='🎉 Welcome to ChessForge Pro! Your account has been upgraded.';
+      div.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#22E5FF;color:#000;padding:1rem 2rem;border-radius:10px;font-weight:700;font-size:1rem;z-index:9999;box-shadow:0 4px 20px rgba(240,230,210,.4)';
+      div.textContent='Welcome to ChessForge Pro! Your account has been upgraded.';
       document.body.appendChild(div);
       setTimeout(()=>div.remove(),5000);
     },1000);
@@ -448,7 +448,7 @@ async function renderTrainingPage(force){
   const dueBox=document.getElementById('train-due'), dueList=document.getElementById('train-due-list');
   if(dueBox&&dueList){
     if(due.length){ dueBox.classList.remove('hidden');
-      dueList.innerHTML=due.map(w=>`<button class="due-chip" onclick="TrainingDrill.start('${w.pattern}')">${esc(w.pattern)} <span>→</span></button>`).join('');
+      dueList.innerHTML=due.map(w=>`<button class="due-chip" onclick="TrainingStages.start('${w.pattern}')">${esc(w.pattern)} <span></span></button>`).join('');
     } else dueBox.classList.add('hidden');
   }
   // weakness cards with muscle-memory meters
@@ -456,19 +456,19 @@ async function renderTrainingPage(force){
   grid.innerHTML=ws.map(w=>{
     const col=MM_COLORS[w.band]||'#7a7a9a';
     return `<div class="train-card">
-      <div class="train-card-main" onclick="TrainingDrill.start('${w.pattern}')">
+      <div class="train-card-main" onclick="TrainingStages.start('${w.pattern}')">
         <div class="train-card-head"><span class="train-card-name">${esc(w.pattern)}</span><span class="train-band" style="color:${col};border-color:${col}44">${esc(w.band)}</span></div>
         <p class="train-card-note">${esc(w.note||'')}</p>
         <div class="mm-bar"><div class="mm-fill" style="width:${w.strength}%;background:${col}"></div></div>
         <div class="train-card-foot"><span>${w.strength}% muscle memory</span>${w.due_now?'<span class="due-pill">Due</span>':''}</div>
       </div>
-      <button class="train-rewrite" onclick="TrainingDrill.start('${w.pattern}',{rewrite:true})">↺ Rewrite the mistake</button>
+      <button class="train-rewrite" onclick="TrainingDrill.start('${w.pattern}',{rewrite:true})"> Rewrite the mistake</button>
     </div>`;
   }).join('');
   buildConstellation(ws);
   // mastered
   const mBox=document.getElementById('train-mastered');
-  if(mBox){ mBox.innerHTML = d.mastered ? `<span class="mastered-badge">🏅 ${d.mastered} pattern${d.mastered>1?'s':''} mastered (80%+)</span>` : ''; }
+  if(mBox){ mBox.innerHTML = d.mastered ? `<span class="mastered-badge"> ${d.mastered} pattern${d.mastered>1?'s':''} mastered (80%+)</span>` : ''; }
 }
 
 /* ── Weakness constellation: nodes sized by frequency, coloured by muscle memory ── */
@@ -491,7 +491,7 @@ function buildConstellation(ws){
   if(nodes.length>1) for(let i=0;i<nodes.length;i++){ const a=nodes[i], b=nodes[(i+1)%nodes.length]; links+=`<line x1="${a.cx}" y1="${a.cy}" x2="${b.cx}" y2="${b.cy}" stroke="rgba(240,230,210,.09)" stroke-width="1"/>`; }
   const circles=nodes.map(n=>{
     const col=MM_COLORS[n.w.band]||'#7a7a9a';
-    return `<g class="cm-node" onclick="TrainingDrill.start('${n.w.pattern}')">
+    return `<g class="cm-node" onclick="TrainingStages.start('${n.w.pattern}')">
       <circle cx="${n.cx}" cy="${n.cy}" r="${n.r}" fill="${col}22" stroke="${col}" stroke-width="2"/>
       <circle cx="${n.cx}" cy="${n.cy}" r="${Math.max(3,n.r*0.28)}" fill="${col}"/>
       <text x="${n.cx}" y="${n.cy+n.r+13}" text-anchor="middle" fill="#93918a" font-size="11" font-family="Satoshi,sans-serif">${esc(n.w.pattern)}</text>
@@ -500,11 +500,129 @@ function buildConstellation(ws){
   el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block">${links}${circles}</svg>`;
 }
 
+
+/* ── Training: 5-stage learning sequence (lesson -> guided -> MCQ -> solve -> rewrite) ── */
+const STAGE_NAMES = ['Micro-lesson','Guided example','Recognise it','Play it','Rewrite the mistake'];
+const TrainingStages = {
+  data:null, pattern:'', stage:0, choice:null, confidence:null,
+  async start(pattern){
+    this.pattern = pattern; this.stage = 0; this.choice = null; this.confidence = null;
+    let d = null;
+    try{
+      const r = await fetch('/training/lesson',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({pattern:pattern}),credentials:'include'});
+      d = await r.json();
+    }catch(e){}
+    if(!d || d.error || !d.lesson){ TrainingDrill.start(pattern); return; }   // fall back to plain drill
+    this.data = d;
+    const ov=document.getElementById('drill-overlay');
+    ov.classList.remove('hidden','rewrite');
+    document.getElementById('drill-pattern').textContent = d.pattern;
+    document.getElementById('drill-summary').classList.add('hidden');
+    const body=document.querySelector('.drill-body'); if(body) body.style.display='none';
+    document.getElementById('stage-shell').classList.remove('hidden');
+    this.render();
+  },
+  rail(){
+    return STAGE_NAMES.map((n,i)=>`<div class="stage-dot ${i<this.stage?'done':(i===this.stage?'now':'')}"></div>`).join('');
+  },
+  render(){
+    document.getElementById('stage-rail').innerHTML = this.rail();
+    const el = document.getElementById('stage-body');
+    const d = this.data, L = d.lesson;
+    if(this.stage===0){
+      el.innerHTML = `<div class="stage-kicker">Stage 1 of 5 — ${esc(STAGE_NAMES[0])}</div>
+        <div class="stage-h">${esc(L.title)}</div>
+        ${L.body.map(p=>`<p class="stage-p">${esc(p)}</p>`).join('')}
+        <div class="stage-habit"><b>The habit</b><span>${esc(L.habit)}</span></div>
+        <p class="stage-p" style="font-size:13px;color:var(--text-low)">${esc(L.vocab)}</p>
+        <button class="stage-next" onclick="TrainingStages.next()">Show me an example</button>`;
+    } else if(this.stage===1){
+      const g = d.guided;
+      el.innerHTML = `<div class="stage-kicker">Stage 2 of 5 — ${esc(STAGE_NAMES[1])}</div>
+        <div class="stage-h">Watch the thought process</div>
+        <p class="stage-p">GM Forge walks this position out loud. You are not solving yet — you are watching how the scan works.</p>
+        <div id="stage-board" style="max-width:340px;margin:1rem 0"></div>
+        <p class="stage-p" id="guided-say">${esc((g&&g.hint)||L.habit)}</p>
+        <button class="stage-next" onclick="TrainingStages.next()">I follow — let me try</button>`;
+      if(g && window.ForgeBoard){
+        try{
+          const b=new ForgeBoard('stage-board',{interactive:false,orientation:(g.side==='black'?'black':'white')});
+          b.setPosition(g.fen);
+        }catch(e){}
+      }
+    } else if(this.stage===2){
+      const m = d.mcq;
+      if(!m){ this.next(); return; }
+      el.innerHTML = `<div class="stage-kicker">Stage 3 of 5 — ${esc(STAGE_NAMES[2])}</div>
+        <div class="stage-h">Which move does the position want?</div>
+        <div id="mcq-board" style="max-width:300px;margin:.6rem 0 1rem"></div>
+        <div id="mcq-opts">${m.options.map((o,i)=>
+          `<button class="mcq-opt" data-mv="${esc(o)}" onclick="TrainingStages.choose('${esc(o)}',this)">
+             <span class="ltr">${'ABC'[i]}</span><span>${esc(o)}</span>
+             <span class="sel-check"><svg class="ic"><use href="#ic-check"/></svg></span></button>`).join('')}</div>
+        <div id="conf-wrap"></div><div id="mcq-fb"></div>`;
+      if(window.ForgeBoard){
+        try{
+          const b=new ForgeBoard('mcq-board',{interactive:false,orientation:(m.side==='black'?'black':'white')});
+          b.setPosition(m.fen);
+        }catch(e){}
+      }
+    }
+  },
+  choose(mv, btn){
+    this.choice = mv;
+    document.querySelectorAll('.mcq-opt').forEach(b=>b.classList.remove('selected'));
+    if(btn) btn.classList.add('selected');
+    document.getElementById('conf-wrap').innerHTML =
+      `<div class="stage-kicker" style="margin-top:1rem">Before you see the answer — how sure are you?</div>
+       <div class="conf-row">
+         <button class="conf-btn" onclick="TrainingStages.reveal('Certain')">Certain</button>
+         <button class="conf-btn" onclick="TrainingStages.reveal('Fairly sure')">Fairly sure</button>
+         <button class="conf-btn" onclick="TrainingStages.reveal('Guessing')">Guessing</button>
+       </div>`;
+  },
+  reveal(conf){
+    this.confidence = conf;
+    const d=this.data, m=d.mcq, fb=d.feedback||{};
+    const right = this.choice === m.answer;
+    document.getElementById('conf-wrap').innerHTML='';
+    const strong = (conf==='Certain' && !right);   // hypercorrection: confident + wrong = fullest correction
+    let html;
+    if(right){
+      html = `<div class="fb3"><div class="part rule"><b>Correct — ${esc(conf)}</b>
+        <p>${esc(m.answer)} is the move. ${esc(fb.rule||'')}</p></div></div>`;
+      if(window.CoachFigure) CoachFigure.mood('proud');
+    } else {
+      html = `<div class="fb3">
+        ${strong?'<div class="part"><b>You were confident here</b><p>That is exactly the kind of mistake that corrects hardest and sticks longest. Read this one carefully.</p></div>':''}
+        <div class="part"><b>What you were probably thinking</b><p>${esc(fb.thinking||'')}</p></div>
+        <div class="part"><b>Where that breaks</b><p>${esc(fb.breaks||'')} The move was <b>${esc(m.answer)}</b>.</p></div>
+        <div class="part rule"><b>The rule to carry forward</b><p>${esc(fb.rule||'')}</p></div></div>`;
+      if(window.CoachFigure) CoachFigure.mood('alarm');
+    }
+    document.getElementById('mcq-fb').innerHTML = html +
+      `<button class="stage-next" onclick="TrainingStages.next()">Now play it on the board</button>`;
+  },
+  next(){
+    this.stage++;
+    if(this.stage >= 3){          // stages 4 + 5 are the live board: solve, then rewrite
+      document.getElementById('stage-shell').classList.add('hidden');
+      const body=document.querySelector('.drill-body'); if(body) body.style.display='';
+      TrainingDrill.start(this.pattern, {fromStages:true});
+      return;
+    }
+    this.render();
+  }
+};
+window.TrainingStages = TrainingStages;
+
 /* ── Drill session — full-screen, one pattern, spaced repetition ── */
 const TrainingDrill = {
   positions:[], idx:0, correct:0, pattern:'', streak:0, board:null, game:null, solved:false, rewrite:false,
   async start(pattern, opts){
     this.rewrite = !!(opts && opts.rewrite);
+    this.fromStages = !!(opts && opts.fromStages);
     let d;
     try{
       const r=await fetch('/training/next',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pattern,count:this.rewrite?3:8}),credentials:'include'});
@@ -557,13 +675,13 @@ const TrainingDrill = {
       this.board.setPosition(this.game.fen(),{lastMove:{from,to}});
       fb.className='drill-feedback good';
       const rw = this.rewrite ? ' — this is how it should have gone.' : '';
-      fb.innerHTML=`✔ <b>${esc(mv.san)}</b> — that's it${rw?esc(rw):"."} <span class="fb-tag">${esc(p.pattern)}</span> ${esc(p.hint||'')}`;
+      fb.innerHTML=` <b>${esc(mv.san)}</b> — that's it${rw?esc(rw):"."} <span class="fb-tag">${esc(p.pattern)}</span> ${esc(p.hint||'')}`;
       if(this.rewrite && (p.continuation||p.line)) this._playLine(p.continuation||p.line);
       if(window.ChessSFX) ChessSFX.playWin();
     } else {
       this.game.undo(); this.board.setPosition(before);
       fb.className='drill-feedback bad';
-      fb.innerHTML=`✗ Not that one. The move was <b>${esc(p.solution)}</b>. <span class="fb-tag">${esc(p.pattern)}</span> ${esc(p.hint||'')}`;
+      fb.innerHTML=` Not that one. The move was <b>${esc(p.solution)}</b>. <span class="fb-tag">${esc(p.pattern)}</span> ${esc(p.hint||'')}`;
       if(window.ChessSFX) ChessSFX.playWrong();
     }
     fb.classList.remove('hidden');
@@ -586,7 +704,17 @@ const TrainingDrill = {
       setTimeout(step,750);
     }catch(e){}
   },
-  next(){ this.idx++; if(this.idx>=this.positions.length){ this._finish(); } else { this._load(); } },
+  next(){ this.idx++;
+    if(this.idx>=this.positions.length){
+      if(this.fromStages && !this.rewrite && this.positions.length){   // Stage 5 — rewrite the mistake
+        this.rewrite=true; this.idx=this.positions.length-1;
+        document.getElementById('drill-overlay').classList.add('rewrite');
+        document.getElementById('drill-pattern').textContent='Rewrite - '+this.pattern;
+        this._load(); return;
+      }
+      this._finish();
+    } else { this._load(); }
+  },
   async _finish(){
     const total=this.positions.length;
     let d={};
@@ -599,12 +727,12 @@ const TrainingDrill = {
     const col=MM_COLORS[d.band]||'#7a7a9a';
     sum.innerHTML=`
       <div class="ds-score">${this.correct} / ${total}</div>
-      <div class="ds-line">${d.passed?'🔥 Session passed!':'Keep at it — run it again.'}</div>
+      <div class="ds-line">${d.passed?'Session passed!':'Keep at it — run it again.'}</div>
       <div class="ds-mm"><div class="ds-mm-label">${esc(this.pattern)} — muscle memory</div>
         <div class="mm-bar big"><div class="mm-fill" style="width:${(d.strength||0)}%;background:${col}"></div></div>
         <div class="ds-band" style="color:${col}">${esc(d.band||'')} · ${(d.strength||0)}%</div></div>
-      ${d.mastered?'<div class="ds-master">🏅 Pattern mastered!</div>':''}
-      <div class="ds-next">Next review in ${d.next_review_days||1} day${(d.next_review_days||1)>1?'s':''} · 🔥 ${d.streak||0} day streak</div>
+      ${d.mastered?'<div class="ds-master"> Pattern mastered!</div>':''}
+      <div class="ds-next">Next review in ${d.next_review_days||1} day${(d.next_review_days||1)>1?'s':''} ·  ${d.streak||0} day streak</div>
       <div class="ds-actions"><button class="onb-btn" onclick="TrainingDrill.exit()">Done</button><button class="onb-btn ghost" onclick="TrainingDrill.start('${this.pattern}')">Again</button></div>`;
     sum.classList.remove('hidden');
   },
@@ -660,21 +788,21 @@ document.getElementById('parse-btn').addEventListener('click',async()=>{
     if(!r.ok||d.error){showParseError(d.error||'Could not read the PGN.');return;}
     showPlayerSelection(d);
   }catch(e){showParseError('Network error: '+e.message);}
-  finally{btn.disabled=false;spinner.classList.remove('on');btnText.textContent='Load Game →';}
+  finally{btn.disabled=false;spinner.classList.remove('on');btnText.textContent='Load Game ';}
 });
 
-function showParseError(msg){const b=document.getElementById('parse-error');b.textContent='⚠ '+msg;b.classList.remove('hidden');}
+function showParseError(msg){const b=document.getElementById('parse-error');b.textContent=' '+msg;b.classList.remove('hidden');}
 
 function showPlayerSelection(data){
   const card=document.getElementById('step2-card');card.classList.remove('hidden');
   const row=document.getElementById('player-select-row');
   const info=document.getElementById('game-info-row');
   let infoHtml='';
-  if(data.event&&data.event!=='?')infoHtml+=`<span>📋 ${esc(data.event)}</span>`;
-  if(data.date&&data.date!=='?')infoHtml+=`<span>📅 ${esc(data.date)}</span>`;
+  if(data.event&&data.event!=='?')infoHtml+=`<span> ${esc(data.event)}</span>`;
+  if(data.date&&data.date!=='?')infoHtml+=`<span> ${esc(data.date)}</span>`;
   info.innerHTML=infoHtml;
   row.innerHTML='';
-  [{color:'white',name:data.white,label:'⬜ White'},{color:'black',name:data.black,label:'⬛ Black'}].forEach(p=>{
+  [{color:'white',name:data.white,label:'White'},{color:'black',name:data.black,label:'Black'}].forEach(p=>{
     if(!p.name)return;
     const btn=document.createElement('button');btn.className=`player-btn ${p.color}-btn`;
     btn.innerHTML=`<div class="player-btn-color">${p.label}</div><div class="player-btn-name">${esc(p.name)}</div>`;
@@ -731,15 +859,15 @@ async function runAnalysis(playerColor){
 /* ── Save Game ─────────────────────────────────────────────────────────────── */
 const _sgb=document.getElementById('save-game-btn'); if(_sgb) _sgb.addEventListener('click',async()=>{
   if(!State.loggedIn){showAuthModal();return;}
-  if(!State.lastPGN){const b=document.getElementById('save-game-btn')||{textContent:'',textContent:''};if(!document.getElementById('save-game-btn'))return;b.textContent='⚠ Analyse a game first!';setTimeout(()=>b.textContent='💾 Save Game',2000);return;}
+  if(!State.lastPGN){const b=document.getElementById('save-game-btn')||{textContent:'',textContent:''};if(!document.getElementById('save-game-btn'))return;b.textContent='Analyse a game first!';setTimeout(()=>b.textContent='Save Game',2000);return;}
   const metas=State.analysisData?.game_metas||[];
   const label=metas.length?`${metas[0].white} vs ${metas[0].black} (${metas[0].date})`:'Game';
   try{
     const r=await fetch('/auth/save-game',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pgn:State.lastPGN,label}),credentials:'include'});
     const d=await r.json();
     if(d.ok){
-      const b=document.getElementById('save-game-btn');b.textContent='✅ Saved!';
-      setTimeout(()=>b.textContent='💾 Save Game',2000);
+      const b=document.getElementById('save-game-btn');b.textContent='Saved!';
+      setTimeout(()=>b.textContent='Save Game',2000);
       if(d.games)renderSavedGames(d.games);
     }
   }catch(e){}
@@ -747,13 +875,13 @@ const _sgb=document.getElementById('save-game-btn'); if(_sgb) _sgb.addEventListe
 
 /* ── Render Analysis ───────────────────────────────────────────────────────── */
 function renderAnalysis(data){
-  const icons={'Reckless Gambler':'🎲','Tactical Dreamer':'🔍','Opening Adventurer':'🗺','Middlegame Fighter':'⚔','Daring Attacker':'🔥','Solid but Passive':'🛡','Balanced Player':'⚖'};
-  document.getElementById('profile-icon').textContent=icons[data.profile.style]||'♟';
+  const icons={'Reckless Gambler':'','Tactical Dreamer':'','Opening Adventurer':'','Middlegame Fighter':'','Daring Attacker':'','Solid but Passive':'','Balanced Player':''};
+  document.getElementById('profile-icon').textContent=icons[data.profile.style]||'';
   document.getElementById('profile-style').textContent=data.profile.style;
   document.getElementById('profile-desc').textContent=data.profile.description;
   const cb=document.getElementById('player-color-badge');cb.innerHTML='';
   const pc=data.player_color;
-  if(pc){const b=document.createElement('span');b.className='color-badge '+pc;b.textContent=pc==='white'?'⬜ Analysed as White':'⬛ Analysed as Black';cb.appendChild(b);}
+  if(pc){const b=document.createElement('span');b.className='color-badge '+pc;b.textContent=pc==='white'?'Analysed as White':'Analysed as Black';cb.appendChild(b);}
   const sev=data.severity_counts||{};
   document.getElementById('s-blunder').textContent=sev.blunder||0;
   document.getElementById('s-mistake').textContent=sev.mistake||0;
@@ -886,9 +1014,9 @@ function updateReplayInfo(){
   if(ply>=moves.length){el.textContent='End of game';return;}
   const m=moves[ply];
   let t=`Move ${m.move_number} · ${cap(m.side)}: ${m.san}`;
-  if(m.severity==='blunder')t+='  🔴 Blunder!';
-  else if(m.severity==='mistake')t+='  🟠 Mistake';
-  else if(m.severity==='inaccuracy')t+='  🟡 Inaccuracy';
+  if(m.severity==='blunder')t+='Blunder!';
+  else if(m.severity==='mistake')t+='Mistake';
+  else if(m.severity==='inaccuracy')t+='Inaccuracy';
   if(m.best_move&&m.severity)t+=`  · Best: ${m.best_move}`;
   el.textContent=t;
 }
@@ -1085,12 +1213,12 @@ function checkPuzzleMove(mv, src, tgt){
   const ok = mv.san === p.solution || uci === solUCI;
   const status = document.getElementById('puzzle-status');
   if(ok){
-    status.textContent = '✅ Correct! Well done!';
+    status.textContent = 'Correct! Well done!';
     status.style.color = 'var(--green)';
     State.puzzleCorrect++;
     awardXP(50,'puzzle');
   } else {
-    status.textContent = `❌ Not quite (${mv.san}) — try again!`;
+    status.textContent = ` Not quite (${mv.san}) — try again!`;
     status.style.color = 'var(--red)';
     State.puzzleWrong++;
     State.puzzleGame.undo();
@@ -1130,7 +1258,7 @@ function handlePuzzleDrop(src,tgt){
 document.getElementById('hint-btn').addEventListener('click',()=>{
   const p=State.puzzles[State.puzzleIdx];if(!p)return;
   const h=document.getElementById('puzzle-hint-text');h.classList.remove('hidden');
-  h.textContent=`💡 Best move: ${p.solution}`;
+  h.textContent=` Best move: ${p.solution}`;
 });
 document.getElementById('next-puzzle-btn').addEventListener('click',async()=>{
   if(!State.puzzles.length)return;
@@ -1160,7 +1288,7 @@ function initLessonsPage(){
     const L=LESSONS[id];const done=State.completedLessons.includes(id);
     const item=document.createElement('div');
     item.className='lesson-nav-item'+(done?' completed':'');item.dataset.lesson=id;
-    item.innerHTML=`<div class="lesson-nav-title">${L.icon} ${L.title}</div><div class="lesson-nav-tag">${i===0&&State.lessonOrder.length?'⭐ Priority':('Lesson '+(i+1))}</div>`;
+    item.innerHTML=`<div class="lesson-nav-title">${L.icon} ${L.title}</div><div class="lesson-nav-tag">${i===0&&State.lessonOrder.length?'Priority':('Lesson '+(i+1))}</div>`;
     item.addEventListener('click',()=>{document.querySelectorAll('.lesson-nav-item').forEach(el=>el.classList.remove('active'));item.classList.add('active');renderLesson(id);});
     sidebar.appendChild(item);
     if(i===0){item.classList.add('active');renderLesson(id);}
@@ -1173,17 +1301,17 @@ function renderLesson(id){
   // Save premium lesson section before wiping
   const premSaved = document.getElementById('premium-lesson-section');
   const premHTML = premSaved ? premSaved.outerHTML : null;
-  let html=`<div class="lesson-priority-badge ${L.priority}">${L.priority==='high'?'⭐ High Priority':'📌 Recommended'}</div><div class="lesson-title">${L.icon} ${L.title}</div><div class="lesson-subtitle">${L.subtitle}</div>`;
+  let html=`<div class="lesson-priority-badge ${L.priority}">${L.priority==='high'?'High Priority':'Recommended'}</div><div class="lesson-title">${L.icon} ${L.title}</div><div class="lesson-subtitle">${L.subtitle}</div>`;
   L.sections.forEach(s=>{
     html+=`<div class="lesson-section">`;
     if(s.heading)html+=`<h3>${s.heading}</h3>`;
     if(s.body)html+=`<p>${s.body.replace(/\n\n/g,'</p><p>').replace(/\n/g,'<br>')}</p>`;
-    if(s.tip)html+=`<div class="lesson-tip">💡 <strong>Pro tip:</strong> ${s.tip}</div>`;
-    if(s.warning)html+=`<div class="lesson-warning">⚠️ <strong>Watch out:</strong> ${s.warning}</div>`;
+    if(s.tip)html+=`<div class="lesson-tip"> <strong>Pro tip:</strong> ${s.tip}</div>`;
+    if(s.warning)html+=`<div class="lesson-warning"> <strong>Watch out:</strong> ${s.warning}</div>`;
     if(s.steps)html+=`<ol class="lesson-steps">${s.steps.map(st=>`<li>${st}</li>`).join('')}</ol>`;
     html+=`</div>`;
   });
-  html+=`<div class="lesson-complete-btn">${done?`<button class="btn-outline" disabled>✅ Completed (+30 XP earned)</button>`:`<button class="btn-cyan" id="complete-btn" onclick="completeLesson('${id}')" style="max-width:280px">✅ Mark Complete (+30 XP)</button>`}</div>`;
+  html+=`<div class="lesson-complete-btn">${done?`<button class="btn-outline" disabled> Completed (+30 XP earned)</button>`:`<button class="btn-cyan" id="complete-btn" onclick="completeLesson('${id}')" style="max-width:280px"> Mark Complete (+30 XP)</button>`}</div>`;
   const lc = document.getElementById('lesson-content');
   lc.innerHTML = html;
   // Restore premium lesson at top
@@ -1198,7 +1326,7 @@ function renderLesson(id){
 async function completeLesson(id){
   await awardXP(30,'lesson',id);
   const btn=document.getElementById('complete-btn');
-  if(btn){btn.textContent='✅ Completed!';btn.disabled=true;btn.className='btn-outline';}
+  if(btn){btn.textContent='Completed!';btn.disabled=true;btn.className='btn-outline';}
 }
 
 /* ── PROGRESS ─────────────────────────────────────────────────────────────── */
@@ -1214,7 +1342,7 @@ function renderSavedGames(games){
   [...games].reverse().forEach(g=>{
     const d=new Date(g.saved*1000).toLocaleDateString();
     const item=document.createElement('div');item.className='saved-game-item';
-    item.innerHTML=`<div class="saved-game-info"><div>${esc(g.label)}</div><div class="saved-game-date">${d}</div></div><button class="load-btn">Load →</button>`;
+    item.innerHTML=`<div class="saved-game-info"><div>${esc(g.label)}</div><div class="saved-game-date">${d}</div></div><button class="load-btn">Load </button>`;
     item.querySelector('button').addEventListener('click',function(){
       document.getElementById('pgn-text').value=g.pgn;
       State.lastPGN=g.pgn;State.lastUploadedFile=null;
@@ -1234,8 +1362,8 @@ async function handleURLParams(){
     if(State.loggedIn){
       if(State.plan==='pro'){
         const div=document.createElement('div');
-        div.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#f0e6d2;color:#000;padding:1rem 2rem;border-radius:10px;font-weight:700;z-index:9999';
-        div.textContent='⭐ You are already on ChessForge Pro!';
+        div.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#22E5FF;color:#000;padding:1rem 2rem;border-radius:10px;font-weight:700;z-index:9999';
+        div.textContent='You are already on ChessForge Pro!';
         document.body.appendChild(div);setTimeout(()=>div.remove(),3000);
       } else goToPro();
     } else {showAuthModal();State.pendingUpgrade=true;}
@@ -1315,7 +1443,7 @@ function renderCognitiveFingerprint(fp){
   const gamesNeeded = fp.games_needed || 0;
 
   let html = `
-    <div class="card-label">🧠 Thinking Process Fingerprint</div>
+    <div class="card-label"> Thinking Process Fingerprint</div>
     <h2>${esc(fp.dominant_pattern)}</h2>
     <p style="color:var(--muted);font-size:.88rem;margin-bottom:.8rem">
       Based on your game analysis, ChessForge has identified the cognitive patterns behind your mistakes — not just what you do wrong, but <strong style="color:var(--text)">why</strong>.
@@ -1331,10 +1459,10 @@ function renderCognitiveFingerprint(fp){
   (fp.patterns || []).forEach(p => {
     html += `
       <div class="fp-pattern ${p.severity}">
-        <div class="fp-name">⚠ ${esc(p.name)}</div>
+        <div class="fp-name"> ${esc(p.name)}</div>
         <div class="fp-desc">${esc(p.description)}</div>
-        <div class="fp-trigger">📌 When it happens: ${esc(p.trigger)}</div>
-        <div class="fp-fix">✅ Fix: ${esc(p.fix)}</div>
+        <div class="fp-trigger"> When it happens: ${esc(p.trigger)}</div>
+        <div class="fp-fix"> Fix: ${esc(p.fix)}</div>
       </div>`;
   });
 
@@ -1468,7 +1596,7 @@ function checkSqForFen(fen){
   }catch(e){}
   return null;
 }
-// Build the "what happens" playback: your move → opponent's punishment, plus the better move.
+// Build the "what happens" playback: your move  opponent's punishment, plus the better move.
 function buildPauseFrames(fenBefore, sanPlayed, d){
   const frames=[];
   try{
@@ -1569,7 +1697,7 @@ async function makeBotMove(){
       BotState.board.setPosition(BotState.game.fen(), {lastMove:{from,to}, checkSquare:coachKingCheckSquare()});
       rebuildBotHistory();
       BotState.lastBotSan = mv.san;
-      setBotStatus(d.in_check ? ('♟ Bot played ' + mv.san + ' — you are in CHECK!') : ('♟ Bot played ' + mv.san + ' — your turn.'));
+      setBotStatus(d.in_check ? ('Bot played ' + mv.san + ' — you are in CHECK!') : ('Bot played ' + mv.san + ' — your turn.'));
       if(State.coachMode==='coached' && !BotState.game.game_over()){
         setTimeout(()=>Coach.afterBotMove(mv.san), 300);
       }
@@ -1606,7 +1734,7 @@ function checkBotGameOver(){
   if(BotState.game.in_checkmate()){
     const winner = BotState.game.turn() === 'w' ? 'Black' : 'White';
     const playerWon = (winner === 'White' && BotState.playerColor === 'white') || (winner === 'Black' && BotState.playerColor === 'black');
-    result = playerWon ? '🎉 You won by checkmate!' : '😔 Bot won by checkmate.';
+    result = playerWon ? 'You won by checkmate!' : 'Bot won by checkmate.';
   } else if(BotState.game.in_stalemate()){ result = '½ Stalemate — draw!'; }
   else if(BotState.game.in_draw()){ result = '½ Draw!'; }
   setBotStatus(result);
@@ -1647,16 +1775,16 @@ function copyBotPGN(){
     const success = document.execCommand('copy');
     document.body.removeChild(ta);
     if(success && btn){
-      btn.textContent = '✅ Copied to clipboard!';
+      btn.textContent = 'Copied to clipboard!';
       btn.style.color = 'var(--green)';
       btn.style.borderColor = 'var(--green)';
-      setTimeout(()=>{btn.textContent='📋 Copy PGN';btn.style.color='';btn.style.borderColor='';}, 2500);
+      setTimeout(()=>{btn.textContent='Copy PGN';btn.style.color='';btn.style.borderColor='';}, 2500);
     }
   } catch(e) {
     // Try clipboard API as fallback
     if(navigator.clipboard){
       navigator.clipboard.writeText(pgn).then(()=>{
-        if(btn){btn.textContent='✅ Copied!';setTimeout(()=>btn.textContent='📋 Copy PGN',2500);}
+        if(btn){btn.textContent='Copied!';setTimeout(()=>btn.textContent='Copy PGN',2500);}
       });
     }
   }
@@ -1677,7 +1805,7 @@ function showBotReview(){
     <div class="bot-review-item"><strong>Tip:</strong> ${getBotTip()}</div>
     <div style="margin-top:.8rem;display:flex;gap:.6rem;flex-wrap:wrap">
       <button class="btn-outline" onclick="startBotGame()">Play Again</button>
-      <button class="btn-outline" id="copy-pgn-btn" onclick="copyBotPGN()">📋 Copy PGN</button>
+      <button class="btn-outline" id="copy-pgn-btn" onclick="copyBotPGN()"> Copy PGN</button>
     </div>
     <p style="color:var(--muted);font-size:.78rem;margin-top:.5rem">Paste PGN into the Analyze tab to see exactly where mistakes happened!</p>`;
   content.innerHTML = html;
@@ -1697,7 +1825,7 @@ function getBotTip(){
 
 /* ── Tutorial ─────────────────────────────────────────────────────────────── */
 const TUTORIAL_STEPS = [
-  {title:'Welcome to ChessForge! ♟', desc:'Let me show you around in 30 seconds. ChessForge analyses YOUR games to find YOUR specific patterns — not generic advice.', target:null, pos:{top:'50%',left:'50%',transform:'translate(-50%,-50%)'}},
+  {title:'Welcome to ChessForge! ', desc:'Let me show you around in 30 seconds. ChessForge analyses YOUR games to find YOUR specific patterns — not generic advice.', target:null, pos:{top:'50%',left:'50%',transform:'translate(-50%,-50%)'}},
   {title:'Step 1: Analyze', desc:"Start by pasting a PGN from Chess.com or Lichess and clicking Load Game. We'll identify which player you are, then run Stockfish at depth 16.", target:'page-analyze', pos:{top:'20%',left:'50%',transform:'translateX(-50%)'}},
   {title:'Step 2: Your Fingerprint', desc:'After analysis, ChessForge builds your Thinking Process Fingerprint — identifying WHY you make mistakes, not just what.', target:null, pos:{top:'30%',left:'50%',transform:'translateX(-50%)'}},
   {title:'Step 3: Puzzles', desc:"Your blunders become puzzles you solve. After your puzzles run out, infinite puzzles target your specific weakness patterns.", target:'page-puzzles', pos:{top:'20%',left:'50%',transform:'translateX(-50%)'}},
@@ -1808,10 +1936,10 @@ function renderPremiumLesson(){
   if(!isPro){
     premDiv.innerHTML = `
       <div class="locked-lesson">
-        <div class="locked-lesson-icon">⭐</div>
+        <div class="locked-lesson-icon"></div>
         <h3>Personal Game Lessons</h3>
         <p>Upgrade to Pro to unlock interactive lessons built directly from YOUR games — with multiple choice questions, personalised theory, and coaching from your actual mistakes.</p>
-        <button class="btn-cyan" onclick="goToPro()" style="width:auto;margin:0 auto">Upgrade to Pro →</button>
+        <button class="btn-cyan" onclick="goToPro()" style="width:auto;margin:0 auto">Upgrade to Pro </button>
       </div>`;
     container.insertBefore(premDiv, container.firstChild);
     return;
@@ -1820,10 +1948,10 @@ function renderPremiumLesson(){
   if(!hasData){
     premDiv.innerHTML = `
       <div class="locked-lesson">
-        <div class="locked-lesson-icon">📊</div>
+        <div class="locked-lesson-icon"></div>
         <h3>Personal Game Lessons</h3>
         <p>Analyse a game first — ChessForge will build an interactive lesson from your specific mistakes.</p>
-        <button class="btn-outline" onclick="showPage('analyze')">Analyse a Game →</button>
+        <button class="btn-outline" onclick="showPage('analyze')">Analyse a Game </button>
       </div>`;
     container.insertBefore(premDiv, container.firstChild);
     return;
@@ -1904,15 +2032,15 @@ function renderPremiumLesson(){
 
   premDiv.innerHTML = `
     <div class="premium-lesson-card">
-      <div class="premium-lesson-badge">⭐ Your Personal Lesson — Based on ${gamesAnalysed} Game${gamesAnalysed!==1?'s':''}</div>
+      <div class="premium-lesson-badge"> Your Personal Lesson — Based on ${gamesAnalysed} Game${gamesAnalysed!==1?'s':''}</div>
       <div class="premium-lesson-title">${content.title}</div>
       <div style="background:var(--bg3);border-radius:8px;padding:1rem;margin:1rem 0;font-size:.87rem;color:var(--muted);line-height:1.7">${content.theory}</div>
       <div class="card-label" style="margin-bottom:.6rem">The 3-Step Fix</div>
       ${stepsHTML}
       <div style="background:var(--cyan-dim);border-left:2px solid var(--cyan);padding:.7rem 1rem;border-radius:0 8px 8px 0;margin:1rem 0;font-size:.85rem;color:var(--cyan)">
-        💡 <strong>Key lesson:</strong> ${content.keyLesson}
+         <strong>Key lesson:</strong> ${content.keyLesson}
       </div>
-      <div class="card-label" style="margin-top:1.2rem;padding-top:1.2rem;border-top:1px solid var(--border)">🧠 Test Your Understanding</div>
+      <div class="card-label" style="margin-top:1.2rem;padding-top:1.2rem;border-top:1px solid var(--border)"> Test Your Understanding</div>
       <div id="prem-mcq-area" style="margin-top:.8rem"></div>
     </div>`;
 
@@ -1927,12 +2055,12 @@ function showPremiumMCQ(idx){
   if(!area) return;
   const mcq = window._premiumMCQ;
   if(!mcq || idx >= mcq.length){
-    area.innerHTML = `<div style="color:var(--green);font-size:.95rem;font-weight:600;padding:1rem 0">🎉 Quiz complete! Score: ${window._premiumMCQScore}/${mcq?mcq.length:0}. Great work!</div>`;
+    area.innerHTML = `<div style="color:var(--green);font-size:.95rem;font-weight:600;padding:1rem 0"> Quiz complete! Score: ${window._premiumMCQScore}/${mcq?mcq.length:0}. Great work!</div>`;
     return;
   }
   const q = mcq[idx];
   const optsHTML = q.opts.map((o,i)=>`
-    <button onclick="answerPremiumMCQ(${i})" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);font-family:Inter,sans-serif;font-size:.85rem;padding:.6rem 1rem;border-radius:8px;cursor:pointer;text-align:left;margin-bottom:.4rem;transition:all .2s" onmouseover="this.style.borderColor='var(--cyan)'" onmouseout="this.style.borderColor='var(--border)'">${o}</button>
+    <button onclick="answerPremiumMCQ(${i})" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);font-family:var(--font-ui);font-size:.85rem;padding:.6rem 1rem;border-radius:8px;cursor:pointer;text-align:left;margin-bottom:.4rem;transition:all .2s" onmouseover="this.style.borderColor='var(--cyan)'" onmouseout="this.style.borderColor='var(--border)'">${o}</button>
   `).join('');
   area.innerHTML = `
     <div style="font-size:.88rem;font-weight:600;color:var(--text);margin-bottom:.8rem">Q${idx+1}/${mcq.length}: ${esc(q.q)}</div>
@@ -1959,11 +2087,11 @@ function answerPremiumMCQ(chosen){
   feedback.style.cssText = 'margin-top:.8rem;padding:.7rem 1rem;border-radius:8px;font-size:.85rem;';
   feedback.style.background = chosen===correct ? 'rgba(46,213,115,.1)' : 'rgba(255,71,87,.1)';
   feedback.style.color = chosen===correct ? 'var(--green)' : 'var(--red)';
-  feedback.innerHTML = chosen===correct ? '✅ Correct! ' : `❌ The correct answer is: <strong>${q.opts[correct]}</strong>. `;
+  feedback.innerHTML = chosen===correct ? 'Correct! ' : ` The correct answer is: <strong>${q.opts[correct]}</strong>. `;
   area.appendChild(feedback);
   const nextBtn = document.createElement('button');
-  nextBtn.textContent = idx+1 < mcq.length ? 'Next Question →' : 'Finish Quiz';
-  nextBtn.style.cssText = 'margin-top:.6rem;background:var(--cyan);color:#000;border:none;border-radius:8px;padding:.5rem 1.2rem;font-weight:700;cursor:pointer;font-family:Inter,sans-serif;';
+  nextBtn.textContent = idx+1 < mcq.length ? 'Next Question ' : 'Finish Quiz';
+  nextBtn.style.cssText = 'margin-top:.6rem;background:var(--cyan);color:#000;border:none;border-radius:8px;padding:.5rem 1.2rem;font-weight:700;cursor:pointer;font-family:var(--font-ui);';
   nextBtn.onclick = ()=>{ window._premiumMCQIdx++; showPremiumMCQ(window._premiumMCQIdx); };
   area.appendChild(nextBtn);
 }
@@ -2032,20 +2160,123 @@ function coachApplyMarks(d){
   if(handSq && BotState.board && BotState.board.point) BotState.board.point(handSq);
 }
 
-/* ── The big coach character: reacts with moods (idle / think / alarm / happy) ── */
+/* ── GM Forge: expression layers + arm control ── */
 const CoachFigure = (function(){
-  const EXPR = {idle:'neutral', think:'curious', alarm:'concerned', happy:'excited'};
-  const face = ()=>document.getElementById('coach-face');
-  const stage = ()=>document.getElementById('coach-big');
-  function _src(name){ const f=face(); if(f) f.setAttribute('src','/static/coach/coach-'+name+'.svg'); }
-  function mood(m){ const S=stage(); if(S){ S.classList.remove('idle','think','alarm','happy','pointing'); S.classList.add(m||'idle','entered'); } _src(EXPR[m]||'neutral'); }
-  function point(){ const S=stage(); if(S){ S.classList.add('entered','pointing'); } _src('point'); }   // extends the arm at the board
-  function rest(){ const S=stage(); if(S) S.classList.remove('pointing'); _src('neutral'); }
+  const EXPR={idle:'neutral', think:'curious', alarm:'concerned', happy:'excited', proud:'impressed'};
+  function stage(){ return document.getElementById('coach-big'); }
+  function setExpr(name){ const S=stage(); if(S) S.setAttribute('data-expr', name||'neutral'); }
+  function mood(m){
+    const S=stage();
+    if(S){ S.classList.remove('idle','think','alarm','happy','proud'); S.classList.add(m||'idle','entered'); }
+    setExpr(EXPR[m]||'neutral');
+  }
+  function point(sq){ if(sq && window.ForgePointer) ForgePointer.pointAt(sq); }
+  function pointSeq(list){ if(window.ForgePointer) ForgePointer.sequence(list); }
+  function rest(){ if(window.ForgePointer) ForgePointer.retract(); }
   function enter(){ const S=stage(); if(S) S.classList.add('entered'); }
-  function exit(){ const S=stage(); if(S) S.classList.remove('entered'); }   // retreats off to the right
-  return {point, rest, mood, enter, exit};
+  function exit(){ const S=stage(); if(S) S.classList.remove('entered'); rest(); }
+  return {mood:mood, point:point, pointSeq:pointSeq, rest:rest, enter:enter, exit:exit, setExpr:setExpr};
 })();
 window.CoachFigure = CoachFigure;
+
+/* ── GM Forge pointing arm: shoulder -> board square, on a full-viewport overlay ── */
+const ForgePointer = {
+  active:false, holdTimer:0,
+  layer(){ return document.getElementById('forge-pointer-layer'); },
+  sync(){ const l=this.layer(); if(l) l.setAttribute('viewBox','0 0 '+window.innerWidth+' '+window.innerHeight); },
+  _shoulder(){ return document.getElementById('forge-shoulder'); },
+  _square(sq){ return document.querySelector('.fb-sq[data-square="'+sq+'"]'); },
+  /* pure geometry (unit-tested): quadratic bezier shoulder -> wrist, wrist = gap short of square centre */
+  geom(shRect, sqRect, gap){
+    gap = (gap==null) ? 28 : gap;
+    const x1 = shRect.left + shRect.width/2,  y1 = shRect.top + shRect.height/2;
+    const cx = sqRect.left + sqRect.width/2,  cy = sqRect.top  + sqRect.height/2;
+    const dx = cx-x1, dy = cy-y1;
+    const len = Math.hypot(dx,dy) || 1;
+    const ux = dx/len, uy = dy/len;
+    const x2 = cx - ux*gap, y2 = cy - uy*gap;
+    const mx = (x1+x2)/2, my = (y1+y2)/2;
+    const off = Math.hypot(x2-x1, y2-y1) * 0.15;
+    const qx = mx - uy*off, qy = my + ux*off;
+    const ang = Math.atan2(y2-qy, x2-qx) * 180/Math.PI;
+    return {x1:x1,y1:y1,qx:qx,qy:qy,x2:x2,y2:y2,cx:cx,cy:cy,ang:ang,len:len};
+  },
+  /* hand transform — art has its FINGERTIP at local (0,0), so the tip lands exactly on centre */
+  handTransform(g){ return 'translate('+g.cx+','+g.cy+') rotate('+g.ang+')'; },
+  pointAt(square, opts){
+    opts = opts || {};
+    const l=this.layer(), sh=this._shoulder(), sqEl=this._square(square);
+    if(!l || !sh || !sqEl) return false;          // not mounted -> skip, never throw
+    this.sync();
+    const g = this.geom(sh.getBoundingClientRect(), sqEl.getBoundingClientRect(), opts.gap);
+    if(!isFinite(g.x1) || !isFinite(g.cx)) return false;
+    const d = 'M'+g.x1+' '+g.y1+'Q'+g.qx+' '+g.qy+' '+g.x2+' '+g.y2;
+    const arm=document.getElementById('forge-arm'), out=document.getElementById('forge-arm-out'), hand=document.getElementById('forge-hand');
+    if(!arm||!out||!hand) return false;
+    [out,arm].forEach(function(p){ p.setAttribute('d', d); });
+    const sweeping = this.active && opts.sweep;
+    if(!sweeping){
+      const L = arm.getTotalLength ? arm.getTotalLength() : g.len;
+      [out,arm].forEach(function(p){
+        p.style.transition='none';
+        p.style.strokeDasharray=L; p.style.strokeDashoffset=L;
+      });
+      void arm.getBoundingClientRect();
+      requestAnimationFrame(function(){
+        [out,arm].forEach(function(p){
+          p.style.transition='stroke-dashoffset .42s cubic-bezier(.34,1.4,.64,1)';
+          p.style.strokeDashoffset=0;
+        });
+      });
+      hand.style.transition='none'; hand.style.opacity=0;
+      hand.setAttribute('transform', this.handTransform(g));
+      const self=this;
+      setTimeout(function(){
+        hand.style.transition='opacity .18s ease-out, transform .18s cubic-bezier(.34,1.4,.64,1)';
+        hand.style.opacity=1; hand.setAttribute('transform', self.handTransform(g));
+      }, 300);
+    } else {
+      hand.style.transition='opacity .18s ease-out';
+      hand.setAttribute('transform', this.handTransform(g));   // sweep: endpoint slides, arm stays out
+    }
+    document.querySelectorAll('.fb-sq--pointed').forEach(function(s){ s.classList.remove('fb-sq--pointed'); });
+    sqEl.classList.add('fb-sq--pointed');
+    this.active=true; this.lastSquare=square;
+    return true;
+  },
+  /* hold on A, then sweep to B without retracting: "this piece attacks this AND this" */
+  sequence(squares, holdMs){
+    if(!squares || !squares.length) return;
+    const self=this; holdMs = holdMs||1200;
+    clearTimeout(this.holdTimer);
+    this.pointAt(squares[0]);
+    let i=1;
+    (function step(){
+      if(i>=squares.length) return;
+      self.holdTimer=setTimeout(function(){
+        self.pointAt(squares[i], {sweep:true}); i++; step();
+      }, holdMs);
+    })();
+  },
+  retract(){
+    clearTimeout(this.holdTimer);
+    const arm=document.getElementById('forge-arm'), out=document.getElementById('forge-arm-out'), hand=document.getElementById('forge-hand');
+    document.querySelectorAll('.fb-sq--pointed').forEach(function(s){ s.classList.remove('fb-sq--pointed'); });
+    if(hand){ hand.style.transition='opacity .2s ease-in'; hand.style.opacity=0; }
+    [out,arm].forEach(function(p){
+      if(!p) return;
+      const L = p.getTotalLength ? p.getTotalLength() : 0;
+      p.style.transition='stroke-dashoffset .3s ease-in';
+      p.style.strokeDashoffset = L;
+    });
+    this.active=false;
+  }
+};
+window.ForgePointer = ForgePointer;
+window.addEventListener('resize', function(){
+  ForgePointer.sync();
+  if(ForgePointer.active && ForgePointer.lastSquare) ForgePointer.pointAt(ForgePointer.lastSquare, {sweep:true});
+});
 
 /* ── Two-phase coaching: ask -> (player engages) -> reveal, with synced marks ── */
 const CoachDialogue = {
@@ -2059,13 +2290,15 @@ const CoachDialogue = {
     if(BotState.board && BotState.board.clearMarks){
       BotState.board.clearMarks();
       (d.highlights||[]).forEach(h=>{ if(h && h.square) BotState.board.highlight(h.square, h.color); });
-      if(d.highlights && d.highlights[0] && BotState.board.point){ BotState.board.point(d.highlights[0].square); CoachFigure.point(); }
+      const hs=(d.highlights||[]).map(function(h){return h&&h.square;}).filter(Boolean);
+      if(hs.length>1) CoachFigure.pointSeq(hs); else if(hs.length===1) CoachFigure.point(hs[0]);
+      if(hs.length) document.body.classList.add('forge-focus');
     }
     if(q){
       Coach.speak(q.text);
       this._renderEngage(d.scenario);  // contextual response buttons — the only interaction
       BotState.boardLocked = true;     // can't move until you answer
-      Coach.setStatus('Milo\'s asking — answer first.');
+      Coach.setStatus('GM Forge\'s asking — answer first.');
     } else {
       this._reveal('see');             // hint/explain style: straight to the point
     }
@@ -2082,7 +2315,9 @@ const CoachDialogue = {
     if(BotState.board && BotState.board.arrow){
       (d.arrows||[]).forEach(a=>{ if(a && a.from && a.to) BotState.board.arrow(a.from, a.to, a.color); });
     }
-    Coach.setStatus('Your move — you got this.');
+    Coach.setStatus('Your move.');
+    document.body.classList.remove('forge-focus');
+    setTimeout(function(){ if(window.ForgePointer) ForgePointer.retract(); }, 2600);
     setTimeout(()=>CoachFigure.mood('idle'), 2400);
   },
   _renderEngage(scenario){
@@ -2098,11 +2333,11 @@ const CoachDialogue = {
       endgame_technique_moment:     [['see','I know the plan'],['notsure','Not sure'],['show','Show me']],
       player_found_brilliancy:      [['see','I saw it'],['notsure','Got lucky'],['show','Why so strong?']],
     })[scenario] || [['see','I see it'],['notsure','Not sure'],['show','Show me']];
-    el.innerHTML = opts.map((o,i)=>`<button class="coach-engage-btn${i===opts.length-1?' show':''}" onclick="CoachDialogue.engage('${o[0]}')">${esc(o[1])}${i===opts.length-1?' →':''}</button>`).join('');
+    el.innerHTML = opts.map((o,i)=>`<button class="coach-engage-btn${i===opts.length-1?' show':''}" onclick="CoachDialogue.engage('${o[0]}')">${esc(o[1])}${i===opts.length-1?' ':''}</button>`).join('');
     el.classList.remove('hidden');
   },
   _mood(reaction){ return ({concerned:'alarm', excited:'happy', curious:'think', neutral:'idle'})[reaction] || 'idle'; },
-  reset(){ this.data=null; this.reveal=null; const el=document.getElementById('coach-engage'); if(el){ el.classList.add('hidden'); el.innerHTML=''; } if(window.CoachFigure) CoachFigure.exit(); }
+  reset(){ this.data=null; this.reveal=null; const el=document.getElementById('coach-engage'); if(el){ el.classList.add('hidden'); el.innerHTML=''; } document.body.classList.remove('forge-focus'); if(window.ForgePointer) ForgePointer.retract(); }
 };
 window.CoachDialogue = CoachDialogue;
 
@@ -2262,7 +2497,7 @@ const BoardOverlay = (function(){
         txt.setAttribute('y', cy - sq*0.55);
         txt.setAttribute('text-anchor','middle');
         txt.setAttribute('class','overlay-hand');
-        txt.textContent = '👉';
+        txt.textContent = '';
         highlightsG.appendChild(txt);
       }
     });
@@ -2307,11 +2542,11 @@ const Coach = (function(){
     if(!el) return;
     if(!type){ el.classList.add('hidden'); return; }
     const labels = {
-      opening:'📖 Opening',
-      tactical:'⚡ Tactical Moment',
-      positional:'♟ Strategic Decision',
-      endgame:'🏁 Endgame',
-      critical_decision:'🔥 Critical Moment',
+      opening:'Opening',
+      tactical:'Tactical Moment',
+      positional:'Strategic Decision',
+      endgame:'Endgame',
+      critical_decision:'Critical Moment',
     };
     el.textContent = labels[type] || type;
     el.className = 'gm-position-badge ' + type;
@@ -2321,7 +2556,7 @@ const Coach = (function(){
     if(!el) return;
     if(!theory || !theory.length){ el.classList.add('hidden'); el.innerHTML=''; return; }
     el.innerHTML = theory.map(t=>{
-      const icon = t.type==='opening' ? '📖' : '🎯';
+      const icon = t.type==='opening' ? '' : '';
       return `<span class="gm-chip ${esc(t.type)}"><span class="gm-chip-icon">${icon}</span>${esc(t.label)}</span>`;
     }).join('');
     el.classList.remove('hidden');
@@ -2429,7 +2664,7 @@ const Coach = (function(){
       coachApplyMarks(d);
       speak(d.commentary);
     }
-    setStatus(d.severity==='best' ? 'Top move ✓' : (d.severity==='inaccuracy' ? 'Slight inaccuracy' : 'Watching the board'));
+    setStatus(d.severity==='best' ? 'Top move ' : (d.severity==='inaccuracy' ? 'Slight inaccuracy' : 'Watching the board'));
     setTimeout(makeBotMove, 500);
   }
   async function ask(type){
@@ -2593,7 +2828,7 @@ function renderPostgameResults(d){
   list.innerHTML = (d.mistakes||[]).slice(0,8).map(m=>`
     <div class="postgame-row ${esc(m.severity)}">
       <div class="pg-move">${m.move_number}.${m.side==='black'?'..':''}</div>
-      <div class="pg-detail"><span class="played">${esc(m.san)}</span> → engine: <span class="best">${esc(m.best_move||'?')}</span></div>
+      <div class="pg-detail"><span class="played">${esc(m.san)}</span>  engine: <span class="best">${esc(m.best_move||'?')}</span></div>
       <div class="pg-drop">−${(m.drop_cp/100).toFixed(1)}</div>
     </div>`).join('') || '<div style="color:var(--muted2);font-size:.88rem">No mistakes detected — well played!</div>';
   _postgamePuzzles = d.puzzles || [];
@@ -2667,12 +2902,12 @@ const FB_PIECES = {
 function fbPieceSVG(type, color){
   return '<svg class="fb-piece '+color+'" viewBox="0 0 45 45">'+FB_PIECES[type.toLowerCase()]+'</svg>';
 }
-// Custom piece SVGs live in /static/pieces/custom/ (wK.svg, bQ.svg, …). If a file is
+// Custom piece SVGs live in /static/custom/ (wK.svg, bQ.svg, …). If a file is
 // missing, fall back to the built-in vector piece so the board is never broken.
 function fbPieceCode(type, color){ return (color==='w'?'w':'b') + type.toUpperCase(); }
 function fbPieceEl(type, color){
   const code = fbPieceCode(type, color);
-  return '<img class="fb-piece-img" draggable="false" alt="" src="/static/pieces/custom/'+code+'.svg" '+
+  return '<img class="fb-piece-img" draggable="false" alt="" src="/static/custom/'+code+'.svg" '+
          'onerror="fbPieceImgFail(this,\''+type+'\',\''+color+'\')">';
 }
 function fbPieceImgFail(img, type, color){
@@ -2898,13 +3133,13 @@ class ForgeBoard {
       const cell = this._cellFor(startSq); if(cell) cell.classList.remove('fb-drag-piece');
       if(ghost){ ghost.remove(); ghost=null; }
       if(moved){
-        // Drag release → drop on target square if legal, else cancel selection.
+        // Drag release  drop on target square if legal, else cancel selection.
         const to = squareAt(pt.clientX, pt.clientY);
         const targets = this.getTargets(startSq) || [];
         if(to && targets.indexOf(to)!==-1){ this._tryMove(startSq, to); }
         else { this._deselect(); }
       } else {
-        // Plain click → select / move / deselect, handled in one place.
+        // Plain click  select / move / deselect, handled in one place.
         this._handleClick(startSq);
       }
       startSq=null; moved=false;
@@ -2962,7 +3197,7 @@ class ForgeBoard {
     const hands=this.overlay.querySelector('.fb-hands');
     const c=this._xy(sq);
     const hand=document.createElement('div');
-    hand.className='fb-hand';hand.textContent='👆';
+    hand.className='fb-hand';hand.textContent='';
     hand.style.left=c.x+'%';hand.style.top=c.y+'%';
     hands.appendChild(hand);
   }
@@ -3022,7 +3257,7 @@ const Onboarding = {
     ov.id='onb-overlay'; ov.className='onb-overlay';
     ov.innerHTML = `
       <div class="onb-topbar">
-        <div class="onb-brand"><span class="logo-icon">⬡</span> Chess<strong>Forge</strong></div>
+        <div class="onb-brand"><span class="logo-icon"></span> Chess<strong>Forge</strong></div>
         <div class="onb-rail" id="onb-rail"></div>
         <div class="onb-skip-hint">Step 1 of 3</div>
       </div>
@@ -3059,7 +3294,7 @@ const Onboarding = {
     if(!rail) return;
     rail.innerHTML = steps.map((s,i)=>{
       const cls = i<cur ? 'done' : (i===cur ? 'active':'');
-      const dot = i<cur ? '✓' : (i+1);
+      const dot = i<cur ? '' : (i+1);
       const line = i<steps.length-1 ? '<span class="onb-rail-line"></span>' : '';
       return `<span class="onb-rail-step ${cls}"><span class="onb-rail-dot">${dot}</span><span class="onb-rail-label">${s[1]}</span></span>${line}`;
     }).join('');
@@ -3184,7 +3419,7 @@ const Onboarding = {
         <div class="onb-eyebrow">Calibration complete</div>
         <h1 class="onb-title">Got it. You play at <em>~${this.estElo}.</em></h1>
         <p class="onb-desc">I watched ${this.movesMade} of your moves${mistakes?` and spotted ${mistakes} costly one${mistakes>1?'s':''}`:''}. Your full <em>Thinking Fingerprint</em> and a live-coached game are landing in the next update — for now, jump in and explore.</p>
-        <button class="onb-btn" onclick="Onboarding.enterApp()">Enter ChessForge →</button>`;
+        <button class="onb-btn" onclick="Onboarding.enterApp()">Enter ChessForge </button>`;
     }
     this.renderRail('done');
     const fb=document.getElementById('onb-finish'); if(fb) fb.style.display='none';
@@ -3203,3 +3438,38 @@ const Onboarding = {
   }
 };
 window.Onboarding = Onboarding;
+
+/* ── Legal modals: Esc, click-outside, focus trap ── */
+(function(){
+  var open=null, lastFocus=null;
+  function fous(m){ return m.querySelectorAll('a[href],button,[tabindex]:not([tabindex="-1"])'); }
+  function openLegal(id){
+    var m=document.getElementById('lg-'+id); if(!m) return;
+    lastFocus=document.activeElement; m.hidden=false; open=m;
+    document.body.style.overflow='hidden';
+    var f=fous(m); if(f.length) f[0].focus();
+  }
+  function closeLegal(){
+    if(!open) return;
+    open.hidden=true; document.body.style.overflow='';
+    if(lastFocus&&lastFocus.focus) lastFocus.focus();
+    open=null;
+  }
+  document.addEventListener('click',function(e){
+    var t=e.target.closest&&e.target.closest('[data-legal]');
+    if(t){ e.preventDefault(); openLegal(t.getAttribute('data-legal')); return; }
+    if(e.target.closest&&e.target.closest('[data-legal-close]')){ e.preventDefault(); closeLegal(); return; }
+    if(open && e.target===open) closeLegal();
+  });
+  document.addEventListener('keydown',function(e){
+    if(!open) return;
+    if(e.key==='Escape'){ closeLegal(); return; }
+    if(e.key==='Tab'){
+      var f=fous(open); if(!f.length) return;
+      var a=f[0], b=f[f.length-1];
+      if(e.shiftKey && document.activeElement===a){ e.preventDefault(); b.focus(); }
+      else if(!e.shiftKey && document.activeElement===b){ e.preventDefault(); a.focus(); }
+    }
+  });
+  window.openLegal=openLegal;
+})();
