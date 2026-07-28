@@ -1310,7 +1310,7 @@ body.tile-tap-mode .coach-stage{opacity:1}
   --glow-cyan:0 0 40px rgba(91,108,255,.18);
 }
 html,body{height:100%}
-body{background:var(--bg);color:var(--text-1);overflow:hidden}      /* no scrolling on Play */
+body{background:var(--bg);color:var(--text-1)}
 body::before{display:none}
 /* ── board: both shades dark ── */
 .fb-light{background:var(--sq-light)}
@@ -1428,7 +1428,7 @@ body::before{display:none}
    LAYOUT FIX — body was still display:flex from the old sidebar era, which
    laid all 18 top-level children out in a row. This block must stay last.
    ═══════════════════════════════════════════════════════════════════════ */
-body{display:block!important;min-height:0;overflow:hidden}
+body{display:block!important;min-height:0;overflow-y:auto;overflow-x:hidden}
 .topbar{position:relative;z-index:100}
 .main-wrap{display:block;width:100%;height:calc(100vh - 72px);overflow:hidden;margin:0;padding:0;max-width:none}
 #page-coach.page{display:block;height:100%;width:100%}
@@ -1457,3 +1457,9 @@ body{display:block!important;min-height:0;overflow:hidden}
 #page-coach .coach-movelist,#page-coach .gm-status-box{display:none!important}
 #page-coach .coach-name-tag{font-size:12px;color:var(--text-2);margin-top:8px}
 #page-coach .coach-name-tag .coach-live{color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;font-size:10px}
+
+/* only the Play screen is a fixed, non-scrolling viewport; every other page scrolls */
+body.play-locked{overflow:hidden}
+body:not(.play-locked) .main-wrap{height:auto;min-height:calc(100vh - 72px);overflow:visible}
+body:not(.play-locked) #page-training,body:not(.play-locked) #page-puzzles{overflow:visible;height:auto}
+.drill-overlay{overflow-y:auto}

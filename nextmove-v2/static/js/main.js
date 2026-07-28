@@ -412,7 +412,32 @@ function showUpgradePrompt(msg){
 })();
 
 /* ── Nav ──────────────────────────────────────────────────────────────────── */
+
+/* pull puzzles saved from previous coached games */
+async function loadMyPuzzles(){
+  try{
+    const r=await fetch('/my-puzzles',{credentials:'include'});
+    const d=await r.json();
+    if(d && d.puzzles && d.puzzles.length){
+      const seen=new Set((State.puzzles||[]).map(p=>p.fen));
+      d.puzzles.forEach(p=>{ if(!seen.has(p.fen)){ State.puzzles.push(p); seen.add(p.fen); } });
+      return State.puzzles.length;
+    }
+  }catch(e){}
+  return (State.puzzles||[]).length;
+}
+window.loadMyPuzzles = loadMyPuzzles;
+
 function showPage(name){
+  try{ document.body.classList.toggle('play-locked', name==='coach'); }catch(e){}
+  if(name==='puzzles'){ loadMyPuzzles().then(function(n){
+      if(!n) return;
+      const np=document.getElementById('no-puzzles'); if(np) np.classList.add('hidden');
+      const pa=document.getElementById('puzzle-area'); if(pa) pa.classList.remove('hidden');
+      if(State.puzzleIdx==null) State.puzzleIdx=0;
+      try{ initPuzzleBoard(); }catch(e){}
+      try{ loadPuzzle(State.puzzleIdx||0); }catch(e){}
+    }).catch(function(e){ console.error('loadMyPuzzles failed:', e); }); }
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-link').forEach(l=>l.classList.remove('active'));
   document.getElementById('page-'+name).classList.add('active');
@@ -422,7 +447,7 @@ function showPage(name){
     if(name==='puzzles')initPuzzleBoard();
     if(name==='lessons')initLessonsPage();
     if(name==='progress')renderProgressPage();
-    if(name==='training')renderTrainingPage();
+    if(name==='training')renderTrainingPage().catch(function(e){ console.error("renderTrainingPage failed:", e); });
     if(name==='coach'||name==='bot')initCoachPage();
   },60);
 }
@@ -740,7 +765,7 @@ const TrainingDrill = {
       <div class="ds-actions"><button class="onb-btn" onclick="TrainingDrill.exit()">Done</button><button class="onb-btn ghost" onclick="TrainingDrill.start('${this.pattern}')">Again</button></div>`;
     sum.classList.remove('hidden');
   },
-  exit(){ const ov=document.getElementById('drill-overlay'); ov.classList.add('hidden'); ov.classList.remove('rewrite'); this.rewrite=false; renderTrainingPage(true); }
+  exit(){ const ov=document.getElementById('drill-overlay'); ov.classList.add('hidden'); ov.classList.remove('rewrite'); this.rewrite=false; renderTrainingPage(true).catch(function(e){ console.error("renderTrainingPage failed:", e); }); }
 };
 window.TrainingDrill = TrainingDrill;
 document.querySelectorAll('.nav-link').forEach(l=>l.addEventListener('click',e=>{e.preventDefault();showPage(l.dataset.page);}));
@@ -1220,7 +1245,7 @@ function checkPuzzleMove(mv, src, tgt){
     status.textContent = 'Correct! Well done!';
     status.style.color = 'var(--green)';
     State.puzzleCorrect++;
-    awardXP(50,'puzzle');
+    awardXP(50,'puzzle').catch(function(e){ console.error("awardXP failed:", e); });
   } else {
     status.textContent = ` Not quite (${mv.san}) — try again!`;
     status.style.color = 'var(--red)';
@@ -1369,7 +1394,7 @@ async function handleURLParams(){
         div.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#22E5FF;color:#0D0D14;padding:1rem 2rem;border-radius:10px;font-weight:700;z-index:9999';
         div.textContent='You are already on ChessForge Pro!';
         document.body.appendChild(div);setTimeout(()=>div.remove(),3000);
-      } else goToPro();
+      } else goToPro().catch(function(e){ console.error("goToPro failed:", e); });
     } else {showAuthModal();State.pendingUpgrade=true;}
   }
 }
@@ -1600,9 +1625,36 @@ document.addEventListener('contextmenu',e=>{
   if(e.target.closest && e.target.closest('.fb-board')) Premove.clear();
 });
 
+/* Jump the board to a given ply from the move list (read-only preview). */
+BotState.jumpToPly = function(ply){
+  try{
+    if(!BotState.game || typeof Chess === 'undefined') return;
+    const hist = BotState.game.history();
+    if(!hist.length) return;
+    const n = Math.max(0, Math.min(ply + 1, hist.length));
+    const tmp = new Chess();
+    let last = null;
+    for(let i = 0; i < n; i++){
+      const mv = tmp.move(hist[i]);
+      if(mv) last = {from: mv.from, to: mv.to};
+    }
+    BotState.previewPly = (n === hist.length) ? null : n;   // null = live position
+    if(BotState.board) BotState.board.setPosition(tmp.fen(), {lastMove: last, animate: false});
+    if(window.MoveRail) MoveRail.render(hist, null, n - 1);
+    Coach.setStatus(BotState.previewPly === null
+      ? 'Live position.'
+      : 'Reviewing move ' + n + ' of ' + hist.length + ' - play a move to return to live.');
+  }catch(e){}
+};
+
 // Player made a legal move on the ForgeBoard.
 function handleCoachMove(from, to){
   if(!BotState.gameActive || BotState.boardLocked) return false;
+  if(BotState.previewPly != null){        // was reviewing an earlier move - restore live board
+    BotState.previewPly = null;
+    if(BotState.board) BotState.board.setPosition(BotState.game.fen(), {animate:false});
+    return false;
+  }
   // Opponent is thinking -> queue a premove instead of rejecting the input
   if(BotState.thinking || BotState.game.turn() !== BotState.playerColor[0]){
     return Premove.queue(from, to);
@@ -3958,3 +4010,8 @@ window.Onboarding = Onboarding;
   });
   window.openLegal=openLegal;
 })();
+
+/* top-level class/const bindings are not properties of window — export them explicitly */
+try{ window.ForgeBoard = ForgeBoard; }catch(e){}
+try{ window.BotState = BotState; }catch(e){}
+try{ window.ChessSFX = ChessSFX; }catch(e){}

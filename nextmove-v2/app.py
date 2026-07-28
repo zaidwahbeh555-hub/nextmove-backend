@@ -2826,6 +2826,23 @@ def analyze_bot_game():
     counts = {"blunder":0,"mistake":0,"inaccuracy":0,"ok":0,"best":0}
     for r in move_reviews: counts[r["severity"]] = counts.get(r["severity"],0)+1
 
+    # persist puzzles so the Puzzles page still has them next visit
+    try:
+        uname = current_user()
+        if uname and puzzles:
+            db = load_db()
+            rec = db.get(uname) or {}
+            existing = rec.get("puzzles") or []
+            seen = {q.get("fen") for q in existing}
+            for q in puzzles:
+                if q.get("fen") not in seen:
+                    existing.append(q); seen.add(q.get("fen"))
+            rec["puzzles"] = existing[-60:]
+            db[uname] = rec
+            save_db(db)
+    except Exception:
+        pass
+
     return jsonify({
         "ok": True,
         "move_reviews": move_reviews,
@@ -3341,6 +3358,19 @@ def game_review():
                          "then": "Play a Trap Trainer game targeting this pattern"},
         "total_moves": len(moves),
     })
+
+@app.route("/my-puzzles")
+def my_puzzles():
+    """Puzzles saved from this user's own coached games."""
+    uname = current_user()
+    if not uname:
+        return jsonify({"puzzles": [], "guest": True})
+    try:
+        db = load_db()
+        rec = db.get(uname) or {}
+        return jsonify({"puzzles": rec.get("puzzles") or []})
+    except Exception:
+        return jsonify({"puzzles": []})
 
 @app.route("/health")
 def health():
