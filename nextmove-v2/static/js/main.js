@@ -1522,6 +1522,9 @@ function startBotGame(){
   BotState.moveHistory = [];
   BotState.gameActive = true;
   BotState.thinking = false;
+  if(window.Premove) Premove.clear();
+  if(window.EvalBar) EvalBar.reset();
+  if(BotState.board && BotState.board.clearUser) BotState.board.clearUser();
   BotState.lastBotSan = '';
   BotState.lastPlayerMove = null;
   BotState.lastBotMove = null;
@@ -1553,10 +1556,58 @@ function startBotGame(){
   }
 }
 
+
+/* ══════════ Premoves — queue one move while the opponent thinks ══════════ */
+const Premove = {
+  pending:null,
+  queue(from,to){
+    if(!BotState.game || !BotState.gameActive) return false;
+    const pc=BotState.game.get(from);
+    if(!pc || pc.color!==BotState.playerColor[0]) return false;   // must be your own piece
+    this.clear();
+    this.pending={from:from,to:to};
+    this._paint(true);
+    Coach.setStatus('Premove queued: ' + from + '-' + to);
+    return true;                                                   // consumed, but nothing moves yet
+  },
+  clear(){
+    if(!this.pending) return;
+    this._paint(false);
+    this.pending=null;
+  },
+  _paint(on){
+    if(!this.pending) return;
+    [this.pending.from,this.pending.to].forEach(sq=>{
+      const c=document.querySelector('.fb-sq[data-square="'+sq+'"]');
+      if(c) c.classList.toggle('fb-premove', !!on);
+    });
+  },
+  /* called the instant the opponent's move lands */
+  fire(){
+    const p=this.pending; if(!p) return false;
+    this.clear();
+    if(!BotState.game || BotState.game.turn()!==BotState.playerColor[0]) return false;
+    const mv=BotState.game.move({from:p.from,to:p.to,promotion:'q'});   // auto-queen
+    if(!mv){ return false; }                                            // illegal now -> silent cancel
+    BotState.game.undo();
+    return handleCoachMove(p.from,p.to);
+  }
+};
+window.Premove = Premove;
+// cancel: Esc, right-click, or clicking an empty square
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') Premove.clear(); });
+document.addEventListener('contextmenu',e=>{
+  if(e.target.closest && e.target.closest('.fb-board')) Premove.clear();
+});
+
 // Player made a legal move on the ForgeBoard.
 function handleCoachMove(from, to){
-  if(!BotState.gameActive || BotState.thinking || BotState.boardLocked) return false;
-  if(BotState.game.turn() !== BotState.playerColor[0]) return false;
+  if(!BotState.gameActive || BotState.boardLocked) return false;
+  // Opponent is thinking -> queue a premove instead of rejecting the input
+  if(BotState.thinking || BotState.game.turn() !== BotState.playerColor[0]){
+    return Premove.queue(from, to);
+  }
+  Premove.clear();
   const fenBefore = BotState.game.fen();
   const mv = BotState.game.move({from, to, promotion:'q'});
   if(!mv) return false;
@@ -1705,10 +1756,16 @@ async function makeBotMove(){
       if(State.coachMode==='coached' && !BotState.game.game_over()){
         setTimeout(()=>Coach.afterBotMove(mv.san), 300);
       }
+      if(window.EvalBar && typeof d.eval === 'number') EvalBar.push(d.eval);
+      if(window.MoveRail && BotState.game) MoveRail.render(BotState.game.history(), null, null);
       checkBotGameOver();
     }
   }catch(e){ setBotStatus('Connection error. Your turn!'); }
   BotState.thinking = false;
+  // the opponent's move has landed — attempt any queued premove
+  if(window.Premove && Premove.pending){
+    setTimeout(()=>{ try{ Premove.fire(); }catch(e){ Premove.clear(); } }, 120);
+  }
 }
 
 function addBotMove(san, uci, isBot=false){
@@ -2283,6 +2340,173 @@ window.addEventListener('resize', function(){
 });
 
 /* ── Two-phase coaching: ask -> (player engages) -> reveal, with synced marks ── */
+
+
+/* ══════════ Play-screen chrome: eval graph, move rail, command palette, coach dots ══════════ */
+const EvalBar = {
+  history:[],
+  label(v){ const a=Math.abs(v);
+    return a<0.5?'Equal':a<1.0?'Small Advantage':a<2.5?'Clear Advantage':a<5.0?'Winning':'Decisive'; },
+  push(v){
+    if(typeof v!=='number' || isNaN(v)) return;
+    this.history.push(v); if(this.history.length>120) this.history.shift();
+    const s=document.getElementById('eval-score'), l=document.getElementById('eval-label');
+    if(s) s.textContent=(v>=0?'+':'')+v.toFixed(2);
+    if(l) l.textContent=this.label(v);
+    this.draw();
+  },
+  draw(){
+    const g=document.getElementById('eval-graph'); if(!g) return;
+    const W=600,H=84,pad=8,n=this.history.length;
+    const y=v=>H/2-(Math.max(-3,Math.min(3,v))/3)*(H/2-pad);
+    let d='';
+    if(n>1){
+      this.history.forEach((v,i)=>{ const x=(i/(n-1))*W; d+=(i?' L':'M')+x.toFixed(1)+' '+y(v).toFixed(1); });
+    } else if(n===1){ d='M0 '+y(this.history[0]).toFixed(1)+' L'+W+' '+y(this.history[0]).toFixed(1); }
+    const cursor=n>1?((n-1)/(n-1))*W:W;
+    g.innerHTML=
+      '<line x1="0" y1="'+(H/2)+'" x2="'+W+'" y2="'+(H/2)+'" stroke="var(--border)" stroke-width="1"/>'+
+      (d?'<path d="'+d+' L'+W+' '+H+' L0 '+H+' Z" fill="var(--accent)" opacity=".08"/>':'')+
+      (d?'<path d="'+d+'" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linejoin="round"/>':'')+
+      '<line x1="'+cursor+'" y1="0" x2="'+cursor+'" y2="'+H+'" stroke="var(--accent)" stroke-width="1" opacity=".8"/>'+
+      '<text x="'+(W-4)+'" y="10" fill="var(--text-3)" font-size="10" text-anchor="end">+3</text>'+
+      '<text x="'+(W-4)+'" y="'+(H/2+4)+'" fill="var(--text-3)" font-size="10" text-anchor="end">0</text>'+
+      '<text x="'+(W-4)+'" y="'+(H-4)+'" fill="var(--text-3)" font-size="10" text-anchor="end">-3</text>';
+  },
+  reset(){ this.history=[]; this.draw();
+    const s=document.getElementById('eval-score'); if(s) s.textContent='0.00';
+    const l=document.getElementById('eval-label'); if(l) l.textContent='Equal'; }
+};
+window.EvalBar = EvalBar;
+
+const MoveRail = {
+  open:false, rows:[], cur:-1,
+  init(){
+    const tab=document.getElementById('move-rail-tab'), rail=document.getElementById('move-rail');
+    const panel=document.getElementById('move-panel');
+    if(!tab||!panel) return;
+    tab.addEventListener('click',()=>this.toggle());
+    tab.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();this.toggle();} });
+    if(rail) rail.addEventListener('mouseenter',()=>this.set(true));
+    panel.addEventListener('mouseleave',()=>{ if(window.innerWidth>1100) this.set(false); });
+  },
+  toggle(){ this.set(!this.open); },
+  set(v){ this.open=v; const p=document.getElementById('move-panel'); if(p) p.classList.toggle('open',v); },
+  render(sans, evals, current){
+    this.rows=sans||[]; this.cur=(current==null?this.rows.length-1:current);
+    const box=document.getElementById('move-scroll'); if(!box) return;
+    let html='';
+    for(let i=0;i<this.rows.length;i+=2){
+      const n=i/2+1, w=this.rows[i]||'', b=this.rows[i+1]||'';
+      const ev=(evals&&evals[i+1]!=null)?evals[i+1]:(evals&&evals[i]!=null?evals[i]:null);
+      const isCur=(this.cur===i||this.cur===i+1);
+      html+='<div class="mv-row'+(isCur?' cur':'')+'" data-ply="'+i+'">'+
+            '<span class="n">'+n+'.</span><span>'+esc(w)+'</span><span>'+esc(b)+'</span>'+
+            '<span class="ev">'+(ev==null?'':((ev>=0?'+':'')+Number(ev).toFixed(2)))+'</span></div>';
+    }
+    box.innerHTML=html;
+    box.querySelectorAll('.mv-row').forEach(r=>r.addEventListener('click',()=>{
+      const ply=+r.dataset.ply;
+      if(window.BotState && BotState.jumpToPly) BotState.jumpToPly(ply);
+    }));
+    const c=box.querySelector('.mv-row.cur');
+    if(c && c.scrollIntoView) c.scrollIntoView({block:'center'});
+  }
+};
+window.MoveRail = MoveRail;
+
+const CommandPalette = {
+  items:[
+    {icon:'ic-bolt',    label:'New Game',        key:'N', run:()=>window.startBotGame&&startBotGame()},
+    {icon:'ic-coach',   label:'Play vs Computer', key:'',  run:()=>window.startBotGame&&startBotGame()},
+    {icon:'ic-target',  label:'Training',         key:'T', run:()=>showPage('training')},
+    {icon:'ic-puzzle',  label:'Puzzles',          key:'P', run:()=>showPage('puzzles')},
+    {icon:'ic-chart',   label:'Game Review',      key:'',  run:()=>{ const b=document.getElementById('analysis-btn'); if(b) b.click(); }},
+    {icon:'ic-book',    label:'Lessons',          key:'',  run:()=>showPage('training')},
+    {icon:'ic-sliders', label:'Settings',         key:'S', run:()=>{ const t=document.getElementById('theme-panel'); if(t) t.classList.toggle('hidden'); }},
+  ],
+  sel:0, filtered:[], lastFocus:null,
+  init(){
+    document.addEventListener('keydown',e=>{
+      if((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='k'){ e.preventDefault(); this.toggle(); return; }
+      if(!this.isOpen()) return;
+      if(e.key==='Escape'){ e.preventDefault(); this.close(); }
+      else if(e.key==='ArrowDown'){ e.preventDefault(); this.move(1); }
+      else if(e.key==='ArrowUp'){ e.preventDefault(); this.move(-1); }
+      else if(e.key==='Enter'){ e.preventDefault(); this.run(); }
+      else if(e.key==='Tab'){ e.preventDefault(); }              // focus trapped
+    });
+    const el=document.getElementById('cmdk');
+    if(el) el.addEventListener('click',e=>{ if(e.target===el) this.close(); });
+    const inp=document.getElementById('cmdk-input');
+    if(inp) inp.addEventListener('input',()=>{ this.sel=0; this.render(inp.value); });
+  },
+  isOpen(){ const el=document.getElementById('cmdk'); return el && !el.hidden; },
+  toggle(){ this.isOpen()?this.close():this.open(); },
+  open(){
+    const el=document.getElementById('cmdk'); if(!el) return;
+    this.lastFocus=document.activeElement;
+    el.hidden=false; this.sel=0;
+    const inp=document.getElementById('cmdk-input'); if(inp){ inp.value=''; inp.focus(); }
+    this.render('');
+    const hint=document.getElementById('cmdk-hint'); if(hint) hint.classList.add('used');
+  },
+  close(){
+    const el=document.getElementById('cmdk'); if(el) el.hidden=true;
+    if(this.lastFocus && this.lastFocus.focus) this.lastFocus.focus();
+  },
+  render(q){
+    q=(q||'').toLowerCase().trim();
+    this.filtered=this.items.filter(it=>{                 // fuzzy: chars in order
+      if(!q) return true;
+      const s=it.label.toLowerCase(); let i=0;
+      for(const ch of q){ i=s.indexOf(ch,i); if(i<0) return false; i++; }
+      return true;
+    });
+    const list=document.getElementById('cmdk-list'); if(!list) return;
+    list.innerHTML=this.filtered.map((it,i)=>
+      '<div class="cmdk-item'+(i===this.sel?' sel':'')+'" data-i="'+i+'">'+
+      '<svg class="ic"><use href="#'+it.icon+'"/></svg><span>'+esc(it.label)+'</span>'+
+      (it.key?'<span class="keycap">'+it.key+'</span>':'')+'</div>').join('');
+    list.querySelectorAll('.cmdk-item').forEach(r=>r.addEventListener('click',()=>{
+      this.sel=+r.dataset.i; this.run();
+    }));
+  },
+  move(d){
+    if(!this.filtered.length) return;
+    this.sel=(this.sel+d+this.filtered.length)%this.filtered.length;
+    const inp=document.getElementById('cmdk-input');
+    this.render(inp?inp.value:'');
+  },
+  run(){
+    const it=this.filtered[this.sel]; this.close();
+    if(it && it.run) try{ it.run(); }catch(e){}
+  }
+};
+window.CommandPalette = CommandPalette;
+
+/* coach bubble pagination dots */
+const CoachQueue = {
+  msgs:[], idx:0,
+  set(list){ this.msgs=list||[]; this.idx=0; this.render(); },
+  show(i){ if(i<0||i>=this.msgs.length) return; this.idx=i; this.render(); },
+  render(){
+    const t=document.getElementById('coach-bubble-text');
+    if(t && this.msgs.length) t.textContent=this.msgs[this.idx];
+    let dots=document.getElementById('coach-dots');
+    const bub=document.getElementById('coach-bubble');
+    if(!bub) return;
+    if(this.msgs.length<2){ if(dots) dots.remove(); return; }
+    if(!dots){ dots=document.createElement('div'); dots.className='coach-dots'; dots.id='coach-dots'; bub.appendChild(dots); }
+    dots.innerHTML=this.msgs.map((_,i)=>'<i class="'+(i===this.idx?'on':'')+'" data-i="'+i+'"></i>').join('');
+    dots.querySelectorAll('i').forEach(d=>d.addEventListener('click',()=>this.show(+d.dataset.i)));
+  }
+};
+window.CoachQueue = CoachQueue;
+
+document.addEventListener('DOMContentLoaded',function(){
+  try{ MoveRail.init(); CommandPalette.init(); EvalBar.draw(); }catch(e){}
+});
 
 /* ══════════ CoachMoment — sequenced dialogue, tile-tap, MCQ, help, stop sign ══════════ */
 const CoachMoment = {
@@ -3310,7 +3534,11 @@ class ForgeBoard {
     };
     // ── Right-click arrows + red square highlights (like chess.com) ──
     let rcFrom = null;
-    this.el.addEventListener('contextmenu', e=>e.preventDefault());
+    const modColor = (e)=> e.shiftKey ? '#E5484D'
+                        : e.altKey   ? '#5B9DFF'
+                        : (e.ctrlKey||e.metaKey) ? '#E5A73D'
+                        : '#7BC96F';
+    this.el.addEventListener('contextmenu', e=>e.preventDefault());   // board only
     this.el.addEventListener('mousedown', e=>{
       if(e.button!==2) return;
       e.preventDefault();
@@ -3319,8 +3547,9 @@ class ForgeBoard {
     this.el.addEventListener('mouseup', e=>{
       if(e.button!==2 || !rcFrom) return;
       const to = squareAt(e.clientX, e.clientY);
-      if(to && to===rcFrom) this.toggleUserHighlight(rcFrom);
-      else if(to) this.toggleUserArrow(rcFrom, to);
+      const col = modColor(e);
+      if(to && to===rcFrom) this.toggleUserHighlight(rcFrom, col);
+      else if(to) this.toggleUserArrow(rcFrom, to, col);
       rcFrom = null;
     });
     const move = (e)=>{
@@ -3418,14 +3647,23 @@ class ForgeBoard {
     hands.appendChild(hand);
   }
   /* ── user's own right-click marks ── */
-  toggleUserArrow(from,to){
+  toggleUserArrow(from,to,color){
+    color = color || '#7BC96F';
     const i=this.userArrows.findIndex(a=>a.from===from && a.to===to);
-    if(i>=0) this.userArrows.splice(i,1); else this.userArrows.push({from,to});
+    if(i>=0){
+      if(this.userArrows[i].color===color) this.userArrows.splice(i,1);  // same colour = remove
+      else this.userArrows[i].color=color;                               // different modifier = recolour
+    } else this.userArrows.push({from,to,color});
     this._renderUser();
   }
-  toggleUserHighlight(sq){
-    const i=this.userHls.indexOf(sq);
-    if(i>=0) this.userHls.splice(i,1); else this.userHls.push(sq);
+  toggleUserHighlight(sq,color){
+    color = color || '#7BC96F';
+    const i=this.userHls.findIndex(h=>(h.sq||h)===sq);
+    if(i>=0){
+      const cur=this.userHls[i];
+      if((cur.color||'#7BC96F')===color) this.userHls.splice(i,1);
+      else this.userHls[i]={sq:sq,color:color};
+    } else this.userHls.push({sq:sq,color:color});
     this._renderUser();
   }
   clearUser(){ this.userArrows=[]; this.userHls=[]; this._renderUser(); }
@@ -3433,27 +3671,48 @@ class ForgeBoard {
     const g=this.overlay.querySelector('.fb-user'); if(!g) return;
     g.innerHTML='';
     const ns='http://www.w3.org/2000/svg';
-    this.userHls.forEach(sq=>{
+    this.userHls.forEach(h=>{
+      const sq=h.sq||h, col=h.color||'#7BC96F';
       const c=this._xy(sq);
       const rect=document.createElementNS(ns,'rect');
       rect.setAttribute('x',c.x-6.25);rect.setAttribute('y',c.y-6.25);
       rect.setAttribute('width','12.5');rect.setAttribute('height','12.5');
-      rect.setAttribute('fill','rgba(255,70,70,.5)');
+      rect.setAttribute('fill',col);rect.setAttribute('opacity','0.45');
       g.appendChild(rect);
     });
+    const FW=12.5;                                   // one square in overlay units
     this.userArrows.forEach(a=>{
+      const col=a.color||'#7BC96F';
       const p=this._xy(a.from), q=this._xy(a.to);
-      const dx=q.x-p.x, dy=q.y-p.y, len=Math.hypot(dx,dy)||1, ux=dx/len, uy=dy/len;
-      const ex=q.x-ux*5.5, ey=q.y-uy*5.5, hb=4.6;
-      const line=document.createElementNS(ns,'line');
-      line.setAttribute('x1',p.x);line.setAttribute('y1',p.y);line.setAttribute('x2',ex);line.setAttribute('y2',ey);
-      line.setAttribute('class','fb-arrow');line.setAttribute('stroke','#f6b93b');line.setAttribute('stroke-width','3.4');
-      const head=document.createElementNS(ns,'polygon');
-      head.setAttribute('points',q.x+','+q.y+' '+(ex-ux*hb+(-uy)*hb*0.7)+','+(ey-uy*hb+(ux)*hb*0.7)+' '+(ex-ux*hb-(-uy)*hb*0.7)+','+(ey-uy*hb-(ux)*hb*0.7));
-      head.setAttribute('fill','#f6b93b');
-      g.appendChild(line);g.appendChild(head);
+      const dx=q.x-p.x, dy=q.y-p.y;
+      const fx=Math.round(Math.abs(dx)/FW), fy=Math.round(Math.abs(dy)/FW);
+      const knight=(fx===1&&fy===2)||(fx===2&&fy===1);
+      const shaft=FW*0.12*8/8*1.5, headLen=FW*0.28;
+      const mk=(el,attrs)=>{const n=document.createElementNS(ns,el);
+        for(const k in attrs) n.setAttribute(k,attrs[k]); g.appendChild(n); return n;};
+      if(knight){
+        // L-shaped path: long leg first, then the short leg — matches how the knight moves
+        const midX = (fx===2) ? q.x : p.x;
+        const midY = (fx===2) ? p.y : q.y;
+        const lastdx = q.x-midX, lastdy = q.y-midY;
+        const L=Math.hypot(lastdx,lastdy)||1, ux=lastdx/L, uy=lastdy/L;
+        const ex=q.x-ux*headLen, ey=q.y-uy*headLen;
+        mk('path',{d:'M'+p.x+' '+p.y+' L'+midX+' '+midY+' L'+ex+' '+ey,
+                   fill:'none',stroke:col,'stroke-width':shaft,'stroke-linecap':'round',
+                   'stroke-linejoin':'round',opacity:'0.65'});
+        mk('polygon',{points:q.x+','+q.y+' '+(ex-uy*headLen*0.55)+','+(ey+ux*headLen*0.55)+' '+
+                             (ex+uy*headLen*0.55)+','+(ey-ux*headLen*0.55),fill:col,opacity:'0.65'});
+      } else {
+        const len=Math.hypot(dx,dy)||1, ux=dx/len, uy=dy/len;
+        const ex=q.x-ux*headLen, ey=q.y-uy*headLen;
+        mk('line',{x1:p.x,y1:p.y,x2:ex,y2:ey,stroke:col,'stroke-width':shaft,
+                   'stroke-linecap':'round',opacity:'0.65'});
+        mk('polygon',{points:q.x+','+q.y+' '+(ex-uy*headLen*0.55)+','+(ey+ux*headLen*0.55)+' '+
+                             (ex+uy*headLen*0.55)+','+(ey-ux*headLen*0.55),fill:col,opacity:'0.65'});
+      }
     });
   }
+
 }
 
 
