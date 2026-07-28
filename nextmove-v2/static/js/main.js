@@ -787,9 +787,7 @@ document.getElementById('pgn-file').addEventListener('change',function(){documen
 document.getElementById('pgn-text').addEventListener('input',function(){
   const wm=this.value.match(/\[White\s+"([^"]+)"\]/);
   const bm=this.value.match(/\[Black\s+"([^"]+)"\]/);
-  if((wm||bm)&&!document.getElementById('username-badge')?.dataset.set){
-    const badge=document.createElement('span');badge.className='username-badge';
-  }
+  // (auto-detect of player names from PGN headers is handled server-side)
 });
 
 /* ── Step 1: Parse PGN ─────────────────────────────────────────────────────── */
@@ -887,21 +885,8 @@ async function runAnalysis(playerColor){
 }
 
 /* ── Save Game ─────────────────────────────────────────────────────────────── */
-const _sgb=document.getElementById('save-game-btn'); if(_sgb) _sgb.addEventListener('click',async()=>{
-  if(!State.loggedIn){showAuthModal();return;}
-  if(!State.lastPGN){const b=document.getElementById('save-game-btn')||{textContent:'',textContent:''};if(!document.getElementById('save-game-btn'))return;b.textContent='Analyse a game first!';setTimeout(()=>b.textContent='Save Game',2000);return;}
-  const metas=State.analysisData?.game_metas||[];
-  const label=metas.length?`${metas[0].white} vs ${metas[0].black} (${metas[0].date})`:'Game';
-  try{
-    const r=await fetch('/auth/save-game',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pgn:State.lastPGN,label}),credentials:'include'});
-    const d=await r.json();
-    if(d.ok){
-      const b=document.getElementById('save-game-btn');b.textContent='Saved!';
-      setTimeout(()=>b.textContent='Save Game',2000);
-      if(d.games)renderSavedGames(d.games);
-    }
-  }catch(e){}
-});
+// Save Game lived on the deprecated Analyse page; #save-game-btn no longer exists.
+
 
 /* ── Render Analysis ───────────────────────────────────────────────────────── */
 function renderAnalysis(data){
@@ -1446,13 +1431,16 @@ function toggleThemePanel(){
   panel.classList.toggle('hidden');
 }
 
-// Close theme panel when clicking outside
+// Close theme panel when clicking outside.
+// The command palette's Settings entry toggles this panel from a click handler,
+// and that same click kept bubbling to here — which re-hid the panel in the same
+// tick, so Settings appeared to do nothing. Clicks that came from the palette
+// are what opened it, so they are never "outside".
 document.addEventListener('click', e=>{
   const panel = document.getElementById('theme-panel');
-  const btn = document.getElementById('theme-btn');
-  if(panel && !panel.contains(e.target) && e.target !== btn){
-    panel.classList.add('hidden');
-  }
+  if(!panel || panel.classList.contains('hidden')) return;
+  if(e.target.closest && e.target.closest('.cmdk')) return;
+  if(!panel.contains(e.target)) panel.classList.add('hidden');
 });
 
 
@@ -2264,15 +2252,7 @@ function answerPremiumMCQ(chosen){
   area.appendChild(nextBtn);
 }
 
-function showPremiumStep(idx){
-  const steps = window._premiumLessonSteps;
-  if(!steps || idx >= steps.length) return;
-  const lt = document.getElementById('prem-lesson-text');
-  if(lt) lt.textContent = steps[idx].text;   // element was removed in the redesign; unguarded this threw
-  document.querySelectorAll('.premium-lesson-step').forEach((el,i)=>{
-    el.classList.toggle('active', i===idx);
-  });
-}
+
 
 
 
@@ -2976,96 +2956,6 @@ function updateEvalBar(evalPawns){
 function enableCoachButtons(on){ /* standalone buttons removed — the coach speaks proactively */ }
 
 /* ── Board Overlay (arrows + highlights) ──────────────────────────────────── */
-const BoardOverlay = (function(){
-  let boardEl=null, svgEl=null, arrowsG=null, highlightsG=null;
-  let flipped=false;
-  const fileToX = (f,size)=> (flipped ? 7-f : f) * (size/8) + (size/16);
-  const rankToY = (r,size)=> (flipped ? r : 7-r) * (size/8) + (size/16);
-  const squareToXY = (sq, size)=>{
-    const f = sq.charCodeAt(0) - 97;
-    const r = parseInt(sq[1],10) - 1;
-    return [fileToX(f,size), rankToY(r,size)];
-  };
-  function init(boardId, overlayId){
-    boardEl = document.getElementById(boardId);
-    svgEl   = document.getElementById(overlayId);
-    if(!svgEl) return;
-    arrowsG = document.getElementById('overlay-arrows');
-    highlightsG = document.getElementById('overlay-highlights');
-    syncSize();
-  }
-  function syncSize(){
-    if(!boardEl||!svgEl) return;
-    const board = boardEl.querySelector('.board-b72b1') || boardEl.querySelector('table') || boardEl;
-    if(!board) return;
-    const rect = board.getBoundingClientRect();
-    const wrap = boardEl.parentElement;
-    if(!wrap) return;
-    const wrapRect = wrap.getBoundingClientRect();
-    svgEl.style.left = (rect.left - wrapRect.left) + 'px';
-    svgEl.style.top  = (rect.top - wrapRect.top) + 'px';
-    svgEl.style.width  = rect.width + 'px';
-    svgEl.style.height = rect.height + 'px';
-    svgEl.setAttribute('viewBox','0 0 800 800');
-  }
-  function setOrientation(color){ flipped = (color === 'black'); repaint(); }
-  let lastArrows=[], lastHighlights=[];
-  function drawArrows(arrows){
-    lastArrows = arrows || [];
-    if(!arrowsG) return;
-    arrowsG.innerHTML = '';
-    const size = 800;
-    (arrows||[]).forEach(a=>{
-      if(!a||!a.from||!a.to) return;
-      const [x1,y1] = squareToXY(a.from,size);
-      const [x2,y2] = squareToXY(a.to,size);
-      // Trim end so arrowhead doesn't cover the target square
-      const dx=x2-x1, dy=y2-y1, len=Math.sqrt(dx*dx+dy*dy);
-      const tx = x2 - (dx/len)*22, ty = y2 - (dy/len)*22;
-      const ns='http://www.w3.org/2000/svg';
-      const line = document.createElementNS(ns,'line');
-      line.setAttribute('x1',x1); line.setAttribute('y1',y1);
-      line.setAttribute('x2',tx); line.setAttribute('y2',ty);
-      line.setAttribute('class','overlay-arrow');
-      line.setAttribute('stroke',a.color||'#ff7043');
-      line.setAttribute('marker-end','url(#arrow-head)');
-      line.style.color = a.color || '#ff7043';
-      arrowsG.appendChild(line);
-    });
-  }
-  function drawHighlights(highlights){
-    lastHighlights = highlights || [];
-    if(!highlightsG) return;
-    highlightsG.innerHTML = '';
-    const size = 800, sq = size/8;
-    (highlights||[]).forEach(h=>{
-      if(!h||!h.square) return;
-      const [cx,cy] = squareToXY(h.square,size);
-      const ns='http://www.w3.org/2000/svg';
-      const circle = document.createElementNS(ns,'circle');
-      circle.setAttribute('cx',cx); circle.setAttribute('cy',cy);
-      circle.setAttribute('r', sq*0.42);
-      circle.setAttribute('class','overlay-highlight');
-      circle.setAttribute('stroke', h.color||'#26d07c');
-      circle.style.color = h.color||'#26d07c';
-      circle.setAttribute('fill','transparent');
-      highlightsG.appendChild(circle);
-      // Pointing hand pseudo-pointer above square
-      if(h.label === 'target' || h.label === 'vulnerable'){
-        const txt = document.createElementNS(ns,'text');
-        txt.setAttribute('x', cx);
-        txt.setAttribute('y', cy - sq*0.55);
-        txt.setAttribute('text-anchor','middle');
-        txt.setAttribute('class','overlay-hand');
-        txt.textContent = '';
-        highlightsG.appendChild(txt);
-      }
-    });
-  }
-  function clear(){ drawArrows([]); drawHighlights([]); }
-  function repaint(){ syncSize(); drawArrows(lastArrows); drawHighlights(lastHighlights); }
-  return {init,drawArrows,drawHighlights,clear,setOrientation,repaint,syncSize};
-})();
 
 /* ── GM Coach module v2 — theory + selective speaking + force engagement ── */
 const Coach = (function(){
