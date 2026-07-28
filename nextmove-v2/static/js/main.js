@@ -1544,6 +1544,9 @@ function getEloFromAnalysis(){
 
 function startBotGame(){
   BotState.playerColor = document.getElementById('bot-color').value;
+  // Games start from the setup panel AND the command palette; hide from here
+  // so both entry points leave the same UI state.
+  if(window.GameSetup) GameSetup.showSetup(false);
   BotState.game = new Chess();
   BotState.moveHistory = [];
   BotState.gameActive = true;
@@ -1886,6 +1889,14 @@ function checkBotGameOver(){
   else if(BotState.game.in_draw()){ result = '½ Draw!'; }
   setBotStatus(result);
   Coach.setStatus('Game over');
+  // Surface the next game immediately instead of leaving a dead board.
+  if(window.GameSetup){
+    setTimeout(()=>{
+      GameSetup.showSetup(true);
+      const go = document.getElementById('setup-go');
+      if(go) go.textContent = 'Play again';
+    }, 1600);
+  }
   Coach.renderQuestions(['Game over. Click "Train These Positions" when the review finishes — those puzzles come from THIS game.']);
   showBotReview();
   // Auto-launch post-game review
@@ -4076,3 +4087,122 @@ window.Onboarding = Onboarding;
 try{ window.ForgeBoard = ForgeBoard; }catch(e){}
 try{ window.BotState = BotState; }catch(e){}
 try{ window.ChessSFX = ChessSFX; }catch(e){}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GameSetup — pre-game panel, in-game bar, turn indicator.
+
+   The play screen shipped with no way to start a game: the redesign hid
+   .gm-mode-cards and .gm-toolbar (the only New Game button and colour picker),
+   so the command palette was the sole entry point. Whose turn it was could not
+   be read either, because #bot-status is display:none on this page. This module
+   owns that surface — start, resign, flip, new game, and turn state.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const GameSetup = (function(){
+  const $ = (id)=>document.getElementById(id);
+  let side = 'white', mode = 'coached';
+
+  function showSetup(on){
+    const p = $('gm-setup');   if(p) p.classList.toggle('hidden', !on);
+    const b = $('gm-gamebar'); if(b) b.classList.toggle('hidden', on);
+  }
+
+  function setTurn(text, state){
+    const t = $('gm-turn-text'); if(t) t.textContent = text;
+    const w = $('gm-turn');
+    if(w){ w.classList.remove('waiting','over'); if(state) w.classList.add(state); }
+  }
+
+  // Single place that decides what the bar should say, so it can be called from
+  // anywhere in the move cycle without duplicating the branching.
+  function refresh(){
+    if(!window.BotState) return;
+    if(!BotState.gameActive){ setTurn('Game over', 'over'); return; }
+    if(BotState.boardLocked){ setTurn('Answer the coach to continue', 'waiting'); return; }
+    if(BotState.thinking){ setTurn('GM Forge is thinking…', 'waiting'); return; }
+    if(window.Premove && Premove.pending){
+      setTurn('Premove queued — ' + Premove.pending.from + '→' + Premove.pending.to, 'waiting'); return;
+    }
+    if(BotState.game && BotState.game.turn() !== BotState.playerColor[0]){
+      setTurn('GM Forge is thinking…', 'waiting'); return;
+    }
+    setTurn(BotState.game && BotState.game.in_check() ? 'Your move — you are in check' : 'Your move', null);
+  }
+
+  function segment(wrapId, attr, onPick){
+    const wrap = $(wrapId); if(!wrap) return;
+    wrap.addEventListener('click', (e)=>{
+      const btn = e.target.closest('.gm-seg-btn'); if(!btn) return;
+      wrap.querySelectorAll('.gm-seg-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      onPick(btn.dataset[attr]);
+    });
+  }
+
+  function start(){
+    const colour = side === 'random' ? (Math.random() < 0.5 ? 'white' : 'black') : side;
+    // startBotGame() reads this hidden <select>, so keep it the source of truth.
+    const sel = $('bot-color'); if(sel) sel.value = colour;
+    if(typeof setBotMode === 'function') setBotMode(mode);
+    showSetup(false);
+    if(typeof startBotGame === 'function') startBotGame();
+    refresh();
+  }
+
+  function resign(){
+    if(!window.BotState || !BotState.gameActive) return;
+    BotState.gameActive = false;
+    if(window.Premove) Premove.clear();
+    if(window.CoachMoment) CoachMoment.stop();
+    if(typeof setBotStatus === 'function') setBotStatus('You resigned.');
+    if(window.Coach && Coach.speak) Coach.speak('Resigned. Start another when you are ready — the mistakes from this one are already in your drills.');
+    setTurn('You resigned', 'over');
+    showSetup(true);
+    const go = $('setup-go'); if(go) go.textContent = 'Play again';
+  }
+
+  function flip(){
+    if(!window.BotState || !BotState.board) return;
+    BotState.board.orientation = BotState.board.orientation === 'white' ? 'black' : 'white';
+    BotState.board.flip(BotState.board.orientation);
+    if(BotState.game) BotState.board.setPosition(BotState.game.fen(), {animate:false});
+  }
+
+  function newGame(){
+    if(window.CoachMoment) CoachMoment.stop();
+    if(window.Premove) Premove.clear();
+    showSetup(true);
+    const go = $('setup-go'); if(go) go.textContent = 'Start game';
+  }
+
+  function init(){
+    if(!$('gm-setup')) return;
+    segment('setup-mode','mode', v=>{ mode = v; });
+    segment('setup-side','side', v=>{ side = v; });
+    const go = $('setup-go'); if(go) go.addEventListener('click', start);
+    const n = $('act-new');    if(n) n.addEventListener('click', newGame);
+    const r = $('act-resign'); if(r) r.addEventListener('click', resign);
+    const f = $('act-flip');   if(f) f.addEventListener('click', flip);
+    // F flips the board, but never while the user is typing into something.
+    document.addEventListener('keydown', (e)=>{
+      if(e.key !== 'f' && e.key !== 'F') return;
+      if(e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target;
+      if(t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      const coach = document.getElementById('page-coach');
+      if(!coach || !coach.classList.contains('active')) return;
+      if(!BotState || !BotState.gameActive) return;
+      flip();
+    });
+    showSetup(!(window.BotState && BotState.gameActive));
+    refresh();
+    // The move cycle is spread across several call sites; polling keeps the bar
+    // honest without threading a callback through every one of them.
+    setInterval(refresh, 400);
+  }
+
+  return {init, refresh, showSetup, resign, flip, newGame, start};
+})();
+window.GameSetup = GameSetup;
+
+if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', GameSetup.init);
+else GameSetup.init();
