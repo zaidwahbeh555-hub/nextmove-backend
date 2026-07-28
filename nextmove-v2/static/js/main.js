@@ -1808,13 +1808,23 @@ function checkBotGameOver(){
   }
 }
 
+
+// chess.js 0.10.3 has no .result() — derive the PGN result tag ourselves.
+function botResultString(g){
+  try{
+    if(!g || !g.game_over()) return '*';
+    if(g.in_checkmate()) return g.turn()==='w' ? '0-1' : '1-0';
+    return '1/2-1/2';
+  }catch(e){ return '*'; }
+}
+
 function getBotPGN(){
   // Generate PGN from bot game history
   const moves = BotState.game.history();
   let pgn = '[Event "ChessForge Bot Game"]\n';
   pgn += `[White "${BotState.playerColor==='white'?'You':'ChessForge Bot'}"]\n`;
   pgn += `[Black "${BotState.playerColor==='black'?'You':'ChessForge Bot'}"]\n`;
-  pgn += `[Result "${BotState.game.game_over()?BotState.game.result():'*'}"]\n\n`;
+  pgn += `[Result "${botResultString(BotState.game)}"]\n\n`;
   for(let i=0;i<moves.length;i++){
     if(i%2===0) pgn += `${Math.floor(i/2)+1}. `;
     pgn += moves[i] + ' ';
@@ -3231,8 +3241,8 @@ async function runPostgameReview(){
   document.getElementById('postgame-results').classList.add('hidden');
   document.getElementById('postgame-train-btn').classList.add('hidden');
   document.getElementById('postgame-title').textContent = 'Analyzing your game with Stockfish…';
-  const pgn = getBotPGN();
   try{
+    const pgn = getBotPGN();
     const r = await fetch('/analyze-bot-game', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({pgn, player_color: BotState.playerColor}),
