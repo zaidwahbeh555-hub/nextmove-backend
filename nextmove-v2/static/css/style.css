@@ -1551,3 +1551,63 @@ body:not(.play-locked) #page-training,body:not(.play-locked) #page-puzzles{overf
   .gm-setup{animation:none}
   .gm-turn.waiting .gm-turn-dot{animation:none}
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   REBUILT COACH SURFACES
+   The legacy rules for these live in the old cyan era; these restate them in
+   the current tokens so the coach column reads as one thing. Contract comes
+   from Coach.render*(): the badge takes a position-type class, feedback takes
+   a severity class (best|ok|inaccuracy|mistake|blunder), theory holds .gm-chip.
+   ═══════════════════════════════════════════════════════════════════════ */
+#coach-panel .gm-position-badge{display:inline-flex;align-items:center;align-self:flex-start;
+  background:var(--accent-soft);border:1px solid transparent;color:var(--accent-text);
+  padding:4px 10px;border-radius:999px;font-size:10px;font-weight:600;letter-spacing:.08em;
+  text-transform:uppercase;margin:0 0 10px;animation:none}
+#coach-panel .gm-position-badge.tactical,
+#coach-panel .gm-position-badge.critical_decision{background:rgba(229,72,77,.14);color:#F0787C}
+#coach-panel .gm-position-badge.opening{background:rgba(232,197,71,.13);color:var(--yellow)}
+#coach-panel .gm-position-badge.endgame{background:rgba(61,201,127,.13);color:var(--green)}
+
+.gm-theory{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.gm-theory.hidden{display:none}
+#coach-panel .gm-chip{display:inline-flex;align-items:center;gap:5px;background:var(--bg-panel-hi);
+  border:1px solid var(--border);color:var(--text-2);padding:4px 9px;border-radius:999px;
+  font-size:11px;font-weight:500}
+#coach-panel .gm-chip.opening{color:var(--yellow);border-color:rgba(232,197,71,.3)}
+#coach-panel .gm-chip.theme{color:var(--accent-text);border-color:rgba(91,108,255,.3)}
+#coach-panel .gm-chip-icon:empty{display:none}
+
+/* Move verdict. Severity is the whole point, so it is carried by a colour
+   stripe as well as the text — readable at a glance without being read. */
+#coach-panel .gm-feedback{margin-top:12px;padding:11px 13px;border-radius:10px;font-size:13px;
+  line-height:1.5;color:var(--text-1);background:var(--bg-panel-hi);
+  border-left:3px solid var(--border-hi);animation:none}
+#coach-panel .gm-feedback::before{display:none}
+#coach-panel .gm-feedback.hidden{display:none}
+#coach-panel .gm-feedback.best{border-left-color:var(--green);background:rgba(61,201,127,.09)}
+#coach-panel .gm-feedback.ok{border-left-color:var(--accent);background:var(--accent-soft)}
+#coach-panel .gm-feedback.inaccuracy{border-left-color:var(--yellow);background:rgba(232,197,71,.09)}
+#coach-panel .gm-feedback.mistake{border-left-color:var(--orange);background:rgba(229,167,61,.1)}
+#coach-panel .gm-feedback.blunder{border-left-color:var(--red);background:rgba(229,72,77,.12)}
+
+.gm-question-list{list-style:none;margin:12px 0 0;padding:0;display:flex;flex-direction:column;gap:8px}
+.gm-question-list:empty{display:none}
+.gm-question-list li{position:relative;padding:9px 12px 9px 26px;background:var(--bg-panel);
+  border:1px solid var(--border);border-radius:10px;font-size:13px;line-height:1.45;color:var(--text-1)}
+.gm-question-list li::before{content:'';position:absolute;left:11px;top:15px;width:5px;height:5px;
+  border-radius:999px;background:var(--accent)}
+.gm-question-list li.gm-q-empty{color:var(--text-3);font-style:italic;border-style:dashed;background:transparent}
+.gm-question-list li.gm-q-empty::before{display:none}
+
+.gm-coach-status{margin-top:10px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--text-3);font-weight:500}
+.gm-coach-status:empty{display:none}
+
+/* The coach column just gained a badge, theory chips, a verdict block and a
+   question list. On a short window that can exceed the viewport, and the play
+   screen does not scroll — so the column scrolls internally instead. */
+#page-coach .gm-side,#page-coach #coach-panel{max-height:calc(100vh - 104px);overflow-y:auto;
+  scrollbar-width:thin}
+#page-coach #coach-panel::-webkit-scrollbar{width:6px}
+#page-coach #coach-panel::-webkit-scrollbar-thumb{background:var(--border-hi);border-radius:999px}
+#page-coach #coach-panel::-webkit-scrollbar-track{background:transparent}

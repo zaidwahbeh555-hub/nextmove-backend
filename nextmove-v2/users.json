@@ -1,0 +1,144 @@
+{
+  "simuser1": {
+    "password": "cd230aac350dae55c2599ec6f196c2d5:617f5807e79486644ceef1124dcadca84e83acf74f1f86516eebb525c79d227e",
+    "email": "sim@test.com",
+    "created": 1785276760,
+    "xp": 0,
+    "plan": "free",
+    "plan_expires": null,
+    "daily_counts": {},
+    "games": [],
+    "progress": {
+      "games_analysed": 0,
+      "blunders_found": 0,
+      "puzzles_solved": 0,
+      "lessons_completed": [],
+      "challenge_solved": []
+    },
+    "onboarding": {
+      "new_user": true,
+      "complete": false,
+      "step": "calibration",
+      "calibration_game": null,
+      "coached_game": null
+    },
+    "training": {
+      "patterns": {
+        "Hanging piece": {
+          "strength": 2,
+          "seen": 3,
+          "correct": 2,
+          "due": 1785363171,
+          "interval_days": 1
+        },
+        "Missed tactic": {
+          "strength": 12,
+          "seen": 0,
+          "correct": 0,
+          "due": 1785276760,
+          "interval_days": 1
+        },
+        "King safety issue": {
+          "strength": 12,
+          "seen": 0,
+          "correct": 0,
+          "due": 1785276760,
+          "interval_days": 1
+        },
+        "Endgame mistake": {
+          "strength": 12,
+          "seen": 0,
+          "correct": 0,
+          "due": 1785276760,
+          "interval_days": 1
+        },
+        "Opening mistake": {
+          "strength": 12,
+          "seen": 0,
+          "correct": 0,
+          "due": 1785276760,
+          "interval_days": 1
+        }
+      },
+      "streak": {
+        "count": 1,
+        "last_day": "2026-07-28"
+      },
+      "history": [
+        {
+          "day": "2026-07-28",
+          "correct": 2,
+          "total": 3
+        }
+      ]
+    }
+  },
+  "simuser2": {
+    "password": "07c7423c925b7b978f8769ebb2cc51a4:eb7af33f24f0ef01a6c671ef024ea9b3f5a4ba82f4ca1d79687e73e1e28ddad2",
+    "email": "s2@t.com",
+    "created": 1785276977,
+    "xp": 0,
+    "plan": "free",
+    "plan_expires": null,
+    "daily_counts": {},
+    "games": [],
+    "progress": {
+      "games_analysed": 0,
+      "blunders_found": 0,
+      "puzzles_solved": 0,
+      "lessons_completed": [],
+      "challenge_solved": []
+    },
+    "onboarding": {
+      "new_user": true,
+      "complete": false,
+      "step": "calibration",
+      "calibration_game": null,
+      "coached_game": null
+    },
+    "training": {
+      "patterns": {
+        "Hanging piece": {
+          "strength": 12,
+          "seen": 0,
+          "correct": 0,
+          "due": 1785276977,
+          "interval_days": 1
+        },
+        "Missed tactic": {
+          "strength": 12,
+          "seen": 0,
+          "correct": 0,
+          "due": 1785276977,
+          "interval_days": 1
+        },
+        "King safety issue": {
+          "strength": 12,
+          "seen": 0,
+          "correct": 0,
+          "due": 1785276977,
+          "interval_days": 1
+        },
+        "Endgame mistake": {
+          "strength": 12,
+          "seen": 0,
+          "correct": 0,
+          "due": 1785276977,
+          "interval_days": 1
+        },
+        "Opening mistake": {
+          "strength": 12,
+          "seen": 0,
+          "correct": 0,
+          "due": 1785276977,
+          "interval_days": 1
+        }
+      },
+      "streak": {
+        "count": 0,
+        "last_day": ""
+      },
+      "history": []
+    }
+  }
+}
