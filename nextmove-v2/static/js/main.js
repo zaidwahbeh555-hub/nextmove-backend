@@ -1583,6 +1583,27 @@ function startBotGame(){
 }
 
 
+/* Squares a piece could move to if it were your turn. chess.js only generates
+   moves for the side to move, so we load the same position with the side-to-move
+   flipped. Deliberately optimistic — like chess.com, a premove is validated for
+   real at fire time and silently cancelled if the opponent's reply made it
+   illegal. Returns null if the flipped position will not load (e.g. it leaves a
+   king capturable), in which case no premove is offered for that piece. */
+function premoveTargets(sq){
+  try{
+    if(typeof Chess === 'undefined' || !BotState.game) return null;
+    const parts = BotState.game.fen().split(' ');
+    parts[1] = BotState.playerColor[0];   // side to move -> the player
+    parts[3] = '-';                       // en-passant target is no longer valid
+    const g = new Chess();
+    if(!g.load(parts.join(' '))) return null;
+    const p = g.get(sq);
+    if(!p || p.color !== BotState.playerColor[0]) return null;
+    return g.moves({square:sq, verbose:true}).map(m=>m.to);
+  }catch(e){ return null; }
+}
+window.premoveTargets = premoveTargets;
+
 /* ══════════ Premoves — queue one move while the opponent thinks ══════════ */
 const Premove = {
   pending:null,
@@ -1616,7 +1637,11 @@ const Premove = {
     const mv=BotState.game.move({from:p.from,to:p.to,promotion:'q'});   // auto-queen
     if(!mv){ return false; }                                            // illegal now -> silent cancel
     BotState.game.undo();
-    return handleCoachMove(p.from,p.to);
+    // handleCoachMove re-queues anything arriving while BotState.thinking is set.
+    // Without this flag a premove could re-queue itself instead of ever playing.
+    this.firing = true;
+    try{ return handleCoachMove(p.from,p.to); }
+    finally{ this.firing = false; }
   }
 };
 window.Premove = Premove;
@@ -1656,8 +1681,9 @@ function handleCoachMove(from, to){
     if(BotState.board) BotState.board.setPosition(BotState.game.fen(), {animate:false});
     return false;
   }
-  // Opponent is thinking -> queue a premove instead of rejecting the input
-  if(BotState.thinking || BotState.game.turn() !== BotState.playerColor[0]){
+  // Opponent is thinking -> queue a premove instead of rejecting the input.
+  // Premove.fire() sets .firing so a premove being played cannot re-queue itself.
+  if(!Premove.firing && (BotState.thinking || BotState.game.turn() !== BotState.playerColor[0])){
     return Premove.queue(from, to);
   }
   Premove.clear();
@@ -1795,7 +1821,9 @@ async function makeBotMove(){
       credentials:'include'
     });
     const d = await r.json();
-    if(d.error || !d.move){ setBotStatus('Bot error — your turn!'); BotState.thinking=false; return; }
+    // Returning here used to skip the premove flush at the end of this function,
+    // leaving a queued premove stuck pending forever after a single bot error.
+    if(d.error || !d.move){ setBotStatus('Bot error — your turn!'); BotState.thinking=false; flushPremove(); return; }
     const from = d.move.slice(0,2), to = d.move.slice(2,4);
     const mv = BotState.game.move({from, to, promotion:'q'});
     if(mv){
@@ -1815,11 +1843,16 @@ async function makeBotMove(){
     }
   }catch(e){ setBotStatus('Connection error. Your turn!'); }
   BotState.thinking = false;
-  // the opponent's move has landed — attempt any queued premove
+  flushPremove();
+}
+
+// the opponent's move has landed — attempt any queued premove
+function flushPremove(){
   if(window.Premove && Premove.pending){
     setTimeout(()=>{ try{ Premove.fire(); }catch(e){ Premove.clear(); } }, 120);
   }
 }
+window.flushPremove = flushPremove;
 
 function addBotMove(san, uci, isBot=false){
   const hist = document.getElementById('bot-move-history');
@@ -2223,7 +2256,8 @@ function answerPremiumMCQ(chosen){
 function showPremiumStep(idx){
   const steps = window._premiumLessonSteps;
   if(!steps || idx >= steps.length) return;
-  document.getElementById('prem-lesson-text').textContent = steps[idx].text;
+  const lt = document.getElementById('prem-lesson-text');
+  if(lt) lt.textContent = steps[idx].text;   // element was removed in the redesign; unguarded this threw
   document.querySelectorAll('.premium-lesson-step').forEach((el,i)=>{
     el.classList.toggle('active', i===idx);
   });
@@ -2257,11 +2291,18 @@ function initCoachPage(){
   BotState.board = new ForgeBoard('bot-board', {
     orientation: 'white',
     getTargets:(sq)=>{
-      if(!BotState.gameActive || BotState.thinking || BotState.boardLocked) return null;
-      if(!BotState.game || BotState.game.turn() !== BotState.playerColor[0]) return null;
+      if(!BotState.gameActive || BotState.boardLocked) return null;
+      if(!BotState.game) return null;
       const p = BotState.game.get(sq);
       if(!p || p.color !== BotState.playerColor[0]) return null;
-      return BotState.game.moves({square:sq, verbose:true}).map(m=>m.to);
+      // Your turn: real legal moves.
+      if(!BotState.thinking && BotState.game.turn() === BotState.playerColor[0]){
+        return BotState.game.moves({square:sq, verbose:true}).map(m=>m.to);
+      }
+      // Opponent's turn: offer premove targets. This used to return null, which
+      // meant a piece could not even be picked up while the bot was thinking —
+      // so Premove.queue() was never reachable and premoves never worked at all.
+      return premoveTargets(sq);
     },
     onMove:(from,to)=>handleCoachMove(from,to),
   });
@@ -2715,9 +2756,16 @@ const CoachMoment = {
   stop(){
     clearTimeout(this.timer); this._endTap();
     document.body.classList.remove('coach-blocking');
+    // These two were left set. boardLocked kept the board unclickable and
+    // forge-focus kept every square dimmed to 60%, so a finished prompt stayed
+    // on screen and the board stayed dead until the page was reloaded.
+    document.body.classList.remove('forge-focus');
+    BotState.boardLocked = false;
+    document.querySelectorAll('.fb-sq.sq-focus').forEach(c=>c.classList.remove('sq-focus'));
     const e=document.getElementById('coach-engage'); if(e){ e.classList.add('hidden'); e.innerHTML=''; }
     const h=document.getElementById('coach-help'); if(h){ h.classList.add('hidden'); h.innerHTML=''; }
     StopSign.hide();
+    if(window.ForgePointer) ForgePointer.retract();
   }
 };
 window.CoachMoment = CoachMoment;
@@ -3653,11 +3701,23 @@ class ForgeBoard {
       startSq=null; moved=false;
     };
     this.el.addEventListener('mousedown', down);
-    window.addEventListener('mousemove', move, {passive:false});
-    window.addEventListener('mouseup', up);
     this.el.addEventListener('touchstart', down, {passive:false});
-    window.addEventListener('touchmove', move, {passive:false});
-    window.addEventListener('touchend', up);
+    // Window listeners used to be added per board and never removed. Boards are
+    // rebuilt for every drill, stage and new game, so handlers piled up and each
+    // one ran on every mousemove — the board got progressively laggier the longer
+    // a session went on. These detach themselves once their board leaves the DOM.
+    const self = this;
+    const bind = (type, fn, opts)=>{
+      const wrapped = (e)=>{
+        if(!self.el || !self.el.isConnected){ window.removeEventListener(type, wrapped, opts); return; }
+        fn(e);
+      };
+      window.addEventListener(type, wrapped, opts);
+    };
+    bind('mousemove', move, {passive:false});
+    bind('mouseup', up);
+    bind('touchmove', move, {passive:false});
+    bind('touchend', up);
   }
   /* ── overlay drawing ── */
   _xy(sq){

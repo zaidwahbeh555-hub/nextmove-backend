@@ -16,6 +16,9 @@
   --text:var(--text-hi);--muted:var(--text-low);--muted2:var(--text-mid);--ink:var(--text-hi);
   --cyan-dim:rgba(34,229,255,.08);--cyan-glow:rgba(34,229,255,.18);
   --purple:var(--violet);--paper:var(--text-hi);--amber:#22E5FF;
+  /* Semantic colours. These were referenced ~66 times across this file but never
+     defined, so every error / success / warning rule silently inherited its colour. */
+  --red:#E5484D;--green:#3DC97F;--orange:#E5A73D;--yellow:#E8C547;
   --serif:var(--font-display);
   --r-sm:4px;--r-md:10px;--r-lg:12px;--r-xl:14px;--r-full:999px;
   --sidebar:230px;--shadow-glow:var(--glow-cyan);
@@ -672,7 +675,11 @@ body{font-family:var(--font-ui);letter-spacing:.005em}
   box-shadow:0 10px 30px -12px rgba(0,0,0,.55);
   user-select:none;-webkit-user-select:none;touch-action:none;
 }
-.fb-sq{aspect-ratio:1/1;min-width:0;min-height:0;position:relative;display:flex;align-items:center;justify-content:center}
+/* No aspect-ratio here: the 8x8 grid already sizes every cell from equal 1fr
+   rows and columns. Declaring aspect-ratio as well gave the cell a second,
+   independent height, and at fractional pixel widths (exactly what browser
+   zoom produces) the two disagreed and left hairline gaps between tiles. */
+.fb-sq{min-width:0;min-height:0;position:relative;display:flex;align-items:center;justify-content:center}
 .fb-light{background:#f0d9b5}     /* chess.com cream */
 .fb-dark{background:#b58863}      /* chess.com tan */
 .fb-piece,.fb-piece-img{width:94%;height:94%;pointer-events:none;display:block}
@@ -1310,25 +1317,40 @@ body.tile-tap-mode .coach-stage{opacity:1}
   --grad:linear-gradient(135deg,#5B6CFF,#8B6BFF); --grad-primary:var(--grad);
   --glow-cyan:0 0 40px rgba(91,108,255,.18);
 }
-html,body{height:100%}
-body{background:var(--bg);color:var(--text-1)}
+/* body was height:100% with overflow-y:auto, which made the body itself a
+   fixed-height scroll container instead of letting the document scroll. That
+   broke scrolling on every page that is taller than the viewport. */
+html{height:100%}
+body{min-height:100%;background:var(--bg);color:var(--text-1)}
 body::before{display:none}
 /* ── board: both shades dark ── */
 .fb-light{background:var(--sq-light)}
 .fb-dark{background:var(--sq-dark)}
-.fb-board{border:1px solid var(--border);border-radius:6px;overflow:hidden}
+/* Board carries the dark-square colour itself, so any sub-pixel seam left by
+   fractional zoom shows board colour rather than the page background. */
+.fb-board{border:1px solid var(--border);border-radius:6px;overflow:hidden;background:var(--sq-dark)}
 .fb-sq.fb-last{background-image:none;box-shadow:inset 0 0 0 2px var(--sq-highlight);background-color:var(--accent-soft)}
 .fb-sq.fb-selected{background-image:none;box-shadow:inset 0 0 0 2px var(--sq-highlight)}
 .fb-sq.fb-selected::after{content:'';position:absolute;inset:0;background:rgba(0,0,0,.28);pointer-events:none}
 .fb-dot{width:20%;background:rgba(255,255,255,.24)}
 .fb-ring{border:4px solid rgba(255,255,255,.28)}
-.fb-sq:hover{box-shadow:inset 0 0 0 100px rgba(255,255,255,.05)}
+/* Hover uses an overlay, not box-shadow. As box-shadow it had the same
+   specificity as .fb-sq.fb-selected / .fb-last / .fb-premove but sat later in
+   the file, so hovering a square erased its selection, last-move, premove and
+   coach-pointed rings — the ring vanished exactly when the cursor was on it. */
+.fb-sq::before{content:'';position:absolute;inset:0;background:transparent;pointer-events:none;z-index:0}
+.fb-sq:hover::before{background:rgba(255,255,255,.05)}
 .fb-coord{color:var(--text-3);font-size:11px}
 /* premove — visually distinct from last-move */
 .fb-sq.fb-premove{background-color:rgba(91,108,255,.30);box-shadow:inset 0 0 0 2px var(--sq-highlight)}
 /* ── top bar 72px ── */
 .topbar{height:72px;border-bottom:none;background:var(--bg);backdrop-filter:none;padding:0 24px;position:relative}
 .topbar .sidebar-logo{display:flex;align-items:center;gap:12px;font-size:20px;font-weight:700;color:var(--text-1)}
+/* One flex item, so the 12px gap never lands between "Chess" and "Forge". */
+.logo-word{white-space:nowrap;letter-spacing:-.02em}
+/* The old collapsed-sidebar rule hides .sidebar-logo spans under 960px; the
+   topbar is not a collapsing sidebar, so its wordmark must survive. */
+@media(max-width:960px){ .topbar .sidebar-logo .logo-word{display:inline} }
 .topbar .logo-icon{color:var(--accent)}
 .topbar .logo-icon .ic{width:28px;height:28px}
 .beta-pill{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-2);
@@ -1346,7 +1368,7 @@ body::before{display:none}
 .gm-layout{display:grid;grid-template-columns:1fr auto auto 1fr;gap:0;align-items:center;
   height:100%;padding:0 24px;max-width:none;transform:none}
 .gm-main{grid-column:2;display:flex;flex-direction:column;gap:14px;align-items:center}
-.gm-board-wrap{width:min(64vh,740px);min-width:520px;aspect-ratio:1/1}
+.gm-board-wrap{width:min(64vh,740px,88vw);min-width:min(520px,88vw);aspect-ratio:1/1}
 #bot-board.gm-board,#bot-board{width:100%;height:100%;min-width:0}
 .gm-side,#coach-panel{grid-column:3;align-self:center;margin-left:48px;width:320px}
 .gm-board-wrap::before{display:none}
@@ -1429,7 +1451,7 @@ body::before{display:none}
    LAYOUT FIX — body was still display:flex from the old sidebar era, which
    laid all 18 top-level children out in a row. This block must stay last.
    ═══════════════════════════════════════════════════════════════════════ */
-body{display:block!important;min-height:0;overflow-y:auto;overflow-x:hidden}
+body{display:block!important;min-height:100vh;overflow-x:hidden}
 .topbar{position:relative;z-index:100}
 .main-wrap{display:block;width:100%;height:calc(100vh - 72px);overflow:hidden;margin:0;padding:0;max-width:none}
 #page-coach.page{display:block;height:100%;width:100%}
@@ -1442,9 +1464,13 @@ body{display:block!important;min-height:0;overflow-y:auto;overflow-x:hidden}
 /* anything else that lands in the grid must not claim a column */
 #page-coach .gm-layout > *:not(.gm-main):not(.gm-side):not(#coach-panel){display:none}
 /* board sizing wins over every earlier layer */
-#page-coach .gm-board-wrap{position:relative;width:min(64vh,700px);min-width:520px;aspect-ratio:1/1;margin:0}
+/* min-width was a hard 520px. Zooming in shrinks the CSS viewport, so 64vh fell
+   below 520px, the board was forced wider than its column, and .main-wrap's
+   overflow:hidden clipped it with no way to scroll to the rest. Sizing off the
+   viewport in both axes lets the board shrink instead of overflowing. */
+#page-coach .gm-board-wrap{position:relative;width:min(64vh,700px,88vw);min-width:min(520px,88vw);aspect-ratio:1/1;margin:0}
 #page-coach #bot-board{width:100%;height:100%;min-width:0}
-#page-coach .eval-strip{width:min(64vh,700px);min-width:520px}
+#page-coach .eval-strip{width:min(64vh,700px,88vw);min-width:min(520px,88vw)}
 /* GM Forge must never exceed his column */
 #page-coach .coach-stage{width:100%;align-items:center;gap:12px}
 #page-coach .coach-big{width:100%;max-width:260px;margin:0 auto}
