@@ -1,5 +1,6 @@
 /* ChessForge Pro v6 — Complete JS */
-const PIECE_THEME = '/static/custom/{piece}.svg';
+const PIECE_VER = 'p2';
+const PIECE_THEME = '/static/custom/{piece}.svg?v=' + PIECE_VER;
 
 const LESSONS={
   tactics:{title:'Tactics: Forks, Pins & Skewers',subtitle:'The most powerful short-term weapons in chess',priority:'high',icon:'',sections:[
@@ -3409,7 +3410,7 @@ function fbPieceSVG(type, color){
 function fbPieceCode(type, color){ return (color==='w'?'w':'b') + type.toUpperCase(); }
 function fbPieceEl(type, color){
   const code = fbPieceCode(type, color);
-  return '<img class="fb-piece-img" draggable="false" alt="" src="/static/custom/'+code+'.svg" '+
+  return '<img class="fb-piece-img" draggable="false" alt="" src="/static/custom/'+code+'.svg?v='+PIECE_VER+'" '+
          'onerror="fbPieceImgFail(this,\''+type+'\',\''+color+'\')">';
 }
 function fbPieceImgFail(img, type, color){

@@ -678,7 +678,8 @@ body{font-family:var(--font-ui);letter-spacing:.005em}
 .fb-piece,.fb-piece-img{width:94%;height:94%;pointer-events:none;display:block}
 .fb-piece-slot{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:1;will-change:transform}
 .fb-piece{filter:drop-shadow(0 1px 1px rgba(0,0,0,.22))}
-.fb-piece-img{object-fit:contain;filter:drop-shadow(0 1px 1px rgba(0,0,0,.18))}
+/* ChessForge piece set is flat by design — no shadow, no gradient, no bevel. */
+.fb-piece-img{object-fit:contain}
 .fb-piece.w path,.fb-piece.w circle,.fb-piece.w rect{fill:#f7f6f2;stroke:#2a2a2a;stroke-width:1.4;stroke-linejoin:round}
 .fb-piece.b path,.fb-piece.b circle,.fb-piece.b rect{fill:#403e3c;stroke:#141414;stroke-width:1.4;stroke-linejoin:round}
 .fb-piece.w .fb-eye{fill:#2a2a2a;stroke:none}
