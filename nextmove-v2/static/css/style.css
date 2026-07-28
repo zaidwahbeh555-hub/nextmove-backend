@@ -1423,3 +1423,37 @@ body::before{display:none}
 
 /* accent used as TEXT lifts to the accessible tone; graphics keep the mockup hue */
 .coach-name,.mv-row.cur,.mv-row.cur .n,.topbar .nav-link.active{color:var(--accent-text)}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   LAYOUT FIX — body was still display:flex from the old sidebar era, which
+   laid all 18 top-level children out in a row. This block must stay last.
+   ═══════════════════════════════════════════════════════════════════════ */
+body{display:block!important;min-height:0;overflow:hidden}
+.topbar{position:relative;z-index:100}
+.main-wrap{display:block;width:100%;height:calc(100vh - 72px);overflow:hidden;margin:0;padding:0;max-width:none}
+#page-coach.page{display:block;height:100%;width:100%}
+#page-coach.page:not(.active){display:none}
+/* the play grid: gutter | board | coach | gutter */
+#page-coach .gm-layout{display:grid;grid-template-columns:1fr auto auto 1fr;grid-auto-rows:min-content;
+  align-content:center;justify-items:center;height:100%;gap:0;padding:0 24px;margin:0;max-width:none;transform:none}
+#page-coach .gm-main{grid-column:2;grid-row:1;display:flex;flex-direction:column;gap:14px;align-items:center}
+#page-coach .gm-side,#page-coach #coach-panel{grid-column:3;grid-row:1;width:320px;margin-left:48px;align-self:center}
+/* anything else that lands in the grid must not claim a column */
+#page-coach .gm-layout > *:not(.gm-main):not(.gm-side):not(#coach-panel){display:none}
+/* board sizing wins over every earlier layer */
+#page-coach .gm-board-wrap{position:relative;width:min(64vh,700px);min-width:520px;aspect-ratio:1/1;margin:0}
+#page-coach #bot-board{width:100%;height:100%;min-width:0}
+#page-coach .eval-strip{width:min(64vh,700px);min-width:520px}
+/* GM Forge must never exceed his column */
+#page-coach .coach-stage{width:100%;align-items:center;gap:12px}
+#page-coach .coach-big{width:100%;max-width:260px;margin:0 auto}
+#page-coach #forge-figure{width:100%;height:auto;display:block}
+/* footer out of the flow so it cannot push the board around */
+.app-foot{position:fixed;left:24px;bottom:10px;margin:0;padding:0;border:none;z-index:50;
+  font-size:11px;gap:16px;width:auto;justify-content:flex-start}
+@media(max-width:1240px){.app-foot{display:none}}
+/* legacy coach-panel widgets superseded by the new eval strip + move rail */
+#page-coach .coach-eval-row,#page-coach #bot-move-history,
+#page-coach .coach-movelist,#page-coach .gm-status-box{display:none!important}
+#page-coach .coach-name-tag{font-size:12px;color:var(--text-2);margin-top:8px}
+#page-coach .coach-name-tag .coach-live{color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;font-size:10px}
