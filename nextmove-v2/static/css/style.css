@@ -2023,3 +2023,102 @@ body.blunder-open #page-coach #coach-panel{opacity:.12;pointer-events:none;trans
    flow — so no padding compensation is needed and no gap can open under it —
    while pinning it to the top of the scrollport. */
 .topbar{position:sticky;top:0}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SHOP DISCOVERY + PRO GATE
+   Same tokens as everything else — accent, 12/16/999 radii, the one easing
+   curve. The persuasion is done by showing the real board a free player
+   cannot use yet, not by colour-shouting at them.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Nav entry. A single accent dot, no badge text — visible without nagging. */
+.topbar .nav-link.nav-shop{gap:7px}
+.topbar .nav-link.nav-shop .ic{width:16px;height:16px}
+.nav-new{width:6px;height:6px;border-radius:999px;background:var(--accent);display:inline-block;
+  margin-left:1px;box-shadow:0 0 0 3px var(--accent-soft)}
+.nav-new[hidden]{display:none}
+
+/* Play-screen affordance, sitting with New Game where the eye already is. */
+.gm-skin-btn{display:inline-flex;align-items:center;gap:8px;padding:0 16px;height:38px;
+  border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--text-2);
+  font-family:inherit;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;
+  transition:all 120ms cubic-bezier(.32,.72,0,1)}
+.gm-skin-btn:hover{color:var(--text-1);border-color:var(--accent);background:var(--accent-soft)}
+.gm-skin-btn .ic{width:16px;height:16px;flex:none}
+.gm-skin-lock{color:var(--text-3);width:14px !important;height:14px !important}
+.gm-skin-lock[hidden]{display:none}
+
+/* Shared "Pro only" chip. */
+.pro-gate-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:999px;
+  background:var(--accent-soft);color:var(--accent-text,var(--accent));border:1px solid rgba(91,108,255,.32);
+  font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.pro-gate-chip .ic{width:13px;height:13px}
+
+/* ── The gate ──────────────────────────────────────────────────────────── */
+/* overflow-y is not optional here: .modal caps at max-height:82vh, so on a short
+   window the upgrade button would sit below the fold with no way to reach it. */
+.modal.pro-gate{width:min(560px,100%);padding:24px;border-radius:16px;background:var(--bg-panel);
+  border:1px solid var(--border-hi);display:block;overflow-y:auto}
+.pro-gate-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.pro-gate-title{font-size:22px;font-weight:700;letter-spacing:-.02em;color:var(--text-1);margin:0 0 8px}
+.pro-gate-sub{font-size:14px;line-height:1.6;color:var(--text-2);margin:0 0 20px;max-width:52ch}
+
+.pro-gate-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
+.pg-tile{margin:0}
+.pg-tile .shop-mini{border-radius:8px;overflow:hidden;max-height:none}
+.pg-tile figcaption{font-size:11px;color:var(--text-3);text-align:center;margin-top:8px}
+@media(max-width:520px){.pro-gate-strip{grid-template-columns:repeat(2,1fr)}}
+
+.pro-gate-foot{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.pro-gate-price{display:flex;align-items:baseline;gap:6px;color:var(--text-1)}
+.pro-gate-price b{font-size:30px;font-weight:700;letter-spacing:-.02em}
+.pro-gate-price span{font-size:13px;color:var(--text-2)}
+.pro-gate-price s{font-size:13px;color:var(--text-3);margin-left:4px}
+
+.pro-gate-cta{display:inline-flex;align-items:center;gap:8px;padding:0 22px;height:44px;border-radius:999px;
+  border:none;background:var(--accent);color:#0D0D14;font-family:inherit;font-size:14px;font-weight:700;
+  cursor:pointer;transition:all 120ms cubic-bezier(.32,.72,0,1)}
+.pro-gate-cta:hover{filter:brightness(1.08)}
+.pro-gate-cta .ic{width:17px;height:17px}
+
+.pro-gate-peek{display:block;width:100%;margin-top:16px;padding:10px;background:none;border:none;
+  color:var(--text-3);font-family:inherit;font-size:13px;cursor:pointer;
+  transition:color 120ms cubic-bezier(.32,.72,0,1)}
+.pro-gate-peek:hover{color:var(--text-2)}
+
+/* ── Locked state on the shop page ─────────────────────────────────────── */
+.shop-locked-in .pro-gate-chip{margin-bottom:12px}
+.shop-locked-in h3 b{color:var(--accent-text,var(--accent));font-variant-numeric:tabular-nums}
+.shop-locked-actions{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.shop-locked-note{font-size:13px;color:var(--text-2)}
+
+/* Locked cards stay fully legible — the preview is the argument, so it is
+   never blurred out. Only the art is dimmed, and only slightly. */
+.shop-card-art{position:relative}
+.shop-card.is-locked .shop-card-art{opacity:.62;transition:opacity 240ms cubic-bezier(.32,.72,0,1)}
+.shop-card.is-locked:hover .shop-card-art{opacity:1}
+.shop-card-lock{position:absolute;top:10px;right:10px;width:26px;height:26px;border-radius:999px;
+  display:flex;align-items:center;justify-content:center;background:rgba(10,10,16,.72);
+  border:1px solid var(--border-hi);color:var(--text-2)}
+.shop-card-lock .ic{width:13px;height:13px}
+.shop-card.is-locked:hover{border-color:var(--accent)}
+
+.shop-btn.is-locked{display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  color:var(--text-2);border-color:var(--border-hi);cursor:pointer}
+.shop-btn.is-locked:hover{color:var(--text-1);border-color:var(--accent);background:var(--accent-soft)}
+.shop-btn.is-locked .ic{width:14px;height:14px}
+.shop-btn.is-short{color:var(--text-3);border-color:var(--border);cursor:default}
+
+/* Five nav items fit comfortably at 1440. Below ~1200 the pill starts crowding
+   the logo and XP chip, so tighten it there rather than let anything squeeze.
+   .nav-links is nowrap, so it cannot re-wrap the way the nested-<li> bug did. */
+@media(max-width:1200px){
+  .topbar .nav-link{padding:10px 15px;font-size:14px}
+  .topbar .nav-link.nav-shop{gap:6px}
+}
+@media(max-width:900px){
+  .topbar .nav-link{padding:9px 12px;font-size:13px}
+  .topbar .nav-link .ic{width:15px;height:15px}
+  .gm-skin-btn span{display:none}
+  .gm-skin-btn{padding:0 12px}
+}

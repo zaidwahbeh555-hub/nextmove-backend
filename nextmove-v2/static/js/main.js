@@ -326,16 +326,91 @@ function shopCard(kind, it, ctx){
   const cur = kind==='board'
     ? shopMiniBoard(it.light, it.dark, Cosmetics.dir)
     : shopMiniBoard(ctx.light, ctx.dark, it.dir);
-  let action;
+  // Free players get the action they wanted to take, worded plainly, and are
+  // told why it did not happen only once they reach for it. A button that says
+  // "Pro only" up front reads as a wall; one that says "Change colours" and
+  // then explains reads as something they are one step away from.
+  const verb = kind==='board' ? 'Use these colours' : 'Use this set';
+  let action, locked = false;
   if(it.equipped)      action = '<button class="shop-btn is-on" disabled>Equipped</button>';
-  else if(it.owned)    action = '<button class="shop-btn" onclick="shopEquip(\''+kind+'\',\''+it.id+'\')">Equip</button>';
-  else if(!ctx.is_pro) action = '<button class="shop-btn is-locked" onclick="goToPro()">Pro only</button>';
-  else if(!it.affordable) action = '<button class="shop-btn is-locked" disabled>Need '+it.price+' XP</button>';
-  else                 action = '<button class="shop-btn is-buy" onclick="shopBuy(\''+kind+'\',\''+it.id+'\')">Buy · '+it.price+'</button>';
-  return '<div class="shop-card'+(it.equipped?' is-equipped':'')+'">'+cur+
+  else if(it.owned)    action = '<button class="shop-btn" onclick="shopEquip(\''+kind+'\',\''+it.id+'\')">'+verb+'</button>';
+  else if(!ctx.is_pro){
+    locked = true;
+    action = '<button class="shop-btn is-locked" onclick="showProGate(\''+kind+'\')">'+
+             '<svg class="ic" aria-hidden="true"><use href="#ic-lock"/></svg> '+verb+'</button>';
+  }
+  else if(!it.affordable) action = '<button class="shop-btn is-short" disabled>'+(it.price-ctx.balance)+' XP to go</button>';
+  else                 action = '<button class="shop-btn is-buy" onclick="shopBuy(\''+kind+'\',\''+it.id+'\')">'+verb+' · '+it.price+' XP</button>';
+  return '<div class="shop-card'+(it.equipped?' is-equipped':'')+(locked?' is-locked':'')+'">'+
+    '<div class="shop-card-art">'+cur+(locked?'<span class="shop-card-lock"><svg class="ic" aria-hidden="true"><use href="#ic-lock"/></svg></span>':'')+'</div>'+
     '<div class="shop-card-body"><div class="shop-card-top"><b>'+it.name+'</b>'+
     (it.price===0?'<span class="shop-tag">Free</span>':'<span class="shop-price">'+it.price+' XP</span>')+
     '</div><p>'+it.blurb+'</p>'+action+'</div></div>';
+}
+
+/* ── Pro gate ─────────────────────────────────────────────────────────────── */
+let _gateCatalog = null;
+
+// Entry point for every cosmetic affordance outside the shop.
+function openCosmetics(kind){
+  if(State.plan==='pro'){ showPage('shop'); return; }
+  showProGate(kind||'board');
+}
+
+async function showProGate(kind){
+  const el = document.getElementById('pro-gate');
+  if(!el) return;
+  const title = document.getElementById('pg-title');
+  const sub   = document.getElementById('pg-sub');
+  if(title) title.textContent = kind==='pieces'
+    ? 'Only Pro members can change the pieces'
+    : 'Only Pro members can change the board';
+  el.hidden = false;
+  document.addEventListener('keydown', _gateKey);
+  // Show the real thing, not a description of it.
+  const strip = document.getElementById('pg-strip');
+  if(!strip) return;
+  try{
+    if(!_gateCatalog){
+      const r = await fetch('/shop/catalog',{credentials:'include'});
+      if(r.ok) _gateCatalog = await r.json();
+    }
+    const d = _gateCatalog;
+    if(!d){ strip.innerHTML = ''; return; }
+    if(sub && d.balance>0){
+      sub.textContent = 'You have already earned ' + d.balance + ' XP on the free plan and none of it '
+        + 'expires. Pro is what lets you spend it.';
+    }
+    const picks = kind==='pieces'
+      ? (d.pieces||[]).filter(i=>i.price>0).slice(0,4)
+          .map(i=>({label:i.name, art:shopMiniBoard('#2E3446','#1E2231', i.dir)}))
+      : (d.board||[]).filter(i=>i.price>0).slice(0,4)
+          .map(i=>({label:i.name, art:shopMiniBoard(i.light, i.dark, Cosmetics.dir)}));
+    strip.innerHTML = picks.map(p=>
+      '<figure class="pg-tile">'+p.art+'<figcaption>'+p.label+'</figcaption></figure>').join('');
+  }catch(e){ console.error('showProGate failed:', e); }
+}
+
+function closeProGate(){
+  const el = document.getElementById('pro-gate');
+  if(el) el.hidden = true;
+  document.removeEventListener('keydown', _gateKey);
+}
+function _gateKey(e){ if(e.key==='Escape') closeProGate(); }
+
+document.addEventListener('click', function(e){
+  const t = e.target;
+  if(t.closest && t.closest('[data-gate-close]')){ e.preventDefault(); closeProGate(); return; }
+  const gate = document.getElementById('pro-gate');
+  if(gate && !gate.hidden && t === gate){ closeProGate(); }
+});
+
+// Reflect plan on the play-screen affordance.
+function syncCosmeticAffordances(){
+  const lock = document.getElementById('gm-skin-lock');
+  if(lock) lock.hidden = State.plan==='pro';
+  const dot = document.getElementById('nav-shop-new');
+  if(dot) dot.hidden = State.plan==='pro' ? true : false;
 }
 
 async function renderShop(){
@@ -346,11 +421,29 @@ async function renderShop(){
     const d = await r.json();
     if(bal) bal.textContent = d.balance;
     State.balance = d.balance;
+    _gateCatalog = d;
     const locked = document.getElementById('shop-locked');
     if(locked) locked.classList.toggle('hidden', !!d.is_pro);
+    if(!d.is_pro){
+      const lx = document.getElementById('shop-locked-xp');
+      if(lx) lx.textContent = d.balance;
+      // Ground the pitch in what they have actually earned, not a slogan.
+      const all = (d.board||[]).concat(d.pieces||[]).filter(i=>i.price>0);
+      const afford = all.filter(i=>d.balance >= i.price);
+      const note = document.getElementById('shop-locked-note');
+      if(note){
+        if(afford.length){
+          note.textContent = 'You could already afford ' + afford.length +
+            (afford.length===1?' of these.':' of these.');
+        } else if(all.length){
+          const cheapest = all.reduce((a,b)=>a.price<b.price?a:b);
+          note.textContent = (cheapest.price - d.balance) + ' XP from your first one.';
+        } else { note.textContent = ''; }
+      }
+    }
     // The equipped board's colours are the backdrop for piece-set previews.
     const eqBoard = (d.board||[]).find(b=>b.equipped) || d.board[0];
-    const ctx = {is_pro:d.is_pro, light:eqBoard.light, dark:eqBoard.dark};
+    const ctx = {is_pro:d.is_pro, light:eqBoard.light, dark:eqBoard.dark, balance:d.balance};
     const bEl = document.getElementById('shop-board');
     const pEl = document.getElementById('shop-pieces');
     if(bEl) bEl.innerHTML = (d.board||[]).map(it=>shopCard('board',it,ctx)).join('');
@@ -469,6 +562,7 @@ function applySession(d){
   setXP(d.xp||0);
   if(d.balance!==undefined) State.balance=d.balance;
   Cosmetics.apply(d.cosmetics);
+  try{ syncCosmeticAffordances(); }catch(e){}
   State.completedLessons=d.progress?.lessons_completed||[];
   const upgradeBtn=document.getElementById('upgrade-btn');
   if(upgradeBtn)upgradeBtn.style.display=State.plan==='pro'?'none':'block';
@@ -4087,6 +4181,7 @@ try{ window.ForgeBoard = ForgeBoard; }catch(e){}
 try{ window.BotState = BotState; }catch(e){}
 try{ window.ChessSFX = ChessSFX; }catch(e){}
 try{ window.Cosmetics = Cosmetics; }catch(e){}
+try{ syncCosmeticAffordances(); }catch(e){}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    GameSetup — pre-game panel, in-game bar, turn indicator.

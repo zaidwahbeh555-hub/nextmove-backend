@@ -110,5 +110,42 @@ let threw = false;
 try{ Cosmetics.apply(null); Cosmetics.apply({}); Cosmetics.apply({light:'#000'}); }catch(e){ threw = true; }
 check('malformed payload is survivable', !threw);
 
+// ── what a free player is offered vs a Pro player ───────────────────────────
+eval(slice("const XP_RULE_LABELS", "async function renderShop") +
+     ";global.shopCard=shopCard;global.shopMiniBoard=shopMiniBoard;");
+
+const paidTheme = {id:'royal', name:'Royal', price:1500, blurb:'Violet.',
+                   light:'#3A3154', dark:'#251E38', owned:false, equipped:false, affordable:false};
+const freeCtx = {is_pro:false, light:'#2E3446', dark:'#1E2231', balance:300};
+const proCtx  = {is_pro:true,  light:'#2E3446', dark:'#1E2231', balance:300};
+
+const freeCard = shopCard('board', paidTheme, freeCtx);
+check('free player still sees the real preview',
+      freeCard.includes('#3A3154') && freeCard.includes('#251E38'));
+check('free player sees the action, not a wall', freeCard.includes('Use these colours'));
+check('locked card is flagged for styling', freeCard.includes('is-locked'));
+check('locked card carries a lock glyph', freeCard.includes('#ic-lock'));
+check('locked button opens the gate, not checkout', freeCard.includes("showProGate('board')"));
+check('free player is never offered a buy button', !freeCard.includes('shopBuy'));
+
+const proShort = shopCard('board', paidTheme, proCtx);
+check('pro who cannot afford it sees the gap', proShort.includes('1200 XP to go'), '1500-300');
+check('pro short of XP gets no gate', !proShort.includes('showProGate'));
+
+const proRich = shopCard('board', Object.assign({}, paidTheme, {affordable:true}), proCtx);
+check('affordable item offers the purchase', proRich.includes('shopBuy') && proRich.includes('1500 XP'));
+
+const ownedCard = shopCard('board', Object.assign({}, paidTheme, {owned:true}), freeCtx);
+check('owned item equips even for a free player',
+      ownedCard.includes('shopEquip') && !ownedCard.includes('showProGate'));
+
+const equipped = shopCard('board', Object.assign({}, paidTheme, {owned:true, equipped:true}), freeCtx);
+check('equipped item is inert', equipped.includes('Equipped') && equipped.includes('disabled'));
+
+const pieceCard = shopCard('pieces', {id:'frost',name:'Frost',price:1100,blurb:'Cool.',dir:'frost/',
+                                      owned:false,equipped:false,affordable:false}, freeCtx);
+check('piece preview uses the set directory', pieceCard.includes('/static/custom/frost/'));
+check('piece verb differs from board verb', pieceCard.includes('Use this set'));
+
 console.log(`\n  ${pass}/${total} passed`);
 process.exit(pass===total ? 0 : 1);
