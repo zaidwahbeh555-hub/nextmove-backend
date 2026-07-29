@@ -2016,3 +2016,10 @@ body.blunder-open #page-coach #coach-panel{opacity:.12;pointer-events:none;trans
 .shop-btn.is-locked{color:var(--text-3);border-color:var(--border);cursor:not-allowed}
 .shop-btn.is-locked[onclick]{cursor:pointer}
 .shop-btn:disabled{cursor:default}
+
+/* The top bar sat at position:relative, so on any page long enough to scroll
+   (Progress, Training, Shop) it scrolled up and off the top of the window and
+   could not be reached again without scrolling back. Sticky keeps it in normal
+   flow — so no padding compensation is needed and no gap can open under it —
+   while pinning it to the top of the scrollport. */
+.topbar{position:sticky;top:0}
