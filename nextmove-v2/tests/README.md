@@ -9,7 +9,8 @@ python3 tests/test_cosmetics.py    # no cosmetic combination is illegible     (1
 node    tests/test_solvehelp.js    # hint ladder must not leak the answer early (24 checks)
 node    tests/test_coach.js        # rebuilt coach render surfaces             (12 checks)
 node    tests/test_gamesetup.js    # turn-indicator state machine              (7 checks)
-node    tests/test_cosmetics.js    # equipping repaints every board, in place  (14 checks)
+node    tests/test_cosmetics.js    # equipping repaints all boards; free vs Pro (27 checks)
+node    tests/test_cmdk.js         # the hint card can never be stranded       (15 checks)
 ```
 
 `test_cosmetics.py` re-checks every piece set against every board theme on both

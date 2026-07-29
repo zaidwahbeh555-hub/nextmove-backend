@@ -2122,3 +2122,59 @@ body.blunder-open #page-coach #coach-panel{opacity:.12;pointer-events:none;trans
   .gm-skin-btn span{display:none}
   .gm-skin-btn{padding:0 12px}
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ⌘K HINT CARD — visible, translucent, draggable
+   It was solid-filled, faded to 50% after first use, and display:none below
+   1280px, so on most laptop windows it simply was not there. Now it is frosted
+   glass that sits over content without hiding it, and it survives down to
+   narrow windows.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.cmdk-hint{
+  /* --bg-panel is #12131C; kept in rgba so the blur behind it reads through. */
+  background:rgba(18,19,28,.62);
+  backdrop-filter:blur(18px) saturate(140%);
+  -webkit-backdrop-filter:blur(18px) saturate(140%);
+  border:1px solid rgba(91,108,255,.30);
+  border-radius:14px;padding:12px 15px;
+  box-shadow:0 14px 38px -16px rgba(0,0,0,.75), inset 0 1px 0 rgba(255,255,255,.05);
+  opacity:.9;
+  transition:opacity 240ms cubic-bezier(.32,.72,0,1),
+             border-color 240ms cubic-bezier(.32,.72,0,1),
+             transform 240ms cubic-bezier(.32,.72,0,1);
+}
+.cmdk-hint:hover{opacity:1;border-color:rgba(91,108,255,.55);transform:translateY(-1px)}
+.cmdk-hint:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+/* Quieter once used, but never so faint it reads as disabled. */
+.cmdk-hint.used{opacity:.62}
+.cmdk-hint.used:hover{opacity:1}
+.cmdk-hint.dragging{opacity:1;transform:none;
+  box-shadow:0 24px 54px -18px rgba(0,0,0,.9);border-color:var(--accent)}
+
+/* The keycap carries the accent, so the eye lands on the shortcut itself. */
+.cmdk-hint .keycap{background:var(--accent-soft);border-color:rgba(91,108,255,.42);
+  color:var(--accent-text,var(--accent));font-weight:700;font-size:12px;padding:4px 7px}
+.cmdk-hint .cmdk-row span{font-size:13px}
+.cmdk-hint .cmdk-sub{margin-top:7px;font-size:11px;color:var(--text-3)}
+
+/* Grip: three dots at the top edge. Says "draggable" without a label. */
+.cmdk-grip{position:absolute;top:6px;left:50%;transform:translateX(-50%);
+  width:22px;height:8px;opacity:.5;
+  background-image:radial-gradient(circle, var(--text-3) 1px, transparent 1.2px);
+  background-size:6px 6px;background-position:center;background-repeat:repeat-x}
+.cmdk-hint:hover .cmdk-grip{opacity:.85}
+
+/* One gentle pull toward it on arrival, and only until it has been used. */
+@keyframes cmdkNudge{
+  0%,100%{box-shadow:0 14px 38px -16px rgba(0,0,0,.75), 0 0 0 0 rgba(91,108,255,0)}
+  50%    {box-shadow:0 14px 38px -16px rgba(0,0,0,.75), 0 0 0 7px rgba(91,108,255,.10)}
+}
+.cmdk-hint:not(.used){animation:cmdkNudge 2.8s cubic-bezier(.32,.72,0,1) 1.2s 3}
+@media(prefers-reduced-motion:reduce){
+  .cmdk-hint,.cmdk-hint:not(.used){animation:none;transition:opacity 240ms linear}
+  .cmdk-hint:hover{transform:none}
+}
+
+/* It used to vanish entirely below 1280px — most laptop windows. Keep it. */
+@media(max-width:1280px){.cmdk-hint{display:block}}
+@media(max-width:820px){.cmdk-hint{display:none}}

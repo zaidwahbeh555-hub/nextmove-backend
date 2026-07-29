@@ -4468,50 +4468,91 @@ window.SolveHelp = SolveHelp;
   function init(){
     const card = document.getElementById('cmdk-hint');
     if(!card) return;
-    try{
-      const saved = JSON.parse(localStorage.getItem('cf_cmdk_pos') || 'null');
-      if(saved && typeof saved.x === 'number'){
-        card.style.left = saved.x + 'px'; card.style.top = saved.y + 'px';
-        card.style.right = 'auto'; card.style.bottom = 'auto';
-      }
-    }catch(e){}
-
     let dragging = false, ox = 0, oy = 0, moved = false;
 
-    card.addEventListener('mousedown', (e)=>{
-      if(e.button !== 0) return;
+    // Keep the card inside the window. Called while dragging and again on
+    // resize -- a position saved on a wide window would otherwise strand the
+    // card off-screen on a narrower one, with no way to reach it again.
+    function place(x, y){
+      const w = card.offsetWidth, h = card.offsetHeight;
+      const cx = Math.min(Math.max(0, x), Math.max(0, window.innerWidth  - w));
+      const cy = Math.min(Math.max(0, y), Math.max(0, window.innerHeight - h));
+      card.style.left = cx + 'px'; card.style.top = cy + 'px';
+      card.style.right = 'auto';  card.style.bottom = 'auto';
+      return {x:cx, y:cy};
+    }
+
+    function save(){
+      try{
+        localStorage.setItem('cf_cmdk_pos', JSON.stringify({
+          x: parseInt(card.style.left,10) || 0,
+          y: parseInt(card.style.top,10)  || 0
+        }));
+      }catch(e){}
+    }
+
+    function start(px, py){
       const r = card.getBoundingClientRect();
-      ox = e.clientX - r.left; oy = e.clientY - r.top;
+      ox = px - r.left; oy = py - r.top;
       dragging = true; moved = false;
       card.classList.add('dragging');
-      e.preventDefault();
-    });
-
-    window.addEventListener('mousemove', (e)=>{
+    }
+    function move(px, py){
       if(!dragging) return;
       moved = true;
-      // Clamp so the card can never be dragged off-screen and stranded.
-      const w = card.offsetWidth, h = card.offsetHeight;
-      const x = Math.min(Math.max(0, e.clientX - ox), window.innerWidth  - w);
-      const y = Math.min(Math.max(0, e.clientY - oy), window.innerHeight - h);
-      card.style.left = x + 'px'; card.style.top = y + 'px';
-      card.style.right = 'auto'; card.style.bottom = 'auto';
-    });
-
-    window.addEventListener('mouseup', ()=>{
+      place(px - ox, py - oy);
+    }
+    function end(){
       if(!dragging) return;
       dragging = false;
       card.classList.remove('dragging');
-      if(moved){
-        try{
-          localStorage.setItem('cf_cmdk_pos', JSON.stringify({
-            x: parseInt(card.style.left,10) || 0,
-            y: parseInt(card.style.top,10)  || 0
-          }));
-        }catch(e){}
-      } else if(window.CommandPalette && CommandPalette.open){
-        CommandPalette.open();   // a plain click still opens the palette
+      if(moved) save();
+      else if(window.CommandPalette && CommandPalette.open) CommandPalette.open();
+    }
+
+    card.addEventListener('mousedown', (e)=>{
+      if(e.button !== 0) return;
+      start(e.clientX, e.clientY);
+      e.preventDefault();
+    });
+    window.addEventListener('mousemove', (e)=> move(e.clientX, e.clientY));
+    window.addEventListener('mouseup', end);
+
+    // Touch: same gesture on tablets, and a tap still opens the palette.
+    card.addEventListener('touchstart', (e)=>{
+      const t = e.touches[0]; if(!t) return;
+      start(t.clientX, t.clientY);
+    }, {passive:true});
+    card.addEventListener('touchmove', (e)=>{
+      const t = e.touches[0]; if(!t || !dragging) return;
+      move(t.clientX, t.clientY);
+      e.preventDefault();          // stop the page scrolling under the drag
+    }, {passive:false});
+    card.addEventListener('touchend', end);
+    card.addEventListener('touchcancel', end);
+
+    // Keyboard parity with the click.
+    card.addEventListener('keydown', (e)=>{
+      if(e.key==='Enter' || e.key===' '){
+        e.preventDefault();
+        if(window.CommandPalette && CommandPalette.open) CommandPalette.open();
       }
+    });
+
+    // Restore where it was left, clamped -- a position saved on a wide window
+    // must not place the card outside a narrower one.
+    try{
+      const saved = JSON.parse(localStorage.getItem('cf_cmdk_pos') || 'null');
+      if(saved && typeof saved.x === 'number' && typeof saved.y === 'number'){
+        place(saved.x, saved.y);
+      }
+    }catch(e){}
+
+    // Pull it back into view if the window gets smaller.
+    window.addEventListener('resize', ()=>{
+      if(!card.style.left) return;          // still on its default anchor
+      place(parseInt(card.style.left,10) || 0, parseInt(card.style.top,10) || 0);
+      save();
     });
   }
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
