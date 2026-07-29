@@ -4545,8 +4545,14 @@ const CoachRail = (function(){
     const wrap = $('crail-cands'), list = $('crail-cand-list');
     if(!wrap || !list) return;
     const arr = (window.Candidates ? Candidates.marked() : []);
-    if(arr.length < 1 || !(window.BotState && BotState.gameActive)){ wrap.classList.add('hidden'); return; }
+    const tip = $('crail-tip');
+    if(arr.length < 1 || !(window.BotState && BotState.gameActive)){
+      wrap.classList.add('hidden');
+      if(tip) tip.classList.toggle('hidden', !(window.BotState && BotState.gameActive));
+      return;
+    }
     wrap.classList.remove('hidden');
+    if(tip) tip.classList.add('hidden');      // they have found it; stop nagging
     if(previews.length) return;                            // already played out
     list.innerHTML = arr.map(a=>{
       let label = a.from + '→' + a.to;
@@ -4574,21 +4580,86 @@ const CoachRail = (function(){
              + '<span class="cc-reply">he plays ' + esc(c.reply||'?') + '</span>'
              + '<span class="cc-gap ' + cls + '">' + (c.gap===0?'best of yours':('-'+c.gap)) + '</span></div>';
       }).join('');
-      // Click a candidate to see it on the board, with his answer.
       list.querySelectorAll('.crail-cand').forEach(el=>{
-        el.addEventListener('click', ()=>{
-          const c = previews[+el.dataset.i]; if(!c || !BotState.board) return;
-          BotState.board.setPosition(c.fen_after, {animate:true});
-          if(c.fen_reply) setTimeout(()=>BotState.board.setPosition(c.fen_reply, {animate:true}), 750);
-          setTimeout(()=>BotState.board.setPosition(BotState.game.fen(), {animate:false}), 2400);
-        });
+        el.addEventListener('click', ()=>walk(+el.dataset.i));
       });
+      if(previews.length > 1) askWhichBest();
     }catch(e){}finally{
       if(btn){ btn.disabled = false; btn.textContent = 'Play them out'; }
     }
   }
 
-  function reset(){ previews = []; lastFen = null;
+  /* ── Walk-through: play the candidate out ON the board, one move at a
+     time, with a line of coaching for each — then let the player judge. ── */
+  let walkIdx = -1, stepIdx = 0, seen = {};
+
+  function strip(){ return $('coachstrip'); }
+  function say(text, controls){
+    const st = strip(), q = $('cs-q'); if(!st || !q) return;
+    st.classList.remove('hidden');
+    q.textContent = text;
+    let bar = st.querySelector('.cs-walk');
+    if(controls){
+      if(!bar){ bar = document.createElement('span'); bar.className = 'cs-walk'; st.appendChild(bar); }
+      bar.innerHTML = controls;
+      bar.querySelectorAll('[data-act]').forEach(b=>{
+        b.addEventListener('click', (e)=>{ e.stopPropagation(); onAct(b.dataset.act, b.dataset.val); });
+      });
+    } else if(bar){ bar.remove(); }
+  }
+
+  function walk(i){
+    const c = previews[i]; if(!c || !c.steps || !c.steps.length) return;
+    walkIdx = i; stepIdx = 0; seen[c.move] = true;
+    showStep();
+  }
+  function showStep(){
+    const c = previews[walkIdx]; if(!c) return;
+    const st = c.steps[stepIdx]; if(!st) return;
+    if(BotState.board) BotState.board.setPosition(st.fen, {animate:true});
+    const last = stepIdx >= c.steps.length - 1;
+    say(st.say,
+        '<button class="cs-b" data-act="prev">Back</button>'
+      + '<button class="cs-b" data-act="next">' + (last ? 'Done' : 'Next') + '</button>'
+      + '<button class="cs-b ghost" data-act="stop">Back to the game</button>');
+  }
+  function onAct(act, val){
+    if(act === 'next'){
+      const c = previews[walkIdx];
+      if(c && stepIdx < c.steps.length - 1){ stepIdx++; showStep(); }
+      else stopWalk(true);
+    } else if(act === 'prev'){
+      if(stepIdx > 0){ stepIdx--; showStep(); }
+    } else if(act === 'stop'){ stopWalk(false); }
+    else if(act === 'pick'){ judge(val); }
+  }
+  function stopWalk(finished){
+    if(BotState.board) BotState.board.setPosition(BotState.game.fen(), {animate:false});
+    walkIdx = -1;
+    if(finished && previews.length > 1 && Object.keys(seen).length >= previews.length) askWhichBest();
+    else if(finished) say('Now try the other one, so you can compare them.');
+  }
+
+  function askWhichBest(){
+    if(Object.keys(seen).length < previews.length) return;   // walk them all first
+    say('You have seen both play out. Which do you think was better?',
+        previews.map(c=>'<button class="cs-b" data-act="pick" data-val="'
+                        + esc(c.move) + '">' + esc(c.move) + '</button>').join(''));
+  }
+  function judge(move){
+    const best = previews.reduce((a,b)=> b.eval > a.eval ? b : a);
+    const chosen = previews.find(c=>c.move === move);
+    if(!chosen) return;
+    if(chosen.move === best.move){
+      say('Good choice — ' + chosen.move + ' holds up best. You worked that out yourself.');
+    } else {
+      say('Close. Look again at what he answered ' + chosen.move + ' with — ' +
+          (chosen.reply || 'his reply') + '. Does that change your mind?',
+          '<button class="cs-b" data-act="pick" data-val="' + esc(best.move) + '">Rethink</button>');
+    }
+  }
+
+  function reset(){ previews = []; lastFen = null; walkIdx = -1; stepIdx = 0; seen = {};
     const l=$('crail-cand-list'); if(l) l.innerHTML='';
     const c=$('crail-cands'); if(c) c.classList.add('hidden');
     const it=$('crail-items'); if(it) it.innerHTML='';

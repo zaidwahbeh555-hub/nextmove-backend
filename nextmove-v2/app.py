@@ -4310,12 +4310,38 @@ def candidates_preview():
                     a2 = after.copy(); a2.push(a2.parse_san(reply)); fen_reply = a2.fen()
                 except Exception:
                     pass
+            # Build the actual walk-through: each step is a board position plus
+            # one line of plain coaching. The player watches the consequence
+            # rather than being handed a number.
+            steps = [{"fen": fen_after, "san": san, "who": "you",
+                      "say": "You play %s. Watch what he gets." % san}]
+            walk = after.copy()
+            for i, nxt in enumerate(r.get("pv_san", [])[:4]):
+                try:
+                    mvn = walk.parse_san(nxt)
+                except Exception:
+                    break
+                cap = walk.is_capture(mvn)
+                victim = walk.piece_at(mvn.to_square)
+                walk.push(mvn)
+                who = "him" if i % 2 == 0 else "you"
+                if walk.is_checkmate():
+                    say = "%s — and that is mate." % nxt
+                elif walk.is_check():
+                    say = "%s, with check. Your king has to answer." % nxt
+                elif cap and victim:
+                    say = "%s takes your %s." % (nxt, PIECE_NAMES.get(victim.piece_type, "piece")) \
+                          if who == "him" else "%s wins the %s back." % (nxt, PIECE_NAMES.get(victim.piece_type, "piece"))
+                else:
+                    say = "%s." % nxt if who == "him" else "You answer %s." % nxt
+                steps.append({"fen": walk.fen(), "san": nxt, "who": who, "say": say})
             out.append({
                 "move": san, "fen_after": fen_after,
                 "reply": reply, "fen_reply": fen_reply,
                 # From your point of view, after his best answer.
                 "eval": round(-r.get("eval", 0.0), 2),
                 "line": r.get("pv_san", [])[:4],
+                "steps": steps,
             })
     except Exception as e:
         print("preview error:", e)

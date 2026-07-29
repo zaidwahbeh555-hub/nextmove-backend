@@ -1879,3 +1879,17 @@ body.blunder-open #page-coach #coach-panel{opacity:.12;pointer-events:none;trans
 /* Each side now has one job, and says so. */
 .crail-head{text-transform:uppercase;letter-spacing:.09em;font-size:10px;color:var(--text-3)}
 #page-coach .coach-name-tag,#page-coach .coach-name{font-size:11px;letter-spacing:.06em}
+
+/* ── Walk-through controls on the strip ─────────────────────────────────── */
+.cs-walk{flex-basis:100%;display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;
+  padding-top:8px;border-top:1px solid var(--border)}
+.cs-b{background:var(--accent);color:#fff;border:none;border-radius:999px;
+  padding:6px 13px;font-family:var(--font-ui);font-size:12px;font-weight:600;cursor:pointer}
+.cs-b.ghost{background:transparent;border:1px solid var(--border);color:var(--text-2)}
+.cs-b.ghost:hover{border-color:var(--border-hi);color:var(--text-1)}
+.coachstrip{flex-wrap:wrap}
+/* Tell people the candidate feature exists before they have used it. */
+.crail-tip{font-size:11.5px;line-height:1.5;color:var(--text-3);background:var(--bg-panel);
+  border:1px dashed var(--border-hi);border-radius:10px;padding:10px 12px}
+.crail-tip.hidden{display:none}
+.cand-hint{font-size:11px;line-height:1.45;color:var(--text-3);margin-left:0;flex-basis:100%}
