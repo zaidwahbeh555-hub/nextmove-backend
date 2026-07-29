@@ -1611,3 +1611,72 @@ body:not(.play-locked) #page-training,body:not(.play-locked) #page-puzzles{overf
 #page-coach #coach-panel::-webkit-scrollbar{width:6px}
 #page-coach #coach-panel::-webkit-scrollbar-thumb{background:var(--border-hi);border-radius:999px}
 #page-coach #coach-panel::-webkit-scrollbar-track{background:transparent}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   BIGGER, CENTRED BOARDS  ·  SOLVE-HELP  ·  DRAGGABLE ⌘K CARD
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* Puzzle board was a fixed 480px pinned left inside a two-column grid. It is
+   the thing being studied, so it now scales with the viewport and centres. */
+#page-puzzles .two-col{display:grid;grid-template-columns:minmax(0,1fr) 340px;
+  gap:36px;align-items:start;max-width:1180px;margin:0 auto}
+#page-puzzles .two-col > div:first-child{display:flex;flex-direction:column;align-items:center;width:100%}
+#puzzle-board{width:min(66vh,640px,90%)!important;max-width:none!important;margin:0 auto;
+  aspect-ratio:1/1;border-radius:14px}
+#page-puzzles .status-box,#page-puzzles .btn-row,#page-puzzles .hint-box,
+#page-puzzles .sh-ladder{width:min(66vh,640px,90%);margin-left:auto;margin-right:auto}
+@media(max-width:1080px){
+  #page-puzzles .two-col{grid-template-columns:1fr}
+  #puzzle-board{width:min(70vw,560px)!important}
+}
+
+/* Drill + stage boards: same treatment, and the hard 480px floor is what made
+   them overflow when the window or zoom got tight. */
+#drill-board,.stage-board-col>div{min-width:0!important;width:min(64vh,620px,100%)!important;
+  margin:0 auto;aspect-ratio:1/1}
+.drill-body{grid-template-columns:minmax(0,1fr) 360px!important;align-items:center}
+.drill-board-col{display:flex;flex-direction:column;align-items:center;width:100%}
+@media(max-width:1080px){
+  .drill-body,.stage-shell{grid-template-columns:1fr!important}
+  #drill-board,.stage-board-col>div{width:min(78vw,560px)!important}
+}
+
+/* ── Solve help ──────────────────────────────────────────────────────────── */
+.sh-card{padding:18px!important}
+.sh-method-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:10px}
+.sh-method-label{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent-text);font-weight:600}
+.sh-method-pat{font-size:11px;color:var(--text-3)}
+.sh-what{font-size:13px;line-height:1.55;color:var(--text-1);margin:0 0 12px}
+.sh-steps{margin:0 0 12px;padding-left:0;list-style:none;counter-reset:sh}
+.sh-steps li{counter-increment:sh;position:relative;padding:0 0 9px 26px;font-size:12.5px;
+  line-height:1.5;color:var(--text-2)}
+.sh-steps li::before{content:counter(sh);position:absolute;left:0;top:1px;width:17px;height:17px;
+  border-radius:999px;background:var(--accent-soft);color:var(--accent-text);
+  font-size:10px;font-weight:700;display:grid;place-items:center}
+.sh-tell{font-size:12px;line-height:1.5;color:var(--text-3);margin:0;padding-top:10px;
+  border-top:1px solid var(--border)}
+.sh-tell b{color:var(--text-2)}
+.sh-ladder{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.sh-ladder.hidden{display:none}
+.sh-rung{background:var(--bg-panel);border:1px solid var(--border);border-radius:12px;padding:12px 14px;
+  animation:shIn .24s cubic-bezier(.32,.72,0,1) both}
+@keyframes shIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.sh-rung-label{display:block;font-size:10px;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--accent-text);font-weight:600;margin-bottom:5px}
+.sh-rung p{margin:0;font-size:13px;line-height:1.55;color:var(--text-1)}
+.sh-rung-answer{border-color:rgba(91,108,255,.45);background:var(--accent-soft)}
+@media(prefers-reduced-motion:reduce){.sh-rung{animation:none}}
+
+/* ── ⌘K card: to the side, and draggable ─────────────────────────────────── */
+.cmdk-hint{left:auto;right:22px;top:auto;bottom:22px;cursor:grab;user-select:none;
+  border-radius:14px;padding:12px 14px;box-shadow:0 12px 32px -14px rgba(0,0,0,.7)}
+.cmdk-hint:active{cursor:grabbing}
+.cmdk-hint.dragging{transition:none;box-shadow:0 20px 44px -14px rgba(0,0,0,.85)}
+@media(max-width:1280px){.cmdk-hint{display:none}}
+
+/* ── Sleeker chrome: softer radii, quieter borders, no hard edges ───────── */
+.card,.gm-setup-card,.cmdk-box,.move-panel,.eval-strip,.sh-rung{border-radius:16px}
+.gm-act,.btn-outline,.ctrl-btn,.gm-seg,.gm-seg-btn{border-radius:999px}
+.status-box,.hint-box{border-radius:12px}
+.topbar .nav-links{backdrop-filter:blur(10px)}
+.card::before{display:none}   /* the old cyan hairline gradient on every card */

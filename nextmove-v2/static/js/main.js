@@ -1255,6 +1255,16 @@ function loadPuzzle(idx){
   document.getElementById('puzzle-status').textContent=`${cap(p.side)} to play — find the best move!`;
   document.getElementById('puzzle-status').style.color='';
   document.getElementById('puzzle-hint-text').classList.add('hidden');
+  // Fresh puzzle: collapse the ladder and show the method for THIS pattern.
+  State.hintRung = 0;
+  const _lad = document.getElementById('puzzle-ladder');
+  if(_lad){ _lad.classList.add('hidden'); _lad.innerHTML=''; }
+  const _hb = document.getElementById('hint-btn');
+  if(_hb){ _hb.disabled = false; }
+  const _hl = document.getElementById('hint-btn-label');
+  if(_hl) _hl.textContent = 'Help me find it';
+  const _pm = document.getElementById('puzzle-method');
+  if(_pm && window.SolveHelp) _pm.innerHTML = SolveHelp.methodHTML(p.pattern);
   document.getElementById('puzzle-num').textContent=idx+1;
   document.getElementById('xp-earned').classList.add('hidden');
   document.getElementById('puzzle-meta').innerHTML=`<span><strong>Pattern:</strong> ${esc(p.pattern)}</span><span><strong>Phase:</strong> ${cap(p.phase)}</span><span><strong>Your move:</strong> ${esc(p.move_played)} (−${p.drop_cp}cp)</span>`;
@@ -1270,10 +1280,32 @@ function handlePuzzleDrop(src,tgt){
   checkPuzzleMove(mv, src, tgt);
 }
 
+/* Hint used to print the answer outright, which solves the puzzle and teaches
+   nothing. It now walks a four-rung ladder: what to look for, how to search,
+   a narrowing clue derived from the solution, and only then the move itself. */
+State.hintRung = 0;
+function renderPuzzleLadder(){
+  const p = State.puzzles[State.puzzleIdx]; if(!p) return;
+  const box = document.getElementById('puzzle-ladder');
+  const lbl = document.getElementById('hint-btn-label');
+  if(!box) return;
+  const rungs = SolveHelp.ladder(p.pattern, p.solution, p.threat_desc || '');
+  const n = Math.min(State.hintRung, rungs.length);
+  if(n === 0){ box.classList.add('hidden'); box.innerHTML=''; return; }
+  box.classList.remove('hidden');
+  box.innerHTML = rungs.slice(0, n).map(r =>
+    '<div class="sh-rung' + (r.isAnswer ? ' sh-rung-answer' : '') + '">'
+    + '<span class="sh-rung-label">' + esc(r.label) + '</span>'
+    + '<p>' + esc(r.body) + '</p></div>').join('');
+  if(lbl) lbl.textContent = n >= rungs.length ? 'That is the whole ladder'
+                          : (n === 0 ? 'Help me find it' : 'Still stuck — tell me more');
+  const btn = document.getElementById('hint-btn');
+  if(btn) btn.disabled = n >= rungs.length;
+}
 document.getElementById('hint-btn').addEventListener('click',()=>{
-  const p=State.puzzles[State.puzzleIdx];if(!p)return;
-  const h=document.getElementById('puzzle-hint-text');h.classList.remove('hidden');
-  h.textContent=` Best move: ${p.solution}`;
+  if(!State.puzzles[State.puzzleIdx]) return;
+  State.hintRung++;
+  renderPuzzleLadder();
 });
 document.getElementById('next-puzzle-btn').addEventListener('click',async()=>{
   if(!State.puzzles.length)return;
@@ -2030,13 +2062,10 @@ function skipTutorial(){
 /* ── Onboarding ───────────────────────────────────────────────────────────── */
 // Onboarding is driven by server state (State.onboarding). New users are guided
 // through the calibration flow; existing users are marked complete server-side.
-function checkOnboarding(){
-  if(!State.loggedIn) return;
-  const ob = State.onboarding;
-  if(ob && ob.new_user && !ob.complete){
-    Onboarding.start();
-  }
-}
+// The guided new-account tutorial (overlay, arrows, step rectangles) was removed
+// at the user's request. New accounts now land straight in the app; the server
+// also marks them onboarding-complete so nothing re-triggers this.
+function checkOnboarding(){ /* intentionally empty — tutorial removed */ }
 
 
 /* ── Cancel Subscription ─────────────────────────────────────────────────── */
@@ -3743,200 +3772,7 @@ class ForgeBoard {
 /* ═══════════════════════════════════════════════════════════════════════════
    Onboarding — guided first-run flow (Phase 1: Step 1 calibration game)
    ═══════════════════════════════════════════════════════════════════════════ */
-const Onboarding = {
-  active:false, board:null, game:null, playerColor:'white',
-  perf:[], moveData:[], movesMade:0, thinking:false, estElo:1100,
-
-  start(){
-    if(this.active) return;
-    if(document.getElementById('onb-overlay')) return;
-    this.active = true;
-    document.body.style.overflow='hidden';
-    const ov = document.createElement('div');
-    ov.id='onb-overlay'; ov.className='onb-overlay';
-    ov.innerHTML = `
-      <div class="onb-topbar">
-        <div class="onb-brand"><span class="logo-icon"></span> Chess<strong>Forge</strong></div>
-        <div class="onb-rail" id="onb-rail"></div>
-        <div class="onb-skip-hint">Step 1 of 3</div>
-      </div>
-      <div class="onb-body">
-        <div class="onb-board-col">
-          <div id="onb-board"></div>
-          <div style="display:flex;gap:.7rem;margin-top:1rem;flex-wrap:wrap;align-items:center">
-            <button class="onb-btn ghost" id="onb-finish" disabled onclick="Onboarding.finish()">I'm done — read my level</button>
-            <span id="onb-move-hint" style="font-size:.82rem;color:var(--muted2)">Play at least a few moves so we can read your level.</span>
-          </div>
-        </div>
-        <div class="onb-side" id="onb-side">
-          <div class="onb-eyebrow">Step 1 · Calibration</div>
-          <h1 class="onb-title">First, just <em>play.</em></h1>
-          <p class="onb-desc">No coaching yet — this game is how ChessForge learns <em>your</em> style: the mistakes you repeat, the moments you rush. Play naturally against the bot. It'll quietly tune to your level as you go.</p>
-          <div class="onb-status"><span class="onb-pulse"></span><span id="onb-status-text">Reading your moves…</span></div>
-          <div class="onb-elo-wrap">
-            <div class="onb-elo-label">Estimated level</div>
-            <div class="onb-elo-bar"><div class="onb-elo-fill" id="onb-elo-fill"></div></div>
-            <div class="onb-elo-num" id="onb-elo-num">~1100</div>
-          </div>
-        </div>
-      </div>`;
-    document.body.appendChild(ov);
-    this.renderRail('calibration');
-    this.startCalibration();
-  },
-
-  renderRail(step){
-    const steps = [['calibration','Play'],['review','Review'],['coached','Coached game']];
-    const order = {calibration:0, review:1, coached:2, done:3};
-    const cur = order[step] ?? 0;
-    const rail = document.getElementById('onb-rail');
-    if(!rail) return;
-    rail.innerHTML = steps.map((s,i)=>{
-      const cls = i<cur ? 'done' : (i===cur ? 'active':'');
-      const dot = i<cur ? '' : (i+1);
-      const line = i<steps.length-1 ? '<span class="onb-rail-line"></span>' : '';
-      return `<span class="onb-rail-step ${cls}"><span class="onb-rail-dot">${dot}</span><span class="onb-rail-label">${s[1]}</span></span>${line}`;
-    }).join('');
-  },
-
-  startCalibration(){
-    this.game = new Chess();
-    this.playerColor = 'white';
-    this.perf = []; this.moveData = []; this.movesMade = 0; this.thinking=false; this.estElo=1100;
-    this.board = new ForgeBoard('onb-board', {
-      orientation:'white',
-      getTargets:(sq)=>{
-        if(this.thinking) return null;
-        if(this.game.turn() !== this.playerColor[0]) return null;
-        const p = this.game.get(sq);
-        if(!p || p.color !== this.playerColor[0]) return null;
-        return this.game.moves({square:sq, verbose:true}).map(m=>m.to);
-      },
-      onMove:(from,to)=>this.onPlayerMove(from,to),
-    });
-    this.board.setPosition(this.game.fen());
-    this.setStatus('Your move — you play White.');
-  },
-
-  setStatus(t){ const e=document.getElementById('onb-status-text'); if(e) e.textContent=t; },
-
-  onPlayerMove(from,to){
-    if(this.thinking) return false;
-    if(this.game.turn() !== this.playerColor[0]) return false;
-    const fenBefore = this.game.fen();
-    const mv = this.game.move({from,to,promotion:'q'});
-    if(!mv) return false;
-    this.board.setPosition(this.game.fen(), {lastMove:{from,to}, checkSquare:this.kingInCheck()});
-    this.movesMade++;
-    if(this.movesMade>=4){
-      const fb=document.getElementById('onb-finish'); if(fb) fb.disabled=false;
-      const mh=document.getElementById('onb-move-hint'); if(mh) mh.textContent='Keep going, or click "read my level" when ready.';
-    }
-    if(this.game.game_over()){ this.gatherPerf(fenBefore, mv.san); this.end('The game ended — let me read your level.'); return true; }
-    this.thinking = true;
-    this.setStatus('Bot is replying…');
-    setTimeout(()=>this.botMove(), 350);
-    // Gather perf in the background AFTER the bot request is queued, so the
-    // reply isn't stuck behind the heavier analysis on a single worker.
-    setTimeout(()=>this.gatherPerf(fenBefore, mv.san), 1600);
-    return true;
-  },
-
-  kingInCheck(){
-    if(!this.game.in_check()) return null;
-    const turn = this.game.turn();
-    for(const f of 'abcdefgh'){ for(let r=1;r<=8;r++){ const sq=f+r; const p=this.game.get(sq); if(p&&p.type==='k'&&p.color===turn) return sq; } }
-    return null;
-  },
-
-  async gatherPerf(fenBefore, san){
-    try{
-      const r = await fetch('/coach-move-feedback', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({fen_before:fenBefore, san_played:san, weaknesses:[]}),
-        credentials:'include'
-      });
-      const d = await r.json();
-      this.perf.push(typeof d.drop_cp==='number' ? d.drop_cp : 0);
-      this.moveData.push({fen_before:fenBefore, san, severity:d.severity, drop_cp:d.drop_cp, best_move:d.best_move_san, best_pv:d.best_pv});
-    }catch(e){ this.perf.push(0); }
-  },
-
-  async botMove(){
-    if(!this.game || this.game.game_over()){ this.thinking=false; return; }
-    try{
-      const r = await fetch('/bot-move', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({fen:this.game.fen(), perf:this.perf}),
-        credentials:'include'
-      });
-      const d = await r.json();
-      if(d.error || !d.move){ this.thinking=false; this.setStatus('Your move.'); return; }
-      const mv = this.game.move({from:d.move.slice(0,2), to:d.move.slice(2,4), promotion:'q'});
-      if(mv){
-        this.board.setPosition(this.game.fen(), {lastMove:{from:d.move.slice(0,2),to:d.move.slice(2,4)}, checkSquare:this.kingInCheck()});
-        if(typeof d.est_elo==='number') this.updateElo(d.est_elo);
-      }
-      this.thinking=false;
-      if(this.game.game_over()){ this.end('Checkmate — game over. Reading your level…'); return; }
-      this.setStatus(mv && this.game.in_check() ? 'You are in check — your move.' : 'Your move.');
-    }catch(e){ this.thinking=false; this.setStatus('Your move.'); }
-  },
-
-  updateElo(elo){
-    this.estElo = elo;
-    const pct = Math.max(5, Math.min(95, (elo-500)/1500*100));
-    const fill=document.getElementById('onb-elo-fill'); if(fill) fill.style.width=pct+'%';
-    const num=document.getElementById('onb-elo-num'); if(num) num.textContent='~'+elo;
-  },
-
-  finish(){ this.end('Reading your level…'); },
-
-  async end(msg){
-    if(this._ending) return; this._ending = true;
-    this.setStatus(msg||'Reading your level…');
-    // Persist calibration game + advance onboarding. Phase 1 completes here;
-    // the narrated review + coached game arrive in the next update.
-    const pgn = this.game ? this.game.pgn() : '';
-    try{
-      const r = await fetch('/onboarding/advance', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({step:'done', complete:true, calibration_game:{pgn, move_data:this.moveData, est_elo:this.estElo}}),
-        credentials:'include'
-      });
-      const d = await r.json();
-      if(d.onboarding) State.onboarding = d.onboarding;
-    }catch(e){}
-    this.showComplete();
-  },
-
-  showComplete(){
-    const side = document.getElementById('onb-side');
-    const mistakes = this.moveData.filter(m=>m.severity==='blunder'||m.severity==='mistake').length;
-    if(side){
-      side.innerHTML = `
-        <div class="onb-eyebrow">Calibration complete</div>
-        <h1 class="onb-title">Got it. You play at <em>~${this.estElo}.</em></h1>
-        <p class="onb-desc">I watched ${this.movesMade} of your moves${mistakes?` and spotted ${mistakes} costly one${mistakes>1?'s':''}`:''}. Your full <em>Thinking Fingerprint</em> and a live-coached game are landing in the next update — for now, jump in and explore.</p>
-        <button class="onb-btn" onclick="Onboarding.enterApp()">Enter ChessForge </button>`;
-    }
-    this.renderRail('done');
-    const fb=document.getElementById('onb-finish'); if(fb) fb.style.display='none';
-    const mh=document.getElementById('onb-move-hint'); if(mh) mh.style.display='none';
-  },
-
-  enterApp(){
-    this.close();
-    showPage('coach');
-  },
-
-  close(){
-    this.active=false; this._ending=false;
-    document.body.style.overflow='';
-    const ov=document.getElementById('onb-overlay'); if(ov) ov.remove();
-  }
-};
-window.Onboarding = Onboarding;
+// (Onboarding tutorial module removed.)
 
 /* ── Legal modals: Esc, click-outside, focus trap ── */
 (function(){
@@ -4096,3 +3932,219 @@ window.GameSetup = GameSetup;
 
 if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', GameSetup.init);
 else GameSetup.init();
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SolveHelp — teach the method, not the move.
+
+   The Hint button used to print "Best move: Nxe5", which teaches nothing: the
+   puzzle is solved and the player learned no way to find the next one. This
+   replaces that with a per-pattern method (what to scan, in what order) and a
+   four-rung ladder that narrows the search before it ever names a move.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const SolveHelp = (function(){
+
+  // One entry per pattern the analyser can tag. `what` defines the idea, `steps`
+  // is the scan procedure, `tell` is the giveaway to look for on the board.
+  const METHOD = {
+    'Hanging piece':{
+      what:'A hanging piece is one that has more attackers than defenders — it can simply be taken for free.',
+      tell:'Look for pieces standing alone, with no friendly piece covering the square they sit on.',
+      steps:[
+        'Count the pieces your opponent left undefended. Go one by one — do not skim.',
+        'For each of your pieces, ask: if it were captured right now, do I recapture?',
+        'Check the piece that just moved. A piece that moves often abandons what it was defending.',
+        'Take the free material before starting any plan of your own.'
+      ]
+    },
+    'Missed tactic':{
+      what:'A tactic is a short forcing sequence that wins material or mates. Forcing means checks, captures and threats — moves the opponent cannot ignore.',
+      tell:'Two enemy pieces on one line, an undefended piece near their king, or a king with no escape squares.',
+      steps:[
+        'List every check you have. Every single one, even the silly-looking ones.',
+        'List every capture you have.',
+        'List every move that makes a serious threat.',
+        'Only those three lists can contain a tactic — calculate them before anything quiet.'
+      ]
+    },
+    'King safety issue':{
+      what:'King safety problems come from open lines pointing at the king, missing defenders, or a king still stuck in the centre.',
+      tell:'An open file or diagonal aimed at the king, or heavy pieces that can swing across in one move.',
+      steps:[
+        'Find the king. Count how many of your pieces can reach squares next to it.',
+        'Look for open files and diagonals leading to it — those are the roads in.',
+        'Ask which defender is doing the most work, then look for a way to remove or distract it.',
+        'If the king cannot run, a check may be mate rather than just a check.'
+      ]
+    },
+    'Opening mistake':{
+      what:'Opening play is about development, the centre and king safety — not about winning material early.',
+      tell:'A piece still on its starting square, a king still in the centre, or the same piece moved twice.',
+      steps:[
+        'Count your developed pieces against your opponent’s. Who has more in the game?',
+        'Ask which of your pieces is doing the least — that is usually the one to move.',
+        'Check whether castling is available and whether anything concrete stops you.',
+        'Prefer the move that develops with a threat, so you gain time as well as a piece.'
+      ]
+    },
+    'Endgame mistake':{
+      what:'Endgames are decided by king activity and passed pawns, not by keeping material even.',
+      tell:'A passed pawn, a king closer to the action than its counterpart, or a pawn race.',
+      steps:[
+        'Bring the king forward — in an endgame it is a strong piece, not a liability.',
+        'Find every passed pawn on the board, yours and theirs. They decide the game.',
+        'Count the race: if both sides push, who queens first? Count it exactly, not roughly.',
+        'Push the passed pawn only once your king supports it, unless the race is already won.'
+      ]
+    },
+    'Early queen development':{
+      what:'A queen brought out early gets chased by smaller pieces, and every attack on her develops your opponent for free.',
+      tell:'Your queen off her home square while knights and bishops are still at home.',
+      steps:[
+        'Ask what your opponent gains by attacking the queen — usually a free developing move.',
+        'Develop knights and bishops first, then castle, then bring the queen out.',
+        'If the queen is already out and being chased, retreat her to a safe square early rather than late.'
+      ]
+    }
+  };
+
+  const FALLBACK = {
+    what:'Find the strongest move in the position.',
+    tell:'Undefended pieces, exposed kings and pieces lined up with each other.',
+    steps:[
+      'Ask what your opponent threatens. Answer that before anything else.',
+      'List your checks, captures and threats — the answer is nearly always among them.',
+      'Ask which of your pieces is doing the least work.',
+      'Before committing, ask what your opponent plays in reply.'
+    ]
+  };
+
+  function forPattern(p){ return METHOD[p] || FALLBACK; }
+
+  const PIECE_WORD = {K:'king', Q:'queen', R:'rook', B:'bishop', N:'knight'};
+
+  // Read the moving piece and destination straight out of the SAN, so hints
+  // narrow the search without ever hardcoding per-puzzle text.
+  function parseSan(san){
+    if(!san) return null;
+    const s = String(san).replace(/[+#!?]/g,'');
+    if(/^O-O-O/.test(s)) return {piece:'king', dest:null, castle:'queenside'};
+    if(/^O-O/.test(s))   return {piece:'king', dest:null, castle:'kingside'};
+    const m = s.match(/^([KQRBN])?[a-h]?[1-8]?x?([a-h][1-8])/);
+    if(!m) return null;
+    return {piece: m[1] ? PIECE_WORD[m[1]] : 'pawn', dest: m[2], castle:null};
+  }
+
+  function region(sq){
+    if(!sq) return null;
+    const f = sq[0];
+    if(f <= 'c') return 'the queenside';
+    if(f >= 'f') return 'the kingside';
+    return 'the centre';
+  }
+
+  /* Four rungs. Each one narrows the search; only the last names the move. */
+  function ladder(pattern, san, extra){
+    const m = forPattern(pattern);
+    const p = parseSan(san);
+    const rungs = [];
+
+    rungs.push({
+      label:'What am I looking for?',
+      body: m.what + ' ' + m.tell
+    });
+
+    rungs.push({
+      label:'How do I search?',
+      body: m.steps.map((s,i)=>(i+1)+'. '+s).join('  ')
+    });
+
+    if(p){
+      let narrow;
+      if(p.castle) narrow = 'The move is castling ' + p.castle + '. Ask yourself why king safety is the priority here.';
+      else if(p.piece === 'pawn') narrow = 'A pawn move solves this, landing on ' + region(p.dest) + '. Which pawn changes the most?';
+      else narrow = 'Your ' + p.piece + ' is the piece that does it, and it lands on ' + region(p.dest) + '. Work out which square makes the biggest threat.';
+      rungs.push({label:'Narrow it down', body: narrow});
+    }
+
+    rungs.push({
+      label:'Show me the move',
+      body:'The move is ' + (san || 'unavailable') + '.' + (extra ? ' ' + extra : ''),
+      isAnswer:true
+    });
+
+    return rungs;
+  }
+
+  /* Renders the always-visible method card. Not hidden behind a click: the
+     point is that the procedure is available while the player is still looking. */
+  function methodHTML(pattern){
+    const m = forPattern(pattern);
+    return '<div class="sh-method">'
+      + '<div class="sh-method-head"><span class="sh-method-label">How to solve this</span>'
+      + '<span class="sh-method-pat">' + esc(pattern || 'Best move') + '</span></div>'
+      + '<p class="sh-what">' + esc(m.what) + '</p>'
+      + '<ol class="sh-steps">' + m.steps.map(s=>'<li>' + esc(s) + '</li>').join('') + '</ol>'
+      + '<p class="sh-tell"><b>Giveaway:</b> ' + esc(m.tell) + '</p>'
+      + '</div>';
+  }
+
+  return {forPattern, ladder, methodHTML, parseSan, METHOD};
+})();
+window.SolveHelp = SolveHelp;
+
+/* Draggable ⌘K hint card. It sat in a fixed spot over the left gutter where it
+   could overlap the board; it now starts beside the content and can be moved
+   anywhere, remembering where it was put. */
+(function(){
+  function init(){
+    const card = document.getElementById('cmdk-hint');
+    if(!card) return;
+    try{
+      const saved = JSON.parse(localStorage.getItem('cf_cmdk_pos') || 'null');
+      if(saved && typeof saved.x === 'number'){
+        card.style.left = saved.x + 'px'; card.style.top = saved.y + 'px';
+        card.style.right = 'auto'; card.style.bottom = 'auto';
+      }
+    }catch(e){}
+
+    let dragging = false, ox = 0, oy = 0, moved = false;
+
+    card.addEventListener('mousedown', (e)=>{
+      if(e.button !== 0) return;
+      const r = card.getBoundingClientRect();
+      ox = e.clientX - r.left; oy = e.clientY - r.top;
+      dragging = true; moved = false;
+      card.classList.add('dragging');
+      e.preventDefault();
+    });
+
+    window.addEventListener('mousemove', (e)=>{
+      if(!dragging) return;
+      moved = true;
+      // Clamp so the card can never be dragged off-screen and stranded.
+      const w = card.offsetWidth, h = card.offsetHeight;
+      const x = Math.min(Math.max(0, e.clientX - ox), window.innerWidth  - w);
+      const y = Math.min(Math.max(0, e.clientY - oy), window.innerHeight - h);
+      card.style.left = x + 'px'; card.style.top = y + 'px';
+      card.style.right = 'auto'; card.style.bottom = 'auto';
+    });
+
+    window.addEventListener('mouseup', ()=>{
+      if(!dragging) return;
+      dragging = false;
+      card.classList.remove('dragging');
+      if(moved){
+        try{
+          localStorage.setItem('cf_cmdk_pos', JSON.stringify({
+            x: parseInt(card.style.left,10) || 0,
+            y: parseInt(card.style.top,10)  || 0
+          }));
+        }catch(e){}
+      } else if(window.CommandPalette && CommandPalette.open){
+        CommandPalette.open();   // a plain click still opens the palette
+      }
+    });
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();

@@ -511,7 +511,9 @@ def register():
         if any(u.get("email","").lower()==email for u in db.values()): return jsonify({"error":"An account with that email already exists."}),400
     new_user={"password":hash_password(password),"email":email,"created":int(time.time()),
               "xp":0,"plan":"free","plan_expires":None,"daily_counts":{},"games":[],
-              "progress":empty_progress(),"onboarding":default_onboarding(new=True)}
+              # Guided tutorial removed: new accounts are created already complete
+              # so nothing gates or re-triggers a first-run flow.
+              "progress":empty_progress(),"onboarding":default_onboarding(new=False)}
     save_user(username,new_user)
     session["username"]=username; session.permanent=True
     # Notify admin
