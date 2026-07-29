@@ -1508,7 +1508,7 @@ def opening_lesson(board_before, move, san, fullmove):
         return random.choice([
             "Ooh, careful with that f-pawn. That pawn is your king's bodyguard — it's literally why scholar's mate targets f7. Try not to move it early.",
             "Mmm, the f-pawn — I wanna break this habit. It guards your king. Get your knights and bishops out instead.",
-            "That f-pawn opens up your king, dude. Keep it home — develop and castle instead.",
+            "That f-pawn opens a line to your own king. What does it give you in return?",
         ])
     if pc.piece_type == chess.QUEEN and fullmove <= 6:
         return random.choice([
@@ -1673,7 +1673,7 @@ DIALOGUE = {
       "Your king's still in the middle at move {fullmove}. Time to castle? Or something sharper first?",
       "Gut check: is your king safe? You haven't castled. What's the priority?",
       "The center's about to open and your king's home. Nervous? What should you do?",
-      "King safety, dude. You can still castle. Now, or is there a bigger move?",
+      "You can still castle here. Is there anything more urgent than getting the king safe?",
       "Uncastled king this late is a liability. Tuck it away now?",
       "He's building toward your king. Castle before the position cracks open — agree?",
       "Development's fine, but the king's exposed. What's the responsible move?",
