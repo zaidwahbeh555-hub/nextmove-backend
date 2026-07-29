@@ -4515,6 +4515,18 @@ const CoachRail = (function(){
         '<div class="crail-q" data-sq="' + esc((it.squares||[]).join(',')) + '">'
         + '<b>' + esc(it.q) + '</b><span>' + esc(it.detail||'') + '</span></div>').join('');
       // Tapping a question expands it and lights the squares it refers to.
+      // Put the first question on the board itself so the player never has to
+      // look away from the position to read it.
+      const top = (d.items||[])[0];
+      const strip = $('coachstrip'), sq = $('cs-q');
+      if(strip && sq){
+        if(top){
+          sq.textContent = top.q;
+          strip.dataset.detail = top.detail || '';
+          strip.dataset.sq = (top.squares||[]).join(',');
+          strip.classList.remove('hidden');
+        } else { strip.classList.add('hidden'); }
+      }
       box.querySelectorAll('.crail-q').forEach(el=>{
         el.addEventListener('click', ()=>{
           el.classList.toggle('open');
@@ -4579,10 +4591,28 @@ const CoachRail = (function(){
   function reset(){ previews = []; lastFen = null;
     const l=$('crail-cand-list'); if(l) l.innerHTML='';
     const c=$('crail-cands'); if(c) c.classList.add('hidden');
-    const it=$('crail-items'); if(it) it.innerHTML=''; }
+    const it=$('crail-items'); if(it) it.innerHTML='';
+    const st=$('coachstrip'); if(st){ st.classList.add('hidden'); st.classList.remove('open'); } }
 
   function init(){
     const b = $('crail-play'); if(b) b.addEventListener('click', playOut);
+    // "?" expands the detail in place and lights the squares it refers to —
+    // the board stays in view the whole time.
+    const more = $('cs-more');
+    if(more) more.addEventListener('click', ()=>{
+      const strip = $('coachstrip'); if(!strip) return;
+      strip.classList.toggle('open');
+      let d = strip.querySelector('.cs-detail');
+      if(strip.classList.contains('open')){
+        if(!d){ d = document.createElement('span'); d.className = 'cs-detail'; strip.appendChild(d); }
+        d.textContent = strip.dataset.detail || '';
+        const sqs = (strip.dataset.sq||'').split(',').filter(Boolean);
+        if(BotState.board && BotState.board.clearMarks){
+          BotState.board.clearMarks();
+          sqs.forEach(x=>BotState.board.highlight(x, '#5B6CFF'));
+        }
+      } else if(d){ d.remove(); if(BotState.board && BotState.board.clearMarks) BotState.board.clearMarks(); }
+    });
     setInterval(()=>{ try{ refresh(); syncCandidates(); }catch(e){} }, 700);
   }
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

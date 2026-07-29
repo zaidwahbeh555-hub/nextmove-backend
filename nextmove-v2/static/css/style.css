@@ -1857,3 +1857,25 @@ body.blunder-open #page-coach #coach-panel{opacity:.12;pointer-events:none;trans
 .fb-sq.fb-last{background-color:rgba(255,214,90,.22)!important;box-shadow:none!important}
 .fb-piece-slot{transition:transform .12s cubic-bezier(.32,.72,0,1)}
 .fb-sq.fb-selected .fb-piece-slot{transform:scale(1.04)}
+
+/* ── Coach strip — the question sits ON the board, not beside it ─────────── */
+/* Reading the coach used to mean looking away from the position every move,
+   which broke the connection between the advice and the board it is about.
+   This puts the live question in the same glance as the pieces. */
+.coachstrip{display:flex;align-items:center;gap:10px;width:100%;
+  background:var(--bg-panel);border:1px solid var(--border);border-left:3px solid var(--accent);
+  border-radius:10px;padding:9px 12px;margin-bottom:10px}
+.coachstrip.hidden{display:none}
+.cs-dot{width:7px;height:7px;border-radius:999px;background:var(--accent);flex-shrink:0}
+.cs-q{flex:1;font-size:13px;line-height:1.4;color:var(--text-1)}
+.cs-more{width:22px;height:22px;flex-shrink:0;border-radius:999px;cursor:pointer;
+  background:var(--bg-panel-hi);border:1px solid var(--border);color:var(--text-2);
+  font-size:11px;font-weight:700;line-height:1}
+.cs-more:hover{border-color:var(--accent);color:var(--accent-text)}
+.coachstrip.open{flex-wrap:wrap}
+.cs-detail{flex-basis:100%;font-size:12px;line-height:1.5;color:var(--text-2);
+  margin-top:6px;padding-top:6px;border-top:1px solid var(--border)}
+
+/* Each side now has one job, and says so. */
+.crail-head{text-transform:uppercase;letter-spacing:.09em;font-size:10px;color:var(--text-3)}
+#page-coach .coach-name-tag,#page-coach .coach-name{font-size:11px;letter-spacing:.06em}
