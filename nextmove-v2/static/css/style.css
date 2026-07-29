@@ -1808,3 +1808,52 @@ body.blunder-open #page-coach #coach-panel{opacity:.12;pointer-events:none;trans
   }
   #page-coach .ba-actions{flex-direction:row}
 }
+
+/* ── Coach rail — the empty gutter left of the board, put to work ────────── */
+#page-coach .gm-layout > .crail{display:flex!important}
+.crail{grid-column:1;grid-row:1;justify-self:end;align-self:center;
+  width:300px;margin-right:40px;display:flex;flex-direction:column;gap:12px;
+  max-height:calc(100vh - 120px);overflow-y:auto;scrollbar-width:thin}
+.crail::-webkit-scrollbar{width:6px}
+.crail::-webkit-scrollbar-thumb{background:var(--border-hi);border-radius:999px}
+.crail-head{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;
+  letter-spacing:.04em;color:var(--text-2)}
+.crail-dot{width:7px;height:7px;border-radius:999px;background:var(--accent)}
+.crail-items{display:flex;flex-direction:column;gap:9px}
+.crail-q{background:var(--bg-panel);border:1px solid var(--border);border-radius:12px;
+  padding:12px 13px;cursor:pointer;transition:border-color .12s cubic-bezier(.32,.72,0,1)}
+.crail-q:hover{border-color:var(--accent)}
+.crail-q b{display:block;font-size:13px;line-height:1.45;color:var(--text-1);font-weight:500}
+.crail-q span{display:none;margin-top:7px;font-size:12px;line-height:1.5;color:var(--text-2)}
+.crail-q.open span{display:block}
+.crail-q.open{border-color:var(--accent)}
+.crail-sub{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--text-3);
+  font-weight:600;margin-bottom:8px}
+.crail-cands{background:var(--bg-panel);border:1px solid var(--border);border-radius:12px;padding:12px 13px}
+.crail-cands.hidden{display:none}
+.crail-cand{display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding:7px 0;border-bottom:1px solid var(--border);font-size:12.5px;cursor:pointer}
+.crail-cand:last-of-type{border-bottom:none}
+.crail-cand:hover .cc-move{color:var(--accent-text)}
+.cc-move{font-weight:600;color:var(--text-1);font-variant-numeric:tabular-nums}
+.cc-reply{font-size:11.5px;color:var(--text-3)}
+.cc-gap{font-size:11px;font-variant-numeric:tabular-nums;border-radius:999px;padding:2px 7px}
+.cc-gap.best{color:var(--green);background:rgba(61,201,127,.13)}
+.cc-gap.mid{color:var(--text-2);background:var(--bg-panel-hi)}
+.cc-gap.bad{color:var(--orange);background:rgba(229,167,61,.13)}
+.crail-btn{width:100%;margin-top:10px;background:var(--accent);color:#fff;border:none;
+  border-radius:999px;padding:9px;font-family:var(--font-ui);font-size:12.5px;font-weight:600;cursor:pointer}
+.crail-btn:disabled{opacity:.5;cursor:not-allowed}
+@media(max-width:1400px){ .crail{display:none!important} }
+
+/* ── Cleaner piece selection, chess.com style ───────────────────────────── */
+.fb-sq.fb-selected{box-shadow:none!important}
+.fb-sq.fb-selected::after{background:rgba(255,214,90,.42)!important}
+.fb-dot{width:22%!important;aspect-ratio:1;border-radius:50%;
+  background:rgba(20,22,30,.32)!important;pointer-events:none}
+.fb-light .fb-dot{background:rgba(20,22,30,.26)!important}
+.fb-ring{border:6px solid rgba(20,22,30,.30)!important;border-radius:50%;
+  width:88%;height:88%;box-sizing:border-box;pointer-events:none;background:transparent}
+.fb-sq.fb-last{background-color:rgba(255,214,90,.22)!important;box-shadow:none!important}
+.fb-piece-slot{transition:transform .12s cubic-bezier(.32,.72,0,1)}
+.fb-sq.fb-selected .fb-piece-slot{transform:scale(1.04)}

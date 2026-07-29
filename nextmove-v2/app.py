@@ -914,7 +914,18 @@ def bot_move():
             if move and move in board.legal_moves:
                 san = board.san(move)
                 board.push(move)
+                # The eval bar under the board reads this. It was never sent, so
+                # the bar sat at 0.00 all game — the frontend skips a missing eval.
+                ev = 0.0
+                try:
+                    info = engine.analyse(board, chess.engine.Limit(depth=12))
+                    sc = info["score"].pov(chess.WHITE)
+                    ev = 10.0 if (sc.is_mate() and (sc.mate() or 0) > 0) else \
+                         -10.0 if sc.is_mate() else round((sc.score() or 0) / 100.0, 2)
+                except Exception:
+                    pass
                 return jsonify({
+                    "eval": ev,
                     "move": move.uci(),
                     "san": san,
                     "fen": board.fen(),
@@ -4146,6 +4157,180 @@ def thinking_profile():
     return jsonify({"samples": tp.get("samples", 0), "confidence": confidence,
                     "updated": tp.get("updated", ""), "dimensions": rows,
                     "headline": (rows[0]["label"] if rows and rows[0]["rate"] >= 50 else None)})
+
+# ══════════════════════════════════════════════════════════════════════════════
+# COACH RAIL — position-specific questions, and candidate playback.
+#
+# The old hints were generic because they came from a fixed bank. These are
+# generated from THIS position: what is actually hanging, what he is actually
+# threatening, which of your pieces is actually doing the least. And when you
+# have arrows on the board, /candidates/preview plays each one out so you can
+# see his reply rather than being told which is best.
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _least_active(board, color):
+    """The piece with the fewest legal destinations — the one to improve."""
+    worst, n = None, 99
+    for sq, pc in board.piece_map().items():
+        if pc.color != color or pc.piece_type in (chess.KING, chess.PAWN):
+            continue
+        c = sum(1 for m in board.legal_moves if m.from_square == sq)
+        if c < n:
+            worst, n = (PIECE_NAMES.get(pc.piece_type, "piece"), chess.square_name(sq)), c
+    return worst
+
+def _overloaded(board, color):
+    """A defender holding up two or more of your own pieces at once."""
+    for sq, pc in board.piece_map().items():
+        if pc.color != color or pc.piece_type == chess.KING:
+            continue
+        duties = 0
+        for tsq, tp in board.piece_map().items():
+            if tp.color == color and tsq != sq and sq in board.attackers(color, tsq):
+                if board.attackers(not color, tsq):
+                    duties += 1
+        if duties >= 2:
+            return (PIECE_NAMES.get(pc.piece_type, "piece"), chess.square_name(sq), duties)
+    return None
+
+@app.route("/coach-rail", methods=["POST"])
+def coach_rail():
+    """Questions built from THIS position — never the same generic hint twice."""
+    d = request.get_json(force=True, silent=True) or {}
+    try:
+        board = chess.Board(d.get("fen") or chess.STARTING_FEN)
+    except Exception:
+        return jsonify({"error": "bad position"}), 400
+    me = board.turn
+    items = []
+
+    # 1. What is he threatening? Widened to include pawn grabs and checks —
+    # the previous rule ignored both, which is why the rail came back near-empty
+    # in real middlegames.
+    threats = _opponent_threats(board)
+    extra = []
+    try:
+        nb = board.copy(); nb.push(chess.Move.null())
+        for mv in nb.legal_moves:
+            a = nb.copy(); a.push(mv)
+            if a.is_check():
+                extra.append(nb.san(mv))
+            elif nb.is_capture(mv) and len(nb.attackers(nb.turn, mv.to_square)) >= len(nb.attackers(not nb.turn, mv.to_square)):
+                extra.append(nb.san(mv))
+    except Exception:
+        pass
+    if threats or extra:
+        items.append({"kind": "threat", "q": "Before anything else — what is he threatening?",
+                      "detail": "Give him a free move in your head and play it. What does he get?",
+                      "squares": []})
+
+    # 2. Always ask them to look at the forcing moves. This is the habit.
+    forcing = 0
+    try:
+        for mv in board.legal_moves:
+            a = board.copy(); a.push(mv)
+            if a.is_check() or board.is_capture(mv):
+                forcing += 1
+    except Exception:
+        pass
+    if forcing:
+        items.append({"kind": "forcing",
+                      "q": "You have %d forcing move%s here. Have you looked at all of them?"
+                           % (forcing, "" if forcing == 1 else "s"),
+                      "detail": "Every check and every capture, before any quiet move.",
+                      "squares": []})
+
+    # 2. Anything of yours actually hanging?
+    loose = []
+    for sq, pc in board.piece_map().items():
+        if pc.color != me or pc.piece_type == chess.KING:
+            continue
+        if len(board.attackers(not me, sq)) > len(board.attackers(me, sq)):
+            loose.append((PIECE_NAMES.get(pc.piece_type, "piece"), chess.square_name(sq)))
+    if loose:
+        nm, sq = loose[0]
+        items.append({"kind": "loose", "q": "Is your %s on %s actually defended?" % (nm, sq),
+                      "detail": "Count who attacks it and who covers it. Do it piece by piece.",
+                      "squares": [sq]})
+
+    # 3. A defender doing two jobs.
+    ov = _overloaded(board, me)
+    if ov:
+        nm, sq, n = ov
+        items.append({"kind": "overload", "q": "Your %s on %s is holding up %d things at once — can it?" % (nm, sq, n),
+                      "detail": "If it gets pulled away, what falls?", "squares": [sq]})
+
+    # 4. Worst-placed piece — the quiet improving move.
+    la = _least_active(board, me)
+    if la:
+        nm, sq = la
+        items.append({"kind": "activity", "q": "Your %s on %s is doing the least. Where does it belong?" % (nm, sq),
+                      "detail": "When there is no tactic, improve your worst piece.",
+                      "squares": [sq]})
+
+    # 5. King safety, only when it is a live question.
+    ksq = board.king(me)
+    if ksq is not None and board.is_check():
+        items.append({"kind": "check", "q": "You are in check. How many legal answers do you have?",
+                      "detail": "Move, block, or capture — count all three before choosing.",
+                      "squares": [chess.square_name(ksq)]})
+
+    return jsonify({"items": items[:5], "in_check": board.is_check(),
+                    "side": "white" if me == chess.WHITE else "black"})
+
+@app.route("/candidates/preview", methods=["POST"])
+def candidates_preview():
+    """Play each candidate out: what does he reply, and where does it leave you?"""
+    d = request.get_json(force=True, silent=True) or {}
+    try:
+        board = chess.Board(d.get("fen") or chess.STARTING_FEN)
+    except Exception:
+        return jsonify({"error": "bad position"}), 400
+    sf = find_stockfish()
+    if not sf:
+        return jsonify({"error": "engine unavailable"}), 503
+
+    out = []
+    engine = None
+    try:
+        engine = chess.engine.SimpleEngine.popen_uci(sf)
+        base = _analyse_position(engine, board, depth=12, multipv=1)
+        for item in (d.get("candidates") or [])[:5]:
+            san = _uci_or_san_to_san(board, item)
+            if not san:
+                continue
+            mv = board.parse_san(san)
+            after = board.copy(); after.push(mv)
+            r = _analyse_position(engine, after, depth=12, multipv=1)
+            reply = r.get("best_san")
+            fen_after = after.fen()
+            fen_reply = None
+            if reply:
+                try:
+                    a2 = after.copy(); a2.push(a2.parse_san(reply)); fen_reply = a2.fen()
+                except Exception:
+                    pass
+            out.append({
+                "move": san, "fen_after": fen_after,
+                "reply": reply, "fen_reply": fen_reply,
+                # From your point of view, after his best answer.
+                "eval": round(-r.get("eval", 0.0), 2),
+                "line": r.get("pv_san", [])[:4],
+            })
+    except Exception as e:
+        print("preview error:", e)
+        return jsonify({"error": "analysis failed"}), 500
+    finally:
+        if engine:
+            try: engine.quit()
+            except Exception: pass
+
+    # Rank them so the player can compare — without being told what to play.
+    if out:
+        best = max(o["eval"] for o in out)
+        for o in out:
+            o["gap"] = round(best - o["eval"], 2)
+    return jsonify({"candidates": out, "base_eval": base.get("eval", 0.0)})
 
 @app.route("/health")
 def health():

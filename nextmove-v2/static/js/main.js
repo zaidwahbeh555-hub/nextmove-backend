@@ -1599,6 +1599,7 @@ function startBotGame(){
   // so both entry points leave the same UI state.
   if(window.GameSetup) GameSetup.showSetup(false);
   if(window.Candidates) Candidates.reset();
+  if(window.CoachRail) CoachRail.reset();
   BotState.game = new Chess();
   BotState.moveHistory = [];
   BotState.gameActive = true;
@@ -1652,10 +1653,27 @@ function premoveTargets(sq){
     parts[1] = BotState.playerColor[0];   // side to move -> the player
     parts[3] = '-';                       // en-passant target is no longer valid
     const g = new Chess();
-    if(!g.load(parts.join(' '))) return null;
-    const p = g.get(sq);
-    if(!p || p.color !== BotState.playerColor[0]) return null;
-    return g.moves({square:sq, verbose:true}).map(m=>m.to);
+    if(g.load(parts.join(' '))){
+      const p = g.get(sq);
+      if(!p || p.color !== BotState.playerColor[0]) return null;
+      const t = g.moves({square:sq, verbose:true}).map(m=>m.to);
+      if(t.length) return t;
+    }
+    // Flipping the turn can make a position chess.js refuses to load (a king
+    // left capturable), which used to return an empty list — and an empty array
+    // is truthy, so the piece selected, showed no dots, and nothing happened.
+    // Be permissive instead, like chess.com: offer every square that is not
+    // occupied by your own piece. Legality is checked for real when it fires.
+    const own = BotState.playerColor[0];
+    const out = [];
+    for(const f of 'abcdefgh') for(let r=1; r<=8; r++){
+      const t = f + r;
+      if(t === sq) continue;
+      const occ = BotState.game.get(t);
+      if(occ && occ.color === own) continue;
+      out.push(t);
+    }
+    return out;
   }catch(e){ return null; }
 }
 window.premoveTargets = premoveTargets;
@@ -1681,7 +1699,8 @@ const Premove = {
   _paint(on){
     if(!this.pending) return;
     [this.pending.from,this.pending.to].forEach(sq=>{
-      const c=document.querySelector('.fb-sq[data-square="'+sq+'"]');
+      const root = (BotState.board && BotState.board.el) || document;
+      const c = root.querySelector('.fb-sq[data-square="'+sq+'"]');
       if(c) c.classList.toggle('fb-premove', !!on);
     });
   },
@@ -4464,3 +4483,110 @@ async function renderThinkingProfile(){
   }
 }
 window.renderThinkingProfile = renderThinkingProfile;
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CoachRail — the gutter left of the board, doing actual coaching work.
+
+   Questions are generated from THIS position (what is genuinely hanging, what
+   he is genuinely threatening, which piece is genuinely doing the least), so
+   they stop being the same generic hint every move. And when you have arrows on
+   the board, "Play them out" runs each candidate through the engine and shows
+   you his reply on the board — you compare, rather than being told what to play.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const CoachRail = (function(){
+  const $ = (id)=>document.getElementById(id);
+  let lastFen = null, busy = false, previews = [];
+
+  async function refresh(){
+    const g = window.BotState && BotState.game;
+    const rail = $('crail');
+    if(!rail || !g || !BotState.gameActive){ if(rail) rail.style.visibility='hidden'; return; }
+    if(g.turn() !== BotState.playerColor[0]) return;      // only coach on your turn
+    const fen = g.fen();
+    if(fen === lastFen || busy) return;
+    lastFen = fen; busy = true;
+    rail.style.visibility = 'visible';
+    try{
+      const r = await fetch('/coach-rail', {method:'POST', headers:{'Content-Type':'application/json'},
+        credentials:'include', body: JSON.stringify({fen})});
+      const d = await r.json();
+      const box = $('crail-items'); if(!box) return;
+      box.innerHTML = (d.items||[]).map(it =>
+        '<div class="crail-q" data-sq="' + esc((it.squares||[]).join(',')) + '">'
+        + '<b>' + esc(it.q) + '</b><span>' + esc(it.detail||'') + '</span></div>').join('');
+      // Tapping a question expands it and lights the squares it refers to.
+      box.querySelectorAll('.crail-q').forEach(el=>{
+        el.addEventListener('click', ()=>{
+          el.classList.toggle('open');
+          const sqs = (el.dataset.sq||'').split(',').filter(Boolean);
+          if(BotState.board && BotState.board.clearMarks){
+            BotState.board.clearMarks();
+            sqs.forEach(s=>BotState.board.highlight(s, '#5B6CFF'));
+          }
+        });
+      });
+    }catch(e){}finally{ busy = false; }
+  }
+
+  // Mirror the arrows you have drawn, so the candidate list is always live.
+  function syncCandidates(){
+    const wrap = $('crail-cands'), list = $('crail-cand-list');
+    if(!wrap || !list) return;
+    const arr = (window.Candidates ? Candidates.marked() : []);
+    if(arr.length < 1 || !(window.BotState && BotState.gameActive)){ wrap.classList.add('hidden'); return; }
+    wrap.classList.remove('hidden');
+    if(previews.length) return;                            // already played out
+    list.innerHTML = arr.map(a=>{
+      let label = a.from + '→' + a.to;
+      try{ const t = new Chess(BotState.game.fen());
+           const m = t.move({from:a.from, to:a.to, promotion:'q'}); if(m) label = m.san; }catch(e){}
+      return '<div class="crail-cand"><span class="cc-move">' + esc(label) + '</span>'
+           + '<span class="cc-reply">not played out yet</span></div>';
+    }).join('');
+  }
+
+  async function playOut(){
+    const arr = (window.Candidates ? Candidates.marked() : []);
+    if(!arr.length) return;
+    const btn = $('crail-play'); if(btn){ btn.disabled = true; btn.textContent = 'Playing them out…'; }
+    try{
+      const r = await fetch('/candidates/preview', {method:'POST', headers:{'Content-Type':'application/json'},
+        credentials:'include', body: JSON.stringify({fen: BotState.game.fen(), candidates: arr})});
+      const d = await r.json();
+      previews = d.candidates || [];
+      const list = $('crail-cand-list'); if(!list) return;
+      list.innerHTML = previews.map((c,i)=>{
+        const cls = c.gap === 0 ? 'best' : (c.gap < 0.6 ? 'mid' : 'bad');
+        return '<div class="crail-cand" data-i="' + i + '">'
+             + '<span class="cc-move">' + esc(c.move) + '</span>'
+             + '<span class="cc-reply">he plays ' + esc(c.reply||'?') + '</span>'
+             + '<span class="cc-gap ' + cls + '">' + (c.gap===0?'best of yours':('-'+c.gap)) + '</span></div>';
+      }).join('');
+      // Click a candidate to see it on the board, with his answer.
+      list.querySelectorAll('.crail-cand').forEach(el=>{
+        el.addEventListener('click', ()=>{
+          const c = previews[+el.dataset.i]; if(!c || !BotState.board) return;
+          BotState.board.setPosition(c.fen_after, {animate:true});
+          if(c.fen_reply) setTimeout(()=>BotState.board.setPosition(c.fen_reply, {animate:true}), 750);
+          setTimeout(()=>BotState.board.setPosition(BotState.game.fen(), {animate:false}), 2400);
+        });
+      });
+    }catch(e){}finally{
+      if(btn){ btn.disabled = false; btn.textContent = 'Play them out'; }
+    }
+  }
+
+  function reset(){ previews = []; lastFen = null;
+    const l=$('crail-cand-list'); if(l) l.innerHTML='';
+    const c=$('crail-cands'); if(c) c.classList.add('hidden');
+    const it=$('crail-items'); if(it) it.innerHTML=''; }
+
+  function init(){
+    const b = $('crail-play'); if(b) b.addEventListener('click', playOut);
+    setInterval(()=>{ try{ refresh(); syncCandidates(); }catch(e){} }, 700);
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+  return {refresh, reset, playOut};
+})();
+window.CoachRail = CoachRail;
