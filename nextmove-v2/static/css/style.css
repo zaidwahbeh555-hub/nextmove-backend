@@ -1620,14 +1620,20 @@ body:not(.play-locked) #page-training,body:not(.play-locked) #page-puzzles{overf
    the thing being studied, so it now scales with the viewport and centres. */
 #page-puzzles .two-col{display:grid;grid-template-columns:minmax(0,1fr) 340px;
   gap:36px;align-items:start;max-width:1180px;margin:0 auto}
-#page-puzzles .two-col > div:first-child{display:flex;flex-direction:column;align-items:center;width:100%}
-#puzzle-board{width:min(66vh,640px,90%)!important;max-width:none!important;margin:0 auto;
-  aspect-ratio:1/1;border-radius:14px}
+/* This is a chessboard.js board: it measures its own width at init and writes
+   pixel sizes onto its squares. A percentage width inside a shrink-wrapping
+   flex parent measured as ~0 and the board vanished, and aspect-ratio fought
+   the heights it sets itself. Plain block layout, absolute units, no
+   !important — the library owns its sizing, we only choose how wide. */
+#page-puzzles .two-col > div:first-child{display:block;width:100%}
+#puzzle-board{width:min(62vh,600px);max-width:100%;margin:0 auto;border-radius:14px}
 #page-puzzles .status-box,#page-puzzles .btn-row,#page-puzzles .hint-box,
-#page-puzzles .sh-ladder{width:min(66vh,640px,90%);margin-left:auto;margin-right:auto}
+#page-puzzles .sh-ladder{width:min(62vh,600px);max-width:100%;margin-left:auto;margin-right:auto}
 @media(max-width:1080px){
   #page-puzzles .two-col{grid-template-columns:1fr}
-  #puzzle-board{width:min(70vw,560px)!important}
+  #puzzle-board{width:min(86vw,560px)}
+  #page-puzzles .status-box,#page-puzzles .btn-row,#page-puzzles .hint-box,
+  #page-puzzles .sh-ladder{width:min(86vw,560px)}
 }
 
 /* Drill + stage boards: same treatment, and the hard 480px floor is what made

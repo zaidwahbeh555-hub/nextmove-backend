@@ -436,8 +436,13 @@ function showPage(name){
       const np=document.getElementById('no-puzzles'); if(np) np.classList.add('hidden');
       const pa=document.getElementById('puzzle-area'); if(pa) pa.classList.remove('hidden');
       if(State.puzzleIdx==null) State.puzzleIdx=0;
-      try{ initPuzzleBoard(); }catch(e){}
-      try{ loadPuzzle(State.puzzleIdx||0); }catch(e){}
+      // Defer until after this function makes the page active — a chessboard.js
+      // board built inside a display:none page measures 0 and renders invisible.
+      setTimeout(function(){
+        try{ initPuzzleBoard(); }catch(e){}
+        try{ loadPuzzle(State.puzzleIdx||0); }catch(e){}
+        try{ if(State.puzzleBoard && State.puzzleBoard.resize) State.puzzleBoard.resize(); }catch(e){}
+      }, 80);
     }).catch(function(e){ console.error('loadMyPuzzles failed:', e); }); }
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-link').forEach(l=>l.classList.remove('active'));
@@ -445,9 +450,16 @@ function showPage(name){
   const lnk=document.querySelector(`[data-page="${name}"]`);if(lnk)lnk.classList.add('active');
   setTimeout(()=>{
     if(name==='replay')initReplayBoard();
-    if(name==='puzzles')initPuzzleBoard();
+    if(name==='puzzles'){
+      initPuzzleBoard();
+      // Board is only measurable now that the page is active.
+      setTimeout(function(){ try{
+        if(State.puzzleBoard && State.puzzleBoard.resize) State.puzzleBoard.resize();
+      }catch(e){} }, 60);
+    }
     if(name==='lessons')initLessonsPage();
-    if(name==='progress'){renderProgressPage(); try{renderThinkingProfile();}catch(e){}}
+    if(name==='progress')renderProgressPage();
+    if(name==='training'){ try{renderThinkingProfile();}catch(e){} }
     if(name==='training')renderTrainingPage().catch(function(e){ console.error("renderTrainingPage failed:", e); });
     if(name==='coach'||name==='bot')initCoachPage();
   },60);
@@ -2562,7 +2574,6 @@ const CommandPalette = {
     {icon:'ic-puzzle',  label:'Puzzles',          key:'P', run:()=>showPage('puzzles')},
     {icon:'ic-chart',   label:'Game Review',      key:'',  run:()=>{ const b=document.getElementById('analysis-btn'); if(b) b.click(); }},
     {icon:'ic-book',    label:'Lessons',          key:'',  run:()=>showPage('training')},
-    {icon:'ic-sliders', label:'Settings',         key:'S', run:()=>{ const t=document.getElementById('theme-panel'); if(t) t.classList.toggle('hidden'); }},
   ],
   sel:0, filtered:[], lastFocus:null,
   init(){
