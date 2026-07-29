@@ -441,7 +441,7 @@ function showPage(name){
       setTimeout(function(){
         try{ initPuzzleBoard(); }catch(e){}
         try{ loadPuzzle(State.puzzleIdx||0); }catch(e){}
-        try{ if(State.puzzleBoard && State.puzzleBoard.resize) State.puzzleBoard.resize(); }catch(e){}
+        try{ /* ForgeBoard is CSS-sized; no resize() needed */ }catch(e){}
       }, 80);
     }).catch(function(e){ console.error('loadMyPuzzles failed:', e); }); }
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -454,7 +454,7 @@ function showPage(name){
       initPuzzleBoard();
       // Board is only measurable now that the page is active.
       setTimeout(function(){ try{
-        if(State.puzzleBoard && State.puzzleBoard.resize) State.puzzleBoard.resize();
+        /* ForgeBoard is CSS-sized; no resize() needed */
       }catch(e){} }, 60);
     }
     if(name==='lessons')initLessonsPage();
@@ -1163,17 +1163,26 @@ function showMoveDots(moves, boardId){
 
 function initPuzzleBoard(){
   if(State.boardsReady.puzzle&&State.puzzleBoard){if(State.puzzles.length)loadPuzzle(State.puzzleIdx);return;}
-  if(State.puzzleBoard){try{State.puzzleBoard.destroy();}catch(e){}}
   State.puzzleGame=new Chess();
-  State.puzzleBoard=Chessboard('puzzle-board',{
-    position:'start',
-    draggable:true,
-    pieceTheme:PIECE_THEME,
-    onDrop:handlePuzzleDrop,
-    onSnapEnd:()=>{if(State.puzzleGame)State.puzzleBoard.position(State.puzzleGame.fen());},
-    onSquareClick:handlePuzzleSquareClick,
-    onMouseoverSquare: onMouseoverPuzzleSquare,
-    onMouseoutSquare: onMouseoutPuzzleSquare,
+  // Puzzles used chessboard.js: different tiles, drop-shadowed pieces, drag only,
+  // no click-to-select dots, no right-click arrows. Now the same ForgeBoard the
+  // Play screen uses, so the whole app behaves and looks like one product.
+  State.puzzleBoard = new ForgeBoard('puzzle-board', {
+    orientation: 'white',
+    getTargets: (sq)=>{
+      const g = State.puzzleGame; if(!g) return null;
+      const pc = g.get(sq);
+      if(!pc || pc.color !== g.turn()) return null;
+      return g.moves({square:sq, verbose:true}).map(m=>m.to);
+    },
+    onMove: (from, to)=>{
+      const g = State.puzzleGame; if(!g) return false;
+      const mv = g.move({from, to, promotion:'q'});
+      if(!mv) return false;
+      State.puzzleBoard.setPosition(g.fen(), {lastMove:{from,to}});
+      checkPuzzleMove(mv, from, to);
+      return true;
+    },
   });
   State.boardsReady.puzzle=true;
   if(State.puzzles.length)loadPuzzle(State.puzzleIdx);
@@ -1213,7 +1222,7 @@ function handlePuzzleSquareClick(square){
 
     const mv = State.puzzleGame.move({from:src, to:square, promotion:'q'});
     if(mv){
-      State.puzzleBoard.position(State.puzzleGame.fen(), false);
+      State.puzzleBoard.setPosition(State.puzzleGame.fen(), {animate:false});
       checkPuzzleMove(mv, src, square);
     } else {
       // Not a valid move — maybe user clicked another own piece
@@ -1254,20 +1263,25 @@ function checkPuzzleMove(mv, src, tgt){
     status.style.color = 'var(--red)';
     State.puzzleWrong++;
     State.puzzleGame.undo();
-    State.puzzleBoard.position(State.puzzleGame.fen(), false);
+    State.puzzleBoard.setPosition(State.puzzleGame.fen(), {animate:false});
   }
   document.getElementById('p-correct').textContent = State.puzzleCorrect;
   document.getElementById('p-wrong').textContent = State.puzzleWrong;
 }
 
-function clearHighlights(){ clearAllHighlights('puzzle-board'); }
+function clearHighlights(){
+  // chessboard.js square classes are gone; ForgeBoard owns its own highlighting.
+  try{ clearAllHighlights('puzzle-board'); }catch(e){}
+}
 
 function loadPuzzle(idx){
   if(idx>=State.puzzles.length||!State.puzzleBoard)return;
   const p=State.puzzles[idx];
   State.puzzleGame=new Chess(p.fen);
-  State.puzzleBoard.orientation(p.side==='white'?'white':'black');
-  State.puzzleBoard.position(p.fen,false);
+  const side = (p.side==='white'?'white':'black');
+  State.puzzleBoard.flip(side);                       // rebuilds squares in the right orientation
+  State.puzzleBoard.setPosition(p.fen, {animate:false});
+  if(State.puzzleBoard.clearMarks) State.puzzleBoard.clearMarks();
   clearHighlights();
   document.getElementById('puzzle-status').textContent=`${cap(p.side)} to play — find the best move!`;
   document.getElementById('puzzle-status').style.color='';

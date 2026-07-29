@@ -1626,7 +1626,12 @@ body:not(.play-locked) #page-training,body:not(.play-locked) #page-puzzles{overf
    the heights it sets itself. Plain block layout, absolute units, no
    !important — the library owns its sizing, we only choose how wide. */
 #page-puzzles .two-col > div:first-child{display:block;width:100%}
-#puzzle-board{width:min(62vh,600px);max-width:100%;margin:0 auto;border-radius:14px}
+#puzzle-board{width:min(62vh,600px);max-width:100%;margin:0 auto}
+/* ForgeBoard now renders this board. Neutralise the chessboard.js-era styling
+   above (cream/slate squares, drop-shadowed pieces) so Puzzles matches Play. */
+#puzzle-board .fb-board{max-width:none;width:100%}
+#puzzle-board.fb-board{max-width:none;width:100%}
+#puzzle-board .fb-piece-img{filter:none}
 #page-puzzles .status-box,#page-puzzles .btn-row,#page-puzzles .hint-box,
 #page-puzzles .sh-ladder{width:min(62vh,600px);max-width:100%;margin-left:auto;margin-right:auto}
 @media(max-width:1080px){
