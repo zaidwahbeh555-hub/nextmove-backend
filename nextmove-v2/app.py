@@ -3697,6 +3697,280 @@ def ask_forge():
         "level": level,
     })
 
+# ══════════════════════════════════════════════════════════════════════════════
+# CANDIDATE MOVES + THINKING PROFILE
+#
+# Coaches the decision, not just the outcome. The player marks candidates simply
+# by drawing right-click arrows while they calculate — no new interaction. When
+# the move lands we compare what they played, what they considered, and what the
+# engine wanted, then fold the result into a long-term thinking profile.
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Cognitive dimensions — WHY mistakes happen, not just what they were.
+THINKING_DIMENSIONS = {
+    "candidate_quality":   "Candidate Move Quality",
+    "opponent_blindness":  "Opponent Blindness",
+    "tunnel_vision":       "Tunnel Vision",
+    "impulsive_captures":  "Impulsive Captures",
+    "premature_attacks":   "Premature Attacks",
+    "threat_recognition":  "Threat Recognition",
+    "evaluation_accuracy": "Evaluation Accuracy",
+    "board_vision":        "Board Vision",
+    "calculation_depth":   "Calculation Depth",
+    "king_safety":         "King Safety Awareness",
+    "piece_coordination":  "Piece Coordination",
+    "strategic_planning":  "Strategic Planning",
+    "quiet_moves":         "Quiet Move Search",
+}
+
+def _empty_thinking_profile():
+    return {"samples": 0, "dims": {k: {"hits": 0, "obs": 0} for k in THINKING_DIMENSIONS},
+            "notes": [], "updated": ""}
+
+def get_thinking_profile(user):
+    tp = user.get("thinking_profile")
+    if not tp or "dims" not in tp:
+        return _empty_thinking_profile()
+    for k in THINKING_DIMENSIONS:
+        tp["dims"].setdefault(k, {"hits": 0, "obs": 0})
+    return tp
+
+def _uci_or_san_to_san(board, item):
+    """Accept {from,to} or a SAN string; return SAN if the move is legal here."""
+    try:
+        if isinstance(item, dict) and item.get("from") and item.get("to"):
+            mv = chess.Move.from_uci(item["from"] + item["to"] + (item.get("promotion") or ""))
+            if mv not in board.legal_moves:
+                mv = chess.Move.from_uci(item["from"] + item["to"] + "q")
+            return board.san(mv) if mv in board.legal_moves else None
+        if isinstance(item, str):
+            mv = board.parse_san(item)
+            return board.san(mv) if mv in board.legal_moves else None
+    except Exception:
+        return None
+    return None
+
+def _is_forcing(board, san):
+    """A forcing move is a check or a capture — the moves people calculate first."""
+    try:
+        mv = board.parse_san(san)
+    except Exception:
+        return False
+    if board.is_capture(mv):
+        return True
+    t = board.copy(); t.push(mv)
+    return t.is_check()
+
+def _opponent_threats(board):
+    """What the opponent would win if we passed. Drives Opponent Blindness."""
+    threats = []
+    try:
+        nb = board.copy(); nb.push(chess.Move.null())
+        for mv in nb.legal_moves:
+            if nb.is_capture(mv):
+                victim = nb.piece_at(mv.to_square)
+                if victim and victim.piece_type != chess.PAWN:
+                    atk = len(nb.attackers(nb.turn, mv.to_square))
+                    dfn = len(nb.attackers(not nb.turn, mv.to_square))
+                    if atk > dfn:
+                        threats.append(nb.san(mv))
+    except Exception:
+        pass
+    return threats[:4]
+
+def _analyse_candidates(engine, board, played_san, candidate_sans):
+    """The core comparison: played vs each candidate vs the engine's choice."""
+    top = _analyse_position(engine, board, depth=14, multipv=4)
+    best = top.get("best_san")
+    base_eval = top.get("eval", 0.0)
+
+    def eval_of(san):
+        try:
+            mv = board.parse_san(san)
+        except Exception:
+            return None
+        after = board.copy(); after.push(mv)
+        r = _analyse_position(engine, after, depth=12, multipv=1)
+        return -r.get("eval", 0.0)     # flip to the mover's point of view
+
+    rows = []
+    for san in candidate_sans:
+        ev = eval_of(san)
+        if ev is None:
+            continue
+        rows.append({"move": san, "eval": ev, "loss": round(base_eval - ev, 2),
+                     "is_best": san == best, "forcing": _is_forcing(board, san)})
+    played_eval = eval_of(played_san) if played_san else None
+    return {
+        "best": best, "best_line": top.get("pv_san", []), "base_eval": base_eval,
+        "played": {"move": played_san, "eval": played_eval,
+                   "loss": (round(base_eval - played_eval, 2) if played_eval is not None else None),
+                   "is_best": played_san == best,
+                   "forcing": _is_forcing(board, played_san) if played_san else False},
+        "candidates": rows,
+        "threats": _opponent_threats(board),
+    }
+
+def _thinking_verdict(cmp_):
+    """Turn the comparison into a coaching line plus the dimensions it evidences."""
+    cands = cmp_["candidates"]
+    played = cmp_["played"]
+    best = cmp_["best"]
+    names = [c["move"] for c in cands]
+    dims, tags = {}, []
+
+    def obs(dim, hit):
+        dims[dim] = {"obs": 1, "hits": 1 if hit else 0}
+
+    if not cands:
+        # No candidates marked — we can still judge the move itself.
+        if played.get("loss") is not None:
+            obs("evaluation_accuracy", played["loss"] > 1.0)
+        return {"headline": "", "detail": "", "dims": dims, "tags": tags}
+
+    considered_best = best in names
+    played_best = played.get("is_best")
+
+    obs("candidate_quality", not considered_best)
+    obs("tunnel_vision", len(cands) <= 1)
+    if len(cands) <= 1:
+        tags.append("Searched narrowly — only one candidate")
+
+    if cmp_["threats"]:
+        # Did any candidate actually deal with what the opponent wanted?
+        addressed = considered_best or any(c["loss"] <= 0.3 for c in cands)
+        obs("opponent_blindness", not addressed)
+        obs("threat_recognition", not addressed)
+        if not addressed:
+            tags.append("Opponent had a real threat (%s) and none of your candidates met it"
+                        % cmp_["threats"][0])
+
+    if cands and all(c["forcing"] for c in cands):
+        obs("quiet_moves", True)
+        tags.append("Every candidate was forcing — no quiet improving move considered")
+    elif cands:
+        obs("quiet_moves", False)
+
+    if played.get("forcing") and not played_best and len(cands) <= 1:
+        obs("impulsive_captures", True)
+        tags.append("Played a forcing move without weighing alternatives")
+
+    if played.get("loss") is not None:
+        obs("evaluation_accuracy", played["loss"] > 1.0)
+
+    # Headline — the sentence the player actually reads.
+    if played_best and considered_best:
+        head = "You considered %s and played it. That was the best move." % best
+        detail = "Your search found the right move and you trusted it."
+    elif considered_best and not played_best:
+        head = "You considered the best move (%s) — and rejected it." % best
+        detail = ("You played %s instead, which costs about %.2f. The search was right; the "
+                  "decision was not. When a candidate looks strong, check what is actually wrong "
+                  "with it before discarding it." % (played["move"], max(played["loss"] or 0, 0)))
+        obs("evaluation_accuracy", True)
+    elif best and not considered_best:
+        head = "You never considered %s." % best
+        detail = ("Your candidates were %s. The best move was not among them, so no amount of "
+                  "calculation was going to find it — the miss happened at the search step, not "
+                  "the decision step." % ", ".join(names))
+    else:
+        head = "You weighed %s and played %s." % (", ".join(names), played["move"])
+        detail = ""
+
+    if cands and cands[0]["move"] == played["move"] and played_best and len(cands) > 1:
+        head = "Your first instinct was correct — you looked at %s first and it was the best move." % played["move"]
+
+    return {"headline": head, "detail": detail, "dims": dims, "tags": tags}
+
+def _fold_profile(user, dims):
+    tp = get_thinking_profile(user)
+    for k, v in (dims or {}).items():
+        if k not in tp["dims"]:
+            continue
+        tp["dims"][k]["obs"] += v.get("obs", 0)
+        tp["dims"][k]["hits"] += v.get("hits", 0)
+    tp["samples"] = tp.get("samples", 0) + 1
+    tp["updated"] = time.strftime("%Y-%m-%d")
+    user["thinking_profile"] = tp
+    return tp
+
+@app.route("/candidates/review", methods=["POST"])
+@login_required
+def candidates_review():
+    """Compare the played move against the candidates the player marked."""
+    d = request.get_json(force=True, silent=True) or {}
+    try:
+        board = chess.Board(d.get("fen") or chess.STARTING_FEN)
+    except Exception:
+        return jsonify({"error": "bad position"}), 400
+    played = d.get("played")
+    if isinstance(played, dict):
+        played = _uci_or_san_to_san(board, played)
+    elif isinstance(played, str):
+        played = _uci_or_san_to_san(board, played)
+    if not played:
+        return jsonify({"error": "played move not legal here"}), 400
+
+    # Keep the played move if the player marked it — "you considered it and played
+    # it" is a real and important verdict, and dropping it also under-counted how
+    # wide their search actually was.
+    cands, seen = [], set()
+    for item in (d.get("candidates") or [])[:6]:
+        san = _uci_or_san_to_san(board, item)
+        if san and san not in seen:
+            seen.add(san); cands.append(san)
+
+    sf = find_stockfish()
+    if not sf:
+        return jsonify({"error": "engine unavailable"}), 503
+    engine = None
+    try:
+        engine = chess.engine.SimpleEngine.popen_uci(sf)
+        cmp_ = _analyse_candidates(engine, board, played, cands)
+    except Exception as e:
+        print("candidates error:", e)
+        return jsonify({"error": "analysis failed"}), 500
+    finally:
+        if engine:
+            try: engine.quit()
+            except Exception: pass
+
+    verdict = _thinking_verdict(cmp_)
+    user = get_user(current_user())
+    if user:
+        _fold_profile(user, verdict["dims"])
+        save_user(current_user(), user)
+
+    return jsonify({"comparison": cmp_, "headline": verdict["headline"],
+                    "detail": verdict["detail"], "tags": verdict["tags"],
+                    "considered": cands})
+
+@app.route("/thinking-profile")
+@login_required
+def thinking_profile():
+    """The long-term cognitive profile, built across every game reviewed."""
+    user = get_user(current_user())
+    if not user:
+        return jsonify({"error": "Not logged in"}), 401
+    tp = get_thinking_profile(user)
+    rows = []
+    for key, label in THINKING_DIMENSIONS.items():
+        dd = tp["dims"].get(key, {"hits": 0, "obs": 0})
+        obs = dd.get("obs", 0); hits = dd.get("hits", 0)
+        if not obs:
+            continue
+        rate = hits / float(obs)
+        band = ("Strength" if rate < 0.25 else
+                "Steady"   if rate < 0.5  else
+                "Leak"     if rate < 0.75 else "Big leak")
+        rows.append({"key": key, "label": label, "observations": obs,
+                     "rate": round(rate * 100), "band": band})
+    rows.sort(key=lambda r: (-r["rate"], -r["observations"]))
+    confidence = min(100, int(tp.get("samples", 0) / 60.0 * 100))
+    return jsonify({"samples": tp.get("samples", 0), "confidence": confidence,
+                    "updated": tp.get("updated", ""), "dimensions": rows,
+                    "headline": (rows[0]["label"] if rows and rows[0]["rate"] >= 50 else None)})
+
 @app.route("/health")
 def health():
     sf=find_stockfish()

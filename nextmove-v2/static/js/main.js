@@ -447,7 +447,7 @@ function showPage(name){
     if(name==='replay')initReplayBoard();
     if(name==='puzzles')initPuzzleBoard();
     if(name==='lessons')initLessonsPage();
-    if(name==='progress')renderProgressPage();
+    if(name==='progress'){renderProgressPage(); try{renderThinkingProfile();}catch(e){}}
     if(name==='training')renderTrainingPage().catch(function(e){ console.error("renderTrainingPage failed:", e); });
     if(name==='coach'||name==='bot')initCoachPage();
   },60);
@@ -711,7 +711,12 @@ const TrainingDrill = {
     } else {
       this.game.undo(); this.board.setPosition(before);
       fb.className='drill-feedback bad';
-      fb.innerHTML=` Not that one. The move was <b>${esc(p.solution)}</b>. <span class="fb-tag">${esc(p.pattern)}</span> ${esc(p.hint||'')}`;
+      // Was: straight to the answer. Now leads with the method, so a wrong
+      // attempt teaches how to find it next time rather than just what it was.
+      const _m = window.SolveHelp ? SolveHelp.forPattern(p.pattern) : null;
+      fb.innerHTML = `Not that one. <span class="fb-tag">${esc(p.pattern)}</span>`
+        + (_m ? `<div class="drill-method"><b>How to find it:</b> ${esc(_m.steps[0])} ${esc(_m.tell)}</div>` : '')
+        + `<div class="drill-answer">The move was <b>${esc(p.solution)}</b>. ${esc(p.hint||'')}</div>`;
       if(window.ChessSFX) ChessSFX.playWrong();
     }
     fb.classList.remove('hidden');
@@ -1567,6 +1572,7 @@ function startBotGame(){
   // Games start from the setup panel AND the command palette; hide from here
   // so both entry points leave the same UI state.
   if(window.GameSetup) GameSetup.showSetup(false);
+  if(window.Candidates) Candidates.reset();
   BotState.game = new Chess();
   BotState.moveHistory = [];
   BotState.gameActive = true;
@@ -1712,8 +1718,14 @@ function handleCoachMove(from, to){
   }
   Premove.clear();
   const fenBefore = BotState.game.fen();
+  // Snapshot the arrows now — playing the move clears them.
+  const _cands = (window.Candidates ? Candidates.marked() : []);
   const mv = BotState.game.move({from, to, promotion:'q'});
   if(!mv) return false;
+  if(window.Candidates){
+    Candidates.clearVerdict();
+    Candidates.review(fenBefore, mv.san, _cands);
+  }
   ChessSFX.playMove(mv);
   BotState.lastPlayerMove = {from, to};
   BotState.lastBotMove = null;
@@ -4294,3 +4306,97 @@ const AskForge = (function(){
   return {ask, open, reset, init};
 })();
 window.AskForge = AskForge;
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Candidates — the moves you were weighing, captured with zero extra effort.
+
+   Rather than inventing a marking gesture, this reads the right-click arrows
+   players already draw while calculating. Draw an arrow, it becomes a candidate;
+   when your move lands, GM Forge compares what you played, what you considered,
+   and what the engine wanted — then folds that into a long-term thinking profile.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const Candidates = (function(){
+  const $ = (id)=>document.getElementById(id);
+
+  function marked(){
+    const b = window.BotState && BotState.board;
+    if(!b || !b.userArrows) return [];
+    return b.userArrows.map(a=>({from:a.from, to:a.to})).slice(0,6);
+  }
+
+  // Render the strip live as arrows are drawn, so the player sees it working.
+  function paint(){
+    const wrap = $('cand'), list = $('cand-list');
+    if(!wrap || !list) return;
+    const g = window.BotState && BotState.game;
+    const arr = marked();
+    if(!arr.length || !BotState.gameActive){ wrap.classList.add('hidden'); list.innerHTML=''; return; }
+    list.innerHTML = arr.map(a=>{
+      let label = a.from + '→' + a.to;
+      try{                                  // show real SAN when it is legal
+        const t = new Chess(g.fen());
+        const mv = t.move({from:a.from, to:a.to, promotion:'q'});
+        if(mv) label = mv.san;
+      }catch(e){}
+      return '<span class="cand-pill">' + esc(label) + '</span>';
+    }).join('');
+    wrap.classList.remove('hidden');
+  }
+
+  function clearVerdict(){ const v=$('cand-verdict'); if(v){ v.classList.add('hidden'); v.innerHTML=''; } }
+
+  /* Called with the position BEFORE the move, and the move actually played. */
+  async function review(fenBefore, playedSan, arrows){
+    if(!arrows || !arrows.length) return;          // nothing marked, nothing to coach
+    try{
+      const r = await fetch('/candidates/review', {
+        method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include',
+        body: JSON.stringify({fen: fenBefore, played: playedSan, candidates: arrows})
+      });
+      const d = await r.json();
+      if(!d.headline) return;
+      const v = $('cand-verdict'); if(!v) return;
+      v.innerHTML = '<b>' + esc(d.headline) + '</b>' + esc(d.detail || '')
+        + (d.tags||[]).map(t=>'<span class="cand-tag">' + esc(t) + '</span>').join('');
+      v.classList.remove('hidden');
+    }catch(e){}
+  }
+
+  function reset(){ clearVerdict(); const w=$('cand'); if(w){w.classList.add('hidden');} const l=$('cand-list'); if(l) l.innerHTML=''; }
+
+  // Poll rather than patching every arrow call site — cheap and always accurate.
+  function init(){ setInterval(paint, 500); }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+
+  return {marked, paint, review, reset, clearVerdict};
+})();
+window.Candidates = Candidates;
+
+/* ── Thinking Profile (Progress page) ─────────────────────────────────────── */
+async function renderThinkingProfile(){
+  const rows = document.getElementById('think-rows'); if(!rows) return;
+  rows.innerHTML = '<div class="think-empty">Loading…</div>';
+  try{
+    const r = await fetch('/thinking-profile', {credentials:'include'});
+    const d = await r.json();
+    const sub = document.getElementById('think-sub');
+    if(sub) sub.textContent = d.samples
+      ? ('Built from ' + d.samples + ' decisions · ' + d.confidence + '% confidence'
+         + (d.headline ? ' · biggest leak: ' + d.headline : ''))
+      : 'How you decide — built from the candidate moves you mark while you play.';
+    if(!d.dimensions || !d.dimensions.length){
+      rows.innerHTML = '<div class="think-empty">No data yet. While you play, right-click-drag an '
+        + 'arrow to mark a move you are weighing. GM Forge learns how you decide from those.</div>';
+      return;
+    }
+    rows.innerHTML = d.dimensions.map(x=>
+      '<div class="think-row"><span class="think-name">' + esc(x.label) + '</span>'
+      + '<span class="think-obs">' + x.rate + '%</span>'
+      + '<span class="think-band ' + esc(x.band.toLowerCase().replace(' ','-')) + '">'
+      + esc(x.band) + '</span></div>').join('');
+  }catch(e){
+    rows.innerHTML = '<div class="think-empty">Could not load your profile.</div>';
+  }
+}
+window.renderThinkingProfile = renderThinkingProfile;

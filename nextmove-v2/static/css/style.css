@@ -1713,3 +1713,43 @@ body:not(.play-locked) #page-training,body:not(.play-locked) #page-puzzles{overf
 .askf-send{background:var(--accent);color:#fff;border:none;border-radius:999px;padding:10px 18px;
   font-family:var(--font-ui);font-size:13px;font-weight:600;cursor:pointer}
 .askf-send:disabled{opacity:.5;cursor:not-allowed}
+
+/* ── Candidate moves + thinking profile ──────────────────────────────────── */
+.cand{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12px;
+  padding:8px 12px;background:var(--bg-panel);border:1px solid var(--border);border-radius:12px}
+.cand.hidden,.cand-verdict.hidden{display:none}
+.cand-label{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--text-3);font-weight:600}
+.cand-list{display:flex;gap:6px;flex-wrap:wrap}
+.cand-pill{background:var(--accent-soft);color:var(--accent-text);border-radius:999px;
+  padding:3px 10px;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums}
+.cand-hint{font-size:11px;color:var(--text-3);margin-left:auto}
+.cand-list:empty + .cand-hint{margin-left:0}
+.cand-verdict{background:var(--bg-panel);border:1px solid var(--border);border-left:3px solid var(--accent);
+  border-radius:12px;padding:12px 14px;font-size:13px;line-height:1.55;color:var(--text-1)}
+.cand-verdict b{display:block;margin-bottom:4px;color:var(--accent-text)}
+.cand-verdict .cand-tag{display:inline-block;margin-top:8px;font-size:11px;color:var(--text-2);
+  background:var(--bg-panel-hi);border-radius:999px;padding:3px 9px}
+.think-sub{font-size:13px;color:var(--text-2);margin:-4px 0 14px}
+.think-row{display:grid;grid-template-columns:1fr 60px 78px;gap:12px;align-items:center;
+  padding:9px 0;border-bottom:1px solid var(--border)}
+.think-row:last-child{border-bottom:none}
+.think-name{font-size:13px;color:var(--text-1)}
+.think-obs{font-size:11px;color:var(--text-3);font-variant-numeric:tabular-nums;text-align:right}
+.think-band{font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;
+  text-align:right;border-radius:999px;padding:3px 8px}
+.think-band.strength{color:var(--green);background:rgba(61,201,127,.12)}
+.think-band.steady{color:var(--text-2);background:var(--bg-panel-hi)}
+.think-band.leak{color:var(--orange);background:rgba(229,167,61,.12)}
+.think-band.big-leak{color:var(--red);background:rgba(229,72,77,.14)}
+.think-empty{font-size:13px;color:var(--text-3);padding:8px 0}
+
+/* ── Tab guidance + drill method ─────────────────────────────────────────── */
+.tabguide{background:var(--bg-panel);border:1px solid var(--border);border-left:3px solid var(--accent);
+  border-radius:12px;padding:14px 16px;margin-bottom:18px;max-width:70ch}
+.tabguide b{display:block;font-size:13px;color:var(--text-1);margin-bottom:5px}
+.tabguide p{font-size:13px;line-height:1.6;color:var(--text-2);margin:0}
+.drill-method{margin-top:8px;padding:9px 11px;background:var(--accent-soft);border-radius:10px;
+  font-size:12.5px;line-height:1.5;color:var(--text-1)}
+.drill-method b{color:var(--accent-text)}
+.drill-answer{margin-top:8px;font-size:13px;color:var(--text-2)}
+.drill-answer b{color:var(--text-1)}

@@ -188,5 +188,298 @@
       "calibration_game": null,
       "coached_game": null
     }
+  },
+  "candtest": {
+    "password": "f74fbd074eac99683a3475340fd4a739:6f3b5f8e52c4456adcddf234c9375aeded9e813c1cb450c00d2cb874de19ab5d",
+    "email": "c@t.com",
+    "created": 1785289292,
+    "xp": 0,
+    "plan": "free",
+    "plan_expires": null,
+    "daily_counts": {},
+    "games": [],
+    "progress": {
+      "games_analysed": 0,
+      "blunders_found": 0,
+      "puzzles_solved": 0,
+      "lessons_completed": [],
+      "challenge_solved": []
+    },
+    "onboarding": {
+      "new_user": false,
+      "complete": true,
+      "step": "done",
+      "calibration_game": null,
+      "coached_game": null
+    },
+    "thinking_profile": {
+      "samples": 4,
+      "dims": {
+        "candidate_quality": {
+          "hits": 2,
+          "obs": 3
+        },
+        "opponent_blindness": {
+          "hits": 0,
+          "obs": 0
+        },
+        "tunnel_vision": {
+          "hits": 3,
+          "obs": 3
+        },
+        "impulsive_captures": {
+          "hits": 0,
+          "obs": 0
+        },
+        "premature_attacks": {
+          "hits": 0,
+          "obs": 0
+        },
+        "threat_recognition": {
+          "hits": 0,
+          "obs": 0
+        },
+        "evaluation_accuracy": {
+          "hits": 3,
+          "obs": 4
+        },
+        "board_vision": {
+          "hits": 0,
+          "obs": 0
+        },
+        "calculation_depth": {
+          "hits": 0,
+          "obs": 0
+        },
+        "king_safety": {
+          "hits": 0,
+          "obs": 0
+        },
+        "piece_coordination": {
+          "hits": 0,
+          "obs": 0
+        },
+        "strategic_planning": {
+          "hits": 0,
+          "obs": 0
+        },
+        "quiet_moves": {
+          "hits": 0,
+          "obs": 3
+        }
+      },
+      "notes": [],
+      "updated": "2026-07-28"
+    }
+  },
+  "cand2": {
+    "password": "fbdfe41291847382b17e4651628b97b7:b035e48c19dd64cd303cbd62c6a0c4c1dc336e722983f4d33faa0f233976976a",
+    "email": "c2@t.com",
+    "created": 1785289324,
+    "xp": 0,
+    "plan": "free",
+    "plan_expires": null,
+    "daily_counts": {},
+    "games": [],
+    "progress": {
+      "games_analysed": 0,
+      "blunders_found": 0,
+      "puzzles_solved": 0,
+      "lessons_completed": [],
+      "challenge_solved": []
+    },
+    "onboarding": {
+      "new_user": false,
+      "complete": true,
+      "step": "done",
+      "calibration_game": null,
+      "coached_game": null
+    },
+    "thinking_profile": {
+      "samples": 4,
+      "dims": {
+        "candidate_quality": {
+          "hits": 2,
+          "obs": 4
+        },
+        "opponent_blindness": {
+          "hits": 0,
+          "obs": 0
+        },
+        "tunnel_vision": {
+          "hits": 1,
+          "obs": 4
+        },
+        "impulsive_captures": {
+          "hits": 0,
+          "obs": 0
+        },
+        "premature_attacks": {
+          "hits": 0,
+          "obs": 0
+        },
+        "threat_recognition": {
+          "hits": 0,
+          "obs": 0
+        },
+        "evaluation_accuracy": {
+          "hits": 3,
+          "obs": 4
+        },
+        "board_vision": {
+          "hits": 0,
+          "obs": 0
+        },
+        "calculation_depth": {
+          "hits": 0,
+          "obs": 0
+        },
+        "king_safety": {
+          "hits": 0,
+          "obs": 0
+        },
+        "piece_coordination": {
+          "hits": 0,
+          "obs": 0
+        },
+        "strategic_planning": {
+          "hits": 0,
+          "obs": 0
+        },
+        "quiet_moves": {
+          "hits": 0,
+          "obs": 4
+        }
+      },
+      "notes": [],
+      "updated": "2026-07-28"
+    }
+  },
+  "finaltest": {
+    "password": "85a2d1145945439f6f78481a38a676ce:acfded4b3be1ddb51090678214d874804de175c07c8dc3285b41c65817087d3b",
+    "email": "f@t.com",
+    "created": 1785289436,
+    "xp": 0,
+    "plan": "free",
+    "plan_expires": null,
+    "daily_counts": {},
+    "games": [],
+    "progress": {
+      "games_analysed": 0,
+      "blunders_found": 0,
+      "puzzles_solved": 0,
+      "lessons_completed": [],
+      "challenge_solved": []
+    },
+    "onboarding": {
+      "new_user": false,
+      "complete": true,
+      "step": "done",
+      "calibration_game": null,
+      "coached_game": null
+    },
+    "training": {
+      "patterns": {
+        "Hanging piece": {
+          "strength": 12,
+          "seen": 0,
+          "correct": 0,
+          "due": 1785289436,
+          "interval_days": 1
+        },
+        "Missed tactic": {
+          "strength": 12,
+          "seen": 0,
+          "correct": 0,
+          "due": 1785289436,
+          "interval_days": 1
+        },
+        "King safety issue": {
+          "strength": 12,
+          "seen": 0,
+          "correct": 0,
+          "due": 1785289436,
+          "interval_days": 1
+        },
+        "Endgame mistake": {
+          "strength": 12,
+          "seen": 0,
+          "correct": 0,
+          "due": 1785289436,
+          "interval_days": 1
+        },
+        "Opening mistake": {
+          "strength": 12,
+          "seen": 0,
+          "correct": 0,
+          "due": 1785289436,
+          "interval_days": 1
+        }
+      },
+      "streak": {
+        "count": 0,
+        "last_day": ""
+      },
+      "history": []
+    },
+    "thinking_profile": {
+      "samples": 1,
+      "dims": {
+        "candidate_quality": {
+          "hits": 0,
+          "obs": 1
+        },
+        "opponent_blindness": {
+          "hits": 0,
+          "obs": 0
+        },
+        "tunnel_vision": {
+          "hits": 0,
+          "obs": 1
+        },
+        "impulsive_captures": {
+          "hits": 0,
+          "obs": 0
+        },
+        "premature_attacks": {
+          "hits": 0,
+          "obs": 0
+        },
+        "threat_recognition": {
+          "hits": 0,
+          "obs": 0
+        },
+        "evaluation_accuracy": {
+          "hits": 0,
+          "obs": 1
+        },
+        "board_vision": {
+          "hits": 0,
+          "obs": 0
+        },
+        "calculation_depth": {
+          "hits": 0,
+          "obs": 0
+        },
+        "king_safety": {
+          "hits": 0,
+          "obs": 0
+        },
+        "piece_coordination": {
+          "hits": 0,
+          "obs": 0
+        },
+        "strategic_planning": {
+          "hits": 0,
+          "obs": 0
+        },
+        "quiet_moves": {
+          "hits": 0,
+          "obs": 1
+        }
+      },
+      "notes": [],
+      "updated": "2026-07-28"
+    }
   }
 }
