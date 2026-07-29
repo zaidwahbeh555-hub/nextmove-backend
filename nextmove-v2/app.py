@@ -1506,13 +1506,13 @@ def opening_lesson(board_before, move, san, fullmove):
     ff = chess.square_file(move.from_square)
     if pc.piece_type == chess.PAWN and ff == 5 and move.from_square in (chess.F2, chess.F7):
         return random.choice([
-            "Ooh, careful with that f-pawn, bro. That pawn is your king's bodyguard — it's literally why scholar's mate targets f7. Try not to move it early.",
+            "Ooh, careful with that f-pawn. That pawn is your king's bodyguard — it's literally why scholar's mate targets f7. Try not to move it early.",
             "Mmm, the f-pawn — I wanna break this habit. It guards your king. Get your knights and bishops out instead.",
             "That f-pawn opens up your king, dude. Keep it home — develop and castle instead.",
         ])
     if pc.piece_type == chess.QUEEN and fullmove <= 6:
         return random.choice([
-            f"Queen out early with {san}? They'll just develop and hit it with tempo — free time for them. Knights and bishops first, bro.",
+            f"Queen out early with {san}? They'll just develop and hit it with tempo — free time for them. Knights and bishops first.",
             "Careful — early queen. Every time they attack it, they develop for free. Minor pieces first.",
             "The queen comes out AFTER the knights and bishops. Otherwise you're handing them targets.",
         ])
@@ -2442,6 +2442,23 @@ def socratic_guard(text, best_san, ctx=None, topic="threat"):
     except Exception:
         return gm_phrase(SOCRATIC_QUESTIONS[topic])
 
+def socratic_explain(text, best_san, ctx=None, topic="safety"):
+    """Keep the sentences that explain; replace only the one that gives it away.
+
+    A blunder alert should say what the move cost and what the opponent gets —
+    that is the teaching. Only the "and the move was X" sentence has to go."""
+    if not text:
+        return text
+    parts = re.split(r"(?<=[.!?])\s+", text.strip())
+    kept = [p for p in parts if p and not _names_move(p, best_san)]
+    if not kept:
+        return socratic_guard(text, best_san, ctx, topic)      # nothing salvageable
+    out = " ".join(kept)
+    # Close with a question so the player does the last step themselves.
+    if not out.rstrip().endswith("?"):
+        out += " " + gm_phrase(SOCRATIC_QUESTIONS.get(topic) or SOCRATIC_QUESTIONS["threat"])
+    return out
+
 def socratic_dialogue(lines, best_san, ctx=None, topic="threat"):
     """Run a whole dialogue list through the guard, dropping anything left empty."""
     out = []
@@ -2878,7 +2895,8 @@ def coach_move_feedback():
                 "question": f"You played {san_played}. What was the right move?",
                 "options": options,
                 "correct_index": correct_index,
-                "explanation": f"Best was {best_san}. Engine line: {best_pv}." + (f" Your opponent's threat: {opp_san}." if opp_san else ""),
+                "explanation": ("Step through it and watch what they get."
+                                + (f" Start with their reply, {opp_san}." if opp_san else "")),
                 "force": True,
             }
 
@@ -2888,7 +2906,10 @@ def coach_move_feedback():
             "eval_after": round(score_after/100, 1),
             "best_move_san": best_san,
             "best_pv": best_pv,
-            "commentary": " ".join(parts),
+            # This is the text on the blunder alert. It explained by naming the
+            # engine's move; now it explains what the move cost and asks the
+            # player to work out the rest.
+            "commentary": socratic_explain(" ".join(parts), best_san, None, "safety"),
             "arrows": arrows,
             "highlights": highlights,
             "mcq": mcq,

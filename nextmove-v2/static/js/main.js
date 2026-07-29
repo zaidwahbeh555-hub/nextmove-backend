@@ -1842,9 +1842,15 @@ function showPause(data, fenBefore, sanPlayed){
     clearTimeout(window._blunderFlagT);
     window._blunderFlagT = setTimeout(()=>flag.classList.add('hidden'), 4000);
   }
-  const alert=document.getElementById('blunder-alert'); if(alert) alert.classList.remove('hidden');
+  const alert=document.getElementById('blunder-alert');
+  if(alert){ alert.classList.remove('hidden'); document.body.classList.add('blunder-open'); }
+  const ttl=document.querySelector('#blunder-alert .ba-title');
+  // Was "That move loses material — see why." — that is the verdict, not coaching.
+  if(ttl) ttl.textContent = 'Hold on — look at this before you commit.';
   const txt=document.getElementById('ba-text');
-  if(txt) txt.textContent = (data && data.commentary) ? data.commentary : 'Take a breath — step through what happens next.';
+  if(txt) txt.textContent = (data && data.commentary)
+    ? data.commentary
+    : 'Step forward through the moves and watch what your opponent gets. What did they gain?';
   renderPauseFrame();
   Coach.speak('Wait — breathe. Step through it: see what your opponent does next.');
   if(window.CoachFigure) CoachFigure.mood('alarm');   // the coach looks alarmed
@@ -1852,7 +1858,9 @@ function showPause(data, fenBefore, sanPlayed){
 }
 function hidePause(){
   const flag=document.getElementById('blunder-flag'); if(flag) flag.classList.add('hidden');
-  const alert=document.getElementById('blunder-alert'); if(alert) alert.classList.add('hidden');
+  const alert=document.getElementById('blunder-alert');
+  if(alert) alert.classList.add('hidden');
+  document.body.classList.remove('blunder-open');
   BotState.boardLocked = false;
 }
 function pauseTakeBack(){

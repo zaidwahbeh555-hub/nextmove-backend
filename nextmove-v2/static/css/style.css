@@ -1764,3 +1764,47 @@ body:not(.play-locked) #page-training,body:not(.play-locked) #page-puzzles{overf
 .drill-method b{color:var(--accent-text)}
 .drill-answer{margin-top:8px;font-size:13px;color:var(--text-2)}
 .drill-answer b{color:var(--text-1)}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   BLUNDER ALERT — dock it beside the board, not under it.
+   It was placed below the board to keep the board visible, but the Play
+   screen is overflow:hidden, so it landed off-screen with no way to scroll
+   to it — you had to zoom out to see the board and the alert together.
+   Fixed to the right gutter: always on screen, never covering the board.
+   ═══════════════════════════════════════════════════════════════════════ */
+#page-coach .blunder-alert{
+  position:fixed; right:22px; top:50%; transform:translateY(-50%);
+  width:340px; max-width:calc(100vw - 44px); max-height:82vh; overflow-y:auto;
+  margin:0; z-index:70; scrollbar-width:thin;
+  background:var(--bg-panel); border:1px solid rgba(229,72,77,.5); border-left:3px solid var(--red);
+  border-radius:16px; padding:18px;
+  box-shadow:0 24px 60px -18px rgba(0,0,0,.75);
+}
+#page-coach .blunder-alert::-webkit-scrollbar{width:6px}
+#page-coach .blunder-alert::-webkit-scrollbar-thumb{background:var(--border-hi);border-radius:999px}
+/* While it is up, the coach column steps aside so they never overlap. */
+body.blunder-open #page-coach .gm-side,
+body.blunder-open #page-coach #coach-panel{opacity:.12;pointer-events:none;transition:opacity .2s}
+#page-coach .ba-head{align-items:flex-start;gap:9px;margin-bottom:9px}
+#page-coach .ba-title{font-size:14px;line-height:1.4;color:var(--text-1);font-weight:600}
+#page-coach .ba-icon{color:var(--red);flex-shrink:0;margin-top:1px}
+#page-coach .ba-text{font-size:13px;line-height:1.6;color:var(--text-2);margin-bottom:12px}
+#page-coach .ba-playback{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  background:var(--bg-panel-hi);border-radius:10px;padding:7px 10px;margin-bottom:12px}
+#page-coach .ba-frame{font-size:12px;color:var(--text-2);text-align:center;flex:1}
+#page-coach .ba-nav{background:transparent;border:1px solid var(--border);color:var(--text-2);
+  border-radius:8px;width:28px;height:28px;cursor:pointer;font-size:11px;line-height:1}
+#page-coach .ba-nav:hover{border-color:var(--border-hi);color:var(--text-1)}
+#page-coach .ba-actions{flex-direction:column;gap:8px}
+#page-coach .ba-actions .pause-btn{width:100%;justify-content:center;border-radius:999px;
+  padding:10px 14px;font-size:13px;font-family:var(--font-ui);cursor:pointer}
+/* Narrow / zoomed-in: become a bottom sheet rather than squeezing the board. */
+@media(max-width:1180px), (max-height:620px){
+  #page-coach .blunder-alert{
+    right:0; left:0; top:auto; bottom:0; transform:none;
+    width:auto; max-width:none; max-height:52vh;
+    border-radius:16px 16px 0 0; border-left:1px solid rgba(229,72,77,.5);
+    border-top:3px solid var(--red);
+  }
+  #page-coach .ba-actions{flex-direction:row}
+}
