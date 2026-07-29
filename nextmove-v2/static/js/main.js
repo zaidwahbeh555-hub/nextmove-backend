@@ -458,10 +458,10 @@ function showPage(name){
       }catch(e){} }, 60);
     }
     if(name==='lessons')initLessonsPage();
-    if(name==='progress')renderProgressPage();
+    if(name==='progress'){ renderProgressPage(); try{renderProgressReport();}catch(e){} }
     if(name==='training'){ try{renderThinkingProfile();}catch(e){} }
     if(name==='training')renderTrainingPage().catch(function(e){ console.error("renderTrainingPage failed:", e); });
-    if(name==='coach'||name==='bot')initCoachPage();
+    if(name==='coach'||name==='bot'){ initCoachPage(); try{loadDailyNudge();}catch(e){} }
   },60);
 }
 
@@ -1934,6 +1934,7 @@ async function makeBotMove(){
         setTimeout(()=>Coach.afterBotMove(mv.san), 300);
       }
       if(window.EvalBar && typeof d.eval === 'number') EvalBar.push(d.eval);
+      if(typeof d.est_elo === 'number') BotState.lastEstElo = d.est_elo;
       if(window.MoveRail && BotState.game) MoveRail.render(BotState.game.history(), null, null);
       checkBotGameOver();
     }
@@ -1981,6 +1982,22 @@ function checkBotGameOver(){
   } else if(BotState.game.in_stalemate()){ result = '½ Stalemate — draw!'; }
   else if(BotState.game.in_draw()){ result = '½ Draw!'; }
   setBotStatus(result);
+  // Fold this game into the long-term record. Solo games are what the rating
+  // estimate reads, so the mode matters.
+  try{
+    const perf = BotState.perf || [];
+    const bl = perf.filter(x=>x>=300).length, mi = perf.filter(x=>x>=150&&x<300).length,
+          ina = perf.filter(x=>x>=60&&x<150).length;
+    fetch('/progress/record', {method:'POST', headers:{'Content-Type':'application/json'},
+      credentials:'include', body: JSON.stringify({
+        coached: State.coachMode === 'coached',
+        moves: Math.ceil(BotState.game.history().length/2),
+        blunders: bl, mistakes: mi, inaccuracies: ina,
+        acpl: perf.length ? Math.round(perf.reduce((a,b)=>a+b,0)/perf.length) : 0,
+        est_elo: BotState.lastEstElo || 0,
+        patterns: BotState.weaknesses || [], result: result
+      })}).catch(()=>{});
+  }catch(e){}
   Coach.setStatus('Game over');
   // Surface the next game immediately instead of leaving a dead board.
   if(window.GameSetup){
@@ -4691,3 +4708,86 @@ const CoachRail = (function(){
   return {refresh, reset, playOut};
 })();
 window.CoachRail = CoachRail;
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Progress — the honest read on how you are actually playing.
+
+   Solo games (no coach) drive the rating estimate and the blunder rate, because
+   nobody is nudging you in those. Coached games still count toward totals but
+   are kept out of the rating so it stays truthful.
+   ═══════════════════════════════════════════════════════════════════════════ */
+async function renderProgressReport(){
+  const el = (id)=>document.getElementById(id);
+  if(!el('pg-elo')) return;
+  try{
+    const r = await fetch('/progress/report', {credentials:'include'});
+    const d = await r.json();
+    if(d.error) return;
+
+    el('pg-elo').textContent = d.est_elo || '—';
+    el('pg-conf').textContent = d.est_elo
+      ? (d.confidence + '% confident · ' + d.solo_games + ' solo game' + (d.solo_games===1?'':'s'))
+      : 'Play a game without the coach and I can read your level.';
+
+    // Confidence ring: 327 is the circumference at r=52.
+    const ring = el('pg-ring');
+    if(ring) ring.style.strokeDashoffset = String(327 - (327 * (d.confidence||0) / 100));
+    const rn = el('pg-ringnum'); if(rn) rn.textContent = (d.confidence||0) + '%';
+
+    const nu = el('pg-nudge'); if(nu) nu.textContent = d.nudge || '';
+
+    const br = el('pg-blunder');
+    if(br){ br.textContent = d.solo_games ? d.blunder_rate + '%' : '—';
+            br.className = 'ps-v ' + (d.blunder_rate > 4 ? 'bad' : d.blunder_rate ? 'good' : ''); }
+    const ac = el('pg-acpl'); if(ac) ac.textContent = d.solo_games ? d.acpl : '—';
+    const so = el('pg-solo'); if(so) so.textContent = d.solo_games;
+    const tr = el('pg-trend');
+    if(tr){
+      if(d.trend === null || d.trend === undefined){ tr.textContent = '—'; tr.className = 'ps-v'; }
+      else { tr.textContent = (d.trend > 0 ? '−' : '+') + Math.abs(d.trend);
+             tr.className = 'ps-v ' + (d.trend > 0 ? 'good' : 'bad'); }
+    }
+
+    // Recent games: taller bar = more given away that game.
+    const sp = el('pg-spark');
+    if(sp){
+      const h = d.history || [];
+      if(!h.length) sp.innerHTML = '<span class="spark-empty">No games recorded yet.</span>';
+      else {
+        const max = Math.max(...h.map(x=>x.acpl||0), 1);
+        sp.innerHTML = h.map(x=>{
+          const pct = Math.max(6, Math.round((x.acpl||0)/max*100));
+          return '<span class="spark-bar' + ((x.blunders||0) > 1 ? ' hi' : '') + '" style="height:'
+               + pct + '%" title="' + esc(x.d) + ' · ' + (x.acpl||0) + ' avg loss · '
+               + (x.blunders||0) + ' blunders"></span>';
+        }).join('');
+      }
+    }
+
+    const pp = el('pg-pats');
+    if(pp){
+      const P = d.patterns || [];
+      if(!P.length) pp.innerHTML = '<span class="spark-empty">Nothing repeating yet — play a few games and I will find it.</span>';
+      else {
+        const top = Math.max(...P.map(x=>x.count), 1);
+        pp.innerHTML = P.map(x=>'<div class="ppat"><span class="ppat-n">' + esc(x.name) + '</span>'
+          + '<span class="ppat-bar"><i style="width:' + Math.round(x.count/top*100) + '%"></i></span>'
+          + '<span class="ppat-c">' + x.count + '</span></div>').join('');
+      }
+    }
+  }catch(e){}
+}
+window.renderProgressReport = renderProgressReport;
+
+/* One line on the Play screen: what to work on today. */
+async function loadDailyNudge(){
+  const box = document.getElementById('crail-daily'); if(!box) return;
+  try{
+    const r = await fetch('/daily-nudge', {credentials:'include'});
+    const d = await r.json();
+    if(d.error || !d.message){ box.classList.add('hidden'); return; }
+    box.textContent = d.message + (d.streak ? '  ·  ' + d.streak + ' day streak' : '');
+    box.classList.remove('hidden');
+  }catch(e){ box.classList.add('hidden'); }
+}
+window.loadDailyNudge = loadDailyNudge;

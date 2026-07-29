@@ -4358,6 +4358,154 @@ def candidates_preview():
             o["gap"] = round(best - o["eval"], 2)
     return jsonify({"candidates": out, "base_eval": base.get("eval", 0.0)})
 
+# ══════════════════════════════════════════════════════════════════════════════
+# PROGRESS — what the player is actually doing, measured over time.
+#
+# Solo games (no coach) are the honest signal: nobody is nudging you, so the
+# blunder rate and the patterns you repeat are yours. Coached games are excluded
+# from the rating estimate for exactly that reason.
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _empty_stats():
+    return {"solo": {"games": 0, "moves": 0, "blunders": 0, "mistakes": 0, "inaccuracies": 0,
+                     "acpl_sum": 0.0, "elo_samples": []},
+            "coached": {"games": 0, "moves": 0, "blunders": 0, "mistakes": 0, "inaccuracies": 0},
+            "patterns": {}, "history": [], "daily": {}}
+
+def get_stats(user):
+    st = user.get("stats")
+    if not st or "solo" not in st:
+        return _empty_stats()
+    base = _empty_stats()
+    for k in base:
+        if k not in st:
+            st[k] = base[k]
+    for k in base["solo"]:
+        st["solo"].setdefault(k, base["solo"][k])
+        st["coached"].setdefault(k, base["coached"].get(k, 0))
+    return st
+
+@app.route("/progress/record", methods=["POST"])
+@login_required
+def progress_record():
+    """Fold one finished game into the player's long-term record."""
+    d = request.get_json(force=True, silent=True) or {}
+    user = get_user(current_user())
+    if not user:
+        return jsonify({"error": "Not logged in"}), 401
+    st = get_stats(user)
+    mode = "coached" if d.get("coached") else "solo"
+    bucket = st[mode]
+    bucket["games"] = bucket.get("games", 0) + 1
+    bucket["moves"] = bucket.get("moves", 0) + int(d.get("moves") or 0)
+    for k in ("blunders", "mistakes", "inaccuracies"):
+        bucket[k] = bucket.get(k, 0) + int(d.get(k) or 0)
+    if mode == "solo":
+        acpl = float(d.get("acpl") or 0)
+        bucket["acpl_sum"] = bucket.get("acpl_sum", 0.0) + acpl
+        est = int(d.get("est_elo") or 0)
+        if est:
+            bucket["elo_samples"] = (bucket.get("elo_samples") or [])[-19:] + [est]
+    for pat in (d.get("patterns") or [])[:8]:
+        if isinstance(pat, str):
+            st["patterns"][pat] = st["patterns"].get(pat, 0) + 1
+    st["history"] = (st.get("history") or [])[-29:] + [{
+        "d": time.strftime("%Y-%m-%d"), "mode": mode,
+        "blunders": int(d.get("blunders") or 0), "acpl": round(float(d.get("acpl") or 0), 1),
+        "elo": int(d.get("est_elo") or 0), "result": d.get("result") or "",
+    }]
+    st["daily"][time.strftime("%Y-%m-%d")] = st["daily"].get(time.strftime("%Y-%m-%d"), 0) + 1
+    user["stats"] = st
+    save_user(current_user(), user)
+    return jsonify({"ok": True})
+
+@app.route("/progress/report")
+@login_required
+def progress_report():
+    """Everything the Progress tab shows."""
+    user = get_user(current_user())
+    if not user:
+        return jsonify({"error": "Not logged in"}), 401
+    st = get_stats(user)
+    solo, coached = st["solo"], st["coached"]
+
+    sg = max(1, solo.get("games", 0))
+    sm = max(1, solo.get("moves", 0))
+    blunder_rate = round(solo.get("blunders", 0) / float(sm) * 100, 1)
+    acpl = round(solo.get("acpl_sum", 0.0) / float(sg), 1)
+    samples = solo.get("elo_samples") or []
+    est_elo = int(sum(samples) / len(samples)) if samples else None
+    # Confidence grows with solo games; ten is a fair read, thirty is solid.
+    conf = min(100, int(solo.get("games", 0) / 30.0 * 100))
+
+    trend = None
+    hist = [h for h in (st.get("history") or []) if h.get("mode") == "solo" and h.get("acpl")]
+    if len(hist) >= 6:
+        half = len(hist) // 2
+        early = sum(h["acpl"] for h in hist[:half]) / half
+        late = sum(h["acpl"] for h in hist[half:]) / (len(hist) - half)
+        trend = round(early - late, 1)          # positive = losing fewer centipawns
+
+    pats = sorted(st.get("patterns", {}).items(), key=lambda kv: -kv[1])[:6]
+    tp = get_thinking_profile(user)
+    dims = []
+    for key, label in THINKING_DIMENSIONS.items():
+        dd = tp["dims"].get(key, {})
+        if dd.get("obs"):
+            dims.append({"label": label, "rate": round(dd["hits"] / float(dd["obs"]) * 100)})
+    dims.sort(key=lambda r: -r["rate"])
+
+    # One thing to do today, chosen from the strongest signal available.
+    if pats:
+        nudge = "Your most repeated mistake is %s. One drill today." % pats[0][0]
+    elif solo.get("games", 0) < 3:
+        nudge = "Play a game without the coach — that is what the rating estimate reads."
+    elif blunder_rate > 4:
+        nudge = "Blunders are the fastest thing to fix. Five seconds before every move."
+    else:
+        nudge = "Keep the streak going — one drill or one game today."
+
+    return jsonify({
+        "solo_games": solo.get("games", 0), "coached_games": coached.get("games", 0),
+        "est_elo": est_elo, "confidence": conf,
+        "blunder_rate": blunder_rate, "acpl": acpl, "trend": trend,
+        "totals": {"blunders": solo.get("blunders", 0) + coached.get("blunders", 0),
+                   "mistakes": solo.get("mistakes", 0) + coached.get("mistakes", 0),
+                   "inaccuracies": solo.get("inaccuracies", 0) + coached.get("inaccuracies", 0)},
+        "patterns": [{"name": k, "count": v} for k, v in pats],
+        "thinking": dims[:5],
+        "history": (st.get("history") or [])[-14:],
+        "xp": user.get("xp", 0), "plan": user.get("plan", "free"),
+        "nudge": nudge,
+    })
+
+@app.route("/daily-nudge")
+@login_required
+def daily_nudge():
+    """The one line shown on the Play screen — what to work on today."""
+    user = get_user(current_user())
+    if not user:
+        return jsonify({"error": "Not logged in"}), 401
+    st = get_stats(user)
+    pats = sorted(st.get("patterns", {}).items(), key=lambda kv: -kv[1])
+    tp = get_thinking_profile(user)
+    worst = None
+    for key, label in THINKING_DIMENSIONS.items():
+        dd = tp["dims"].get(key, {})
+        if dd.get("obs", 0) >= 3 and dd["hits"] / float(dd["obs"]) >= 0.5:
+            worst = label
+            break
+    if worst:
+        msg, tag = "Watch for this today: %s." % worst, "thinking"
+    elif pats:
+        msg, tag = "You keep repeating one mistake: %s." % pats[0][0], "pattern"
+    elif st["solo"].get("games", 0) < 3:
+        msg, tag = "Play one game without the coach so I can read your real level.", "solo"
+    else:
+        msg, tag = "Nothing repeating yet — keep playing and I will find the pattern.", "none"
+    return jsonify({"message": msg, "tag": tag,
+                    "streak": (user.get("training") or {}).get("streak", {}).get("count", 0)})
+
 @app.route("/health")
 def health():
     sf=find_stockfish()

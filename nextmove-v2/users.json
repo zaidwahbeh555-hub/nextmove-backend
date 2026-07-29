@@ -481,5 +481,86 @@
       "notes": [],
       "updated": "2026-07-28"
     }
+  },
+  "pgtest": {
+    "password": "78336fe9b644d3af8484468c4381d919:3b656f088d5ce7b6b95ac9931eccd98173182d4bf94190dce6365a4da1975924",
+    "email": "pg@t.com",
+    "created": 1785341878,
+    "xp": 0,
+    "plan": "free",
+    "plan_expires": null,
+    "daily_counts": {},
+    "games": [],
+    "progress": {
+      "games_analysed": 0,
+      "blunders_found": 0,
+      "puzzles_solved": 0,
+      "lessons_completed": [],
+      "challenge_solved": []
+    },
+    "onboarding": {
+      "new_user": false,
+      "complete": true,
+      "step": "done",
+      "calibration_game": null,
+      "coached_game": null
+    },
+    "stats": {
+      "solo": {
+        "games": 3,
+        "moves": 120,
+        "blunders": 6,
+        "mistakes": 6,
+        "inaccuracies": 15,
+        "acpl_sum": 180.0,
+        "elo_samples": [
+          1140,
+          1180,
+          1220
+        ]
+      },
+      "coached": {
+        "games": 0,
+        "moves": 0,
+        "blunders": 0,
+        "mistakes": 0,
+        "inaccuracies": 0,
+        "acpl_sum": 0,
+        "elo_samples": 0
+      },
+      "patterns": {
+        "Hanging piece": 3,
+        "Missed tactic": 3
+      },
+      "history": [
+        {
+          "d": "2026-07-29",
+          "mode": "solo",
+          "blunders": 1,
+          "acpl": 75.0,
+          "elo": 1140,
+          "result": "win"
+        },
+        {
+          "d": "2026-07-29",
+          "mode": "solo",
+          "blunders": 2,
+          "acpl": 60.0,
+          "elo": 1180,
+          "result": "win"
+        },
+        {
+          "d": "2026-07-29",
+          "mode": "solo",
+          "blunders": 3,
+          "acpl": 45.0,
+          "elo": 1220,
+          "result": "win"
+        }
+      ],
+      "daily": {
+        "2026-07-29": 3
+      }
+    }
   }
 }
