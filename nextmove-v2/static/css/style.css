@@ -549,13 +549,15 @@ textarea:focus{border-color:var(--cyan);box-shadow:0 0 0 3px var(--cyan-dim)}
 #puzzle-board .board-b72b1,
 #replay-board .board-b72b1{border:none;border-radius:14px;overflow:hidden}
 
-/* Square colors — modern dark slate with cool accent */
+/* Square colors — follow the equipped board theme, same vars ForgeBoard uses,
+   so the replay board (the last chessboard.js surface) does not stay behind
+   when a cosmetic theme is equipped. Colour only; layout is untouched. */
 #bot-board .white-1e1d7,
 #puzzle-board .white-1e1d7,
-#replay-board .white-1e1d7{background-color:#d6dbe3 !important;color:#1d2330 !important}
+#replay-board .white-1e1d7{background-color:var(--sq-light,#d6dbe3) !important;color:var(--text-2) !important}
 #bot-board .black-3c85d,
 #puzzle-board .black-3c85d,
-#replay-board .black-3c85d{background-color:#5a6b85 !important;color:#d6dbe3 !important}
+#replay-board .black-3c85d{background-color:var(--sq-dark,#5a6b85) !important;color:var(--text-2) !important}
 [data-light="1"] #bot-board .white-1e1d7,
 [data-light="1"] #puzzle-board .white-1e1d7,
 [data-light="1"] #replay-board .white-1e1d7{background-color:#edf0f5 !important}
@@ -1936,3 +1938,81 @@ body.blunder-open #page-coach #coach-panel{opacity:.12;pointer-events:none;trans
 .crail-daily{background:var(--accent-soft);border:1px solid rgba(91,108,255,.3);border-radius:10px;
   padding:10px 12px;font-size:12px;line-height:1.5;color:var(--text-1)}
 .crail-daily.hidden{display:none}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SHOP — XP-purchased cosmetics
+   Deliberately self-contained: every class is shop-prefixed and nothing here
+   touches a board container, so it cannot interact with the layout that has
+   collapsed boards before. Previews are fixed-pixel, not flex children.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.tb-xp{background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:999px;
+  padding:6px 14px;font-size:13px;font-weight:500;color:var(--text-2);cursor:pointer;
+  display:flex;align-items:center;gap:6px;transition:all 120ms cubic-bezier(.32,.72,0,1)}
+.tb-xp:hover{border-color:var(--border-hi);color:var(--text-1);background:rgba(255,255,255,.07)}
+.tb-xp .xp-label{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)}
+.tb-xp:hover .xp-label{color:var(--text-2)}
+
+.shop-wallet{display:flex;align-items:baseline;gap:8px;background:var(--bg-panel);
+  border:1px solid var(--border);border-radius:12px;padding:12px 20px;position:relative}
+.shop-wallet-label{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)}
+.shop-wallet b{font-size:22px;font-weight:700;color:var(--text-1);font-variant-numeric:tabular-nums}
+.shop-wallet-xp{font-size:12px;color:var(--text-3)}
+
+.shop-toast{position:absolute;top:calc(100% + 8px);right:0;white-space:nowrap;background:var(--bg-panel-hi);
+  border:1px solid var(--border-hi);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--text-1);
+  opacity:0;transform:translateY(-4px);pointer-events:none;transition:all 240ms cubic-bezier(.32,.72,0,1);z-index:40}
+.shop-toast.is-on{opacity:1;transform:translateY(0)}
+
+.shop-locked{background:var(--accent-soft);border:1px solid rgba(91,108,255,.3);
+  border-radius:12px;padding:20px 24px;margin-bottom:24px}
+.shop-locked.hidden{display:none}
+.shop-locked-in h3{font-size:17px;font-weight:700;color:var(--text-1);margin:0 0 8px}
+.shop-locked-in p{font-size:14px;line-height:1.6;color:var(--text-2);margin:0 0 16px;max-width:62ch}
+
+.shop-earn{background:var(--bg-panel);border:1px solid var(--border);border-radius:12px;
+  padding:0 20px;margin-bottom:32px}
+.shop-earn summary{cursor:pointer;padding:16px 0;font-size:13px;font-weight:500;color:var(--text-2);
+  list-style:none;display:flex;align-items:center;gap:8px}
+.shop-earn summary::-webkit-details-marker{display:none}
+.shop-earn summary::before{content:"";width:6px;height:6px;border-right:1.75px solid currentColor;
+  border-bottom:1.75px solid currentColor;transform:rotate(-45deg);transition:transform 240ms cubic-bezier(.32,.72,0,1)}
+.shop-earn[open] summary::before{transform:rotate(45deg)}
+.shop-earn summary:hover{color:var(--text-1)}
+.shop-earn-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:0 32px;padding-bottom:8px}
+.shop-earn-row{display:flex;justify-content:space-between;align-items:center;gap:16px;
+  padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;color:var(--text-2)}
+.shop-earn-row b{color:var(--accent-text,var(--accent));font-variant-numeric:tabular-nums;font-weight:700}
+.shop-earn-note{font-size:12px;color:var(--text-3);line-height:1.6;padding:12px 0 16px;margin:0}
+
+.shop-sec{font-size:12px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--text-3);margin:0 0 16px}
+
+.shop-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin-bottom:48px}
+
+.shop-card{background:var(--bg-panel);border:1px solid var(--border);border-radius:12px;
+  overflow:hidden;display:flex;flex-direction:column;transition:border-color 120ms cubic-bezier(.32,.72,0,1)}
+.shop-card:hover{border-color:var(--border-hi)}
+.shop-card.is-equipped{border-color:var(--accent)}
+.shop-card-body{padding:16px;display:flex;flex-direction:column;gap:8px;flex:1}
+.shop-card-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.shop-card-top b{font-size:15px;font-weight:700;color:var(--text-1)}
+.shop-card-body p{font-size:13px;line-height:1.55;color:var(--text-2);margin:0;flex:1}
+.shop-price{font-size:12px;color:var(--text-3);font-variant-numeric:tabular-nums;white-space:nowrap}
+.shop-tag{font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--text-3)}
+
+/* Preview: a fixed 4x4 corner of a board. Fixed px, never a flex child. */
+.shop-mini{display:grid;grid-template-columns:repeat(4,1fr);width:100%;aspect-ratio:1;max-height:180px}
+.shop-mini i{display:block;position:relative;aspect-ratio:1}
+.shop-mini img{position:absolute;inset:8%;width:84%;height:84%;object-fit:contain}
+
+.shop-btn{width:100%;padding:10px 16px;border-radius:999px;border:1px solid var(--border-hi);
+  background:transparent;color:var(--text-1);font-size:13px;font-weight:500;cursor:pointer;
+  font-family:inherit;transition:all 120ms cubic-bezier(.32,.72,0,1)}
+.shop-btn:hover:not(:disabled){background:var(--bg-panel-hi);border-color:var(--accent)}
+.shop-btn.is-buy{background:var(--accent);border-color:var(--accent);color:#0D0D14;font-weight:700}
+.shop-btn.is-buy:hover{filter:brightness(1.08)}
+.shop-btn.is-on{background:transparent;border-color:var(--accent);color:var(--accent-text,var(--accent));
+  font-weight:700;cursor:default}
+.shop-btn.is-locked{color:var(--text-3);border-color:var(--border);cursor:not-allowed}
+.shop-btn.is-locked[onclick]{cursor:pointer}
+.shop-btn:disabled{cursor:default}

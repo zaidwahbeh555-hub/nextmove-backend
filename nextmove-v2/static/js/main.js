@@ -1,6 +1,35 @@
 /* ChessForge Pro v6 — Complete JS */
 const PIECE_VER = 'p2';
-const PIECE_THEME = '/static/custom/{piece}.svg?v=' + PIECE_VER;
+// chessboard.js accepts a function here, so the replay board picks up the
+// equipped piece set at the moment it renders rather than at file-load time.
+const PIECE_THEME = function(piece){
+  return '/static/custom/' + Cosmetics.dir + piece + '.svg?v=' + PIECE_VER;
+};
+
+/* ── Cosmetics ──────────────────────────────────────────────────────────────
+   A board theme is two CSS custom properties; a piece set is a directory
+   prefix. Deliberately nothing else — no widths, no flex, no aspect-ratio.
+   Board layout is where this app has broken before, so cosmetics stay clear
+   of it entirely. Declared here, at the top, because fbPieceEl() reads
+   Cosmetics.dir and declaration order has caused real bugs in this file. */
+const Cosmetics = {
+  board:'midnight', pieces:'classic', dir:'', owned:null,
+  apply(c){
+    if(!c) return;
+    if(c.light && c.dark){
+      const root = document.documentElement.style;
+      root.setProperty('--sq-light', c.light);
+      root.setProperty('--sq-dark',  c.dark);
+      this.board = c.board || this.board;
+    }
+    if(typeof c.dir === 'string' && c.dir !== this.dir){
+      this.dir = c.dir;
+      this.pieces = c.pieces || this.pieces;
+      try{ (ForgeBoard.instances||[]).forEach(b=>{ try{ b.refreshPieces(); }catch(e){} }); }catch(e){}
+    } else if(c.pieces){ this.pieces = c.pieces; }
+    if(c.owned) this.owned = c.owned;
+  }
+};
 
 const LESSONS={
   tactics:{title:'Tactics: Forks, Pins & Skewers',subtitle:'The most powerful short-term weapons in chess',priority:'high',icon:'',sections:[
@@ -269,6 +298,119 @@ async function awardXP(amount,type,lessonId){
   if(fl){document.getElementById('xp-amount').textContent=amount;fl.classList.remove('hidden');setTimeout(()=>fl.classList.add('hidden'),2500);}
 }
 
+/* ── Shop ─────────────────────────────────────────────────────────────────── */
+const XP_RULE_LABELS = {
+  puzzle_solved:'Solve a puzzle', drill_passed:'Pass a drill',
+  pattern_mastered:'Master a pattern', lesson_done:'Finish a lesson',
+  game_coached:'Finish a coached game', game_solo:'Finish a solo game',
+  clean_game:'Finish a game with no blunders', candidates_reviewed:'Weigh two or more candidate moves',
+  found_best:'Have the engine move among your candidates', streak_day:'Keep your drill streak alive'
+};
+
+// A small board drawn in a theme's own colours, with real pieces from a set.
+// Fixed pixel sizing on purpose: this never participates in the page's flex
+// layout, so it cannot repeat the collapsed-board bug.
+function shopMiniBoard(light, dark, dir){
+  const back = ['r','n','b','q'], out = [];
+  for(let r=0;r<4;r++) for(let f=0;f<4;f++){
+    const isLight = (r+f)%2===0;
+    let inner = '';
+    if(r===0) inner = '<img alt="" src="/static/custom/'+dir+'b'+back[f].toUpperCase()+'.svg?v='+PIECE_VER+'">';
+    if(r===3) inner = '<img alt="" src="/static/custom/'+dir+'w'+back[f].toUpperCase()+'.svg?v='+PIECE_VER+'">';
+    out.push('<i style="background:'+(isLight?light:dark)+'">'+inner+'</i>');
+  }
+  return '<div class="shop-mini">'+out.join('')+'</div>';
+}
+
+function shopCard(kind, it, ctx){
+  const cur = kind==='board'
+    ? shopMiniBoard(it.light, it.dark, Cosmetics.dir)
+    : shopMiniBoard(ctx.light, ctx.dark, it.dir);
+  let action;
+  if(it.equipped)      action = '<button class="shop-btn is-on" disabled>Equipped</button>';
+  else if(it.owned)    action = '<button class="shop-btn" onclick="shopEquip(\''+kind+'\',\''+it.id+'\')">Equip</button>';
+  else if(!ctx.is_pro) action = '<button class="shop-btn is-locked" onclick="goToPro()">Pro only</button>';
+  else if(!it.affordable) action = '<button class="shop-btn is-locked" disabled>Need '+it.price+' XP</button>';
+  else                 action = '<button class="shop-btn is-buy" onclick="shopBuy(\''+kind+'\',\''+it.id+'\')">Buy · '+it.price+'</button>';
+  return '<div class="shop-card'+(it.equipped?' is-equipped':'')+'">'+cur+
+    '<div class="shop-card-body"><div class="shop-card-top"><b>'+it.name+'</b>'+
+    (it.price===0?'<span class="shop-tag">Free</span>':'<span class="shop-price">'+it.price+' XP</span>')+
+    '</div><p>'+it.blurb+'</p>'+action+'</div></div>';
+}
+
+async function renderShop(){
+  const bal = document.getElementById('shop-balance');
+  try{
+    const r = await fetch('/shop/catalog',{credentials:'include'});
+    if(!r.ok) throw new Error('catalog '+r.status);
+    const d = await r.json();
+    if(bal) bal.textContent = d.balance;
+    State.balance = d.balance;
+    const locked = document.getElementById('shop-locked');
+    if(locked) locked.classList.toggle('hidden', !!d.is_pro);
+    // The equipped board's colours are the backdrop for piece-set previews.
+    const eqBoard = (d.board||[]).find(b=>b.equipped) || d.board[0];
+    const ctx = {is_pro:d.is_pro, light:eqBoard.light, dark:eqBoard.dark};
+    const bEl = document.getElementById('shop-board');
+    const pEl = document.getElementById('shop-pieces');
+    if(bEl) bEl.innerHTML = (d.board||[]).map(it=>shopCard('board',it,ctx)).join('');
+    if(pEl) pEl.innerHTML = (d.pieces||[]).map(it=>shopCard('pieces',it,ctx)).join('');
+    const g = document.getElementById('shop-earn-grid');
+    if(g) g.innerHTML = Object.keys(d.rules||{}).map(k=>
+      '<div class="shop-earn-row"><span>'+(XP_RULE_LABELS[k]||k)+'</span><b>+'+d.rules[k]+'</b></div>').join('');
+  }catch(e){
+    console.error('renderShop failed:', e);
+    if(bal) bal.textContent = '—';
+  }
+}
+
+async function shopBuy(kind, id){
+  try{
+    const r = await fetch('/shop/buy',{method:'POST',credentials:'include',
+      headers:{'Content-Type':'application/json'},body:JSON.stringify({kind,id})});
+    const d = await r.json();
+    if(!r.ok){ toastShop(d.error || 'Could not buy that'); return; }
+    await refreshCosmetics();
+    renderShop();
+  }catch(e){ console.error('shopBuy failed:', e); }
+}
+
+async function shopEquip(kind, id){
+  try{
+    const r = await fetch('/shop/equip',{method:'POST',credentials:'include',
+      headers:{'Content-Type':'application/json'},body:JSON.stringify({kind,id})});
+    const d = await r.json();
+    if(!r.ok){ toastShop(d.error || 'Could not equip that'); return; }
+    await refreshCosmetics();
+    renderShop();
+  }catch(e){ console.error('shopEquip failed:', e); }
+}
+
+// Re-read the resolved cosmetics and repaint every board.
+async function refreshCosmetics(){
+  try{
+    const r = await fetch('/auth/me',{credentials:'include'});
+    const d = await r.json();
+    if(d.loggedIn){
+      Cosmetics.apply(d.cosmetics);
+      if(d.balance!==undefined) State.balance = d.balance;
+      if(d.xp!==undefined) setXP(d.xp);
+    }
+  }catch(e){ console.error('refreshCosmetics failed:', e); }
+}
+
+function toastShop(msg){
+  const el = document.getElementById('shop-balance');
+  if(!el) return;
+  const p = el.parentNode;
+  let t = document.getElementById('shop-toast');
+  if(!t){ t = document.createElement('div'); t.id='shop-toast'; t.className='shop-toast'; p.appendChild(t); }
+  t.textContent = msg;
+  t.classList.add('is-on');
+  clearTimeout(toastShop._t);
+  toastShop._t = setTimeout(()=>t.classList.remove('is-on'), 2600);
+}
+
 /* ── Auth ─────────────────────────────────────────────────────────────────── */
 function showAuthModal(){document.getElementById('auth-overlay').classList.remove('hidden');}
 function hideAuthModal(){document.getElementById('auth-overlay').classList.add('hidden');}
@@ -325,6 +467,8 @@ function applySession(d){
   document.getElementById('user-name').textContent=d.username;
   document.getElementById('user-avatar').textContent=d.username[0].toUpperCase();
   setXP(d.xp||0);
+  if(d.balance!==undefined) State.balance=d.balance;
+  Cosmetics.apply(d.cosmetics);
   State.completedLessons=d.progress?.lessons_completed||[];
   const upgradeBtn=document.getElementById('upgrade-btn');
   if(upgradeBtn)upgradeBtn.style.display=State.plan==='pro'?'none':'block';
@@ -459,6 +603,7 @@ function showPage(name){
     }
     if(name==='lessons')initLessonsPage();
     if(name==='progress'){ renderProgressPage(); try{renderProgressReport();}catch(e){} }
+    if(name==='shop'){ try{renderShop();}catch(e){ console.error('renderShop failed:', e); } }
     if(name==='training'){ try{renderThinkingProfile();}catch(e){} }
     if(name==='training')renderTrainingPage().catch(function(e){ console.error("renderTrainingPage failed:", e); });
     if(name==='coach'||name==='bot'){ initCoachPage(); try{loadDailyNudge();}catch(e){} }
@@ -3500,10 +3645,12 @@ function fbPieceSVG(type, color){
 }
 // Custom piece SVGs live in /static/custom/ (wK.svg, bQ.svg, …). If a file is
 // missing, fall back to the built-in vector piece so the board is never broken.
+// Cosmetic sets are subdirectories of the same file names, so switching a set is
+// only a change of prefix — the geometry, sizing and markup are identical.
 function fbPieceCode(type, color){ return (color==='w'?'w':'b') + type.toUpperCase(); }
 function fbPieceEl(type, color){
   const code = fbPieceCode(type, color);
-  return '<img class="fb-piece-img" draggable="false" alt="" src="/static/custom/'+code+'.svg?v='+PIECE_VER+'" '+
+  return '<img class="fb-piece-img" draggable="false" alt="" src="/static/custom/'+Cosmetics.dir+code+'.svg?v='+PIECE_VER+'" '+
          'onerror="fbPieceImgFail(this,\''+type+'\',\''+color+'\')">';
 }
 function fbPieceImgFail(img, type, color){
@@ -3525,6 +3672,17 @@ class ForgeBoard {
     this.checkSquare = null;
     this.dragging = false;
     this._build();
+    // Every board registers itself, so equipping a piece set repaints all of
+    // them — Play, Puzzles, drills and stage — without anyone having to
+    // remember to add the new surface to a list.
+    (ForgeBoard.instances || (ForgeBoard.instances = [])).push(this);
+  }
+
+  // Repaint the pieces in place after a cosmetic change. This walks only
+  // occupied squares and reuses the normal paint path; it does NOT rebuild the
+  // grid, so it is not the full-redraw that once caused the flicker bug.
+  refreshPieces(){
+    for(const sq in this.pos){ if(this.pos[sq]) this._paint(sq, this.pos[sq]); }
   }
   _build(){
     this.el.classList.add('fb-board');
@@ -3928,6 +4086,7 @@ class ForgeBoard {
 try{ window.ForgeBoard = ForgeBoard; }catch(e){}
 try{ window.BotState = BotState; }catch(e){}
 try{ window.ChessSFX = ChessSFX; }catch(e){}
+try{ window.Cosmetics = Cosmetics; }catch(e){}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    GameSetup — pre-game panel, in-game bar, turn indicator.

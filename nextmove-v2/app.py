@@ -312,6 +312,166 @@ def get_onboarding(user):
 
 def is_pro(user): return user.get("plan") == "pro"
 
+# ══ XP ECONOMY ═══════════════════════════════════════════════════════════════
+# XP is currency now, so the client no longer says how much it earned -- it says
+# what happened, and the server prices it. Each rule is awarded from inside the
+# endpoint that already verified the event (a drill really passed, a game really
+# finished), which is why there is no way to mint XP from the console.
+XP_RULES = {
+    "puzzle_solved":        20,
+    "drill_passed":         25,
+    "pattern_mastered":     60,
+    "lesson_done":          30,
+    "game_coached":         25,
+    "game_solo":            35,
+    "clean_game":           50,   # finished a game with zero blunders
+    "candidates_reviewed":  15,   # actually weighed more than one move
+    "found_best":           20,   # a candidate matched the engine's choice
+    "streak_day":           25,
+}
+
+# Daily award caps, so grinding one cheap action cannot outpace playing.
+XP_DAILY_CAP = {
+    "puzzle_solved":       15,
+    "drill_passed":        20,
+    "lesson_done":          5,
+    "game_coached":        10,
+    "game_solo":           10,
+    "clean_game":           5,
+    "candidates_reviewed": 20,
+    "found_best":          20,
+    "streak_day":           1,
+}
+
+def get_wallet(user):
+    """Lifetime XP earned, XP spent, and today's per-event award counts."""
+    w = user.get("wallet")
+    if not isinstance(w, dict):
+        # Pre-existing accounts keep the XP they already have as lifetime earned.
+        w = {"spent": 0, "day": "", "counts": {}}
+    w.setdefault("spent", 0)
+    w.setdefault("day", "")
+    w.setdefault("counts", {})
+    return w
+
+def xp_balance(user):
+    """Spendable XP. `xp` stays the lifetime total so the level bar never drops."""
+    return max(0, user.get("xp", 0) - get_wallet(user).get("spent", 0))
+
+def grant_xp(user, event, times=1):
+    """Award XP for a verified event. Returns the amount actually granted.
+
+    Mutates `user` but does not save -- the caller is already saving.
+    """
+    base = XP_RULES.get(event, 0)
+    if base <= 0 or times <= 0:
+        return 0
+    w = get_wallet(user)
+    today = time.strftime("%Y-%m-%d")
+    if w.get("day") != today:
+        w["day"] = today
+        w["counts"] = {}
+    cap = XP_DAILY_CAP.get(event)
+    if cap is not None:
+        used = int(w["counts"].get(event, 0))
+        times = min(times, max(0, cap - used))
+        if times <= 0:
+            user["wallet"] = w
+            return 0
+        w["counts"][event] = used + times
+    amount = base * times
+    user["xp"] = user.get("xp", 0) + amount
+    user["wallet"] = w
+    return amount
+
+# ══ COSMETICS ════════════════════════════════════════════════════════════════
+# A board theme is nothing but two CSS custom properties, and a piece set is
+# nothing but a directory of the same SVG geometry in different colours. Neither
+# touches layout, which is deliberate -- board layout is where this app has
+# broken before.
+#
+# Every light-square value below was solved so the default piece set's black
+# outline (#7E8598) clears a 3:1 contrast ratio; see tests/test_cosmetics.py,
+# which re-checks all 70 piece-set x theme x square combinations.
+BOARD_THEMES = [
+    {"id": "midnight", "name": "Midnight",  "price": 0,    "light": "#2E3446", "dark": "#1E2231",
+     "blurb": "The original. Cool indigo-grey."},
+    {"id": "obsidian", "name": "Obsidian",  "price": 600,  "light": "#2B2B32", "dark": "#1A1A1F",
+     "blurb": "Near-neutral graphite. The quietest board here."},
+    {"id": "slate",    "name": "Slate",     "price": 900,  "light": "#343A48", "dark": "#23262F",
+     "blurb": "A step lighter and cooler than Midnight."},
+    {"id": "ice",      "name": "Ice",       "price": 900,  "light": "#313A4A", "dark": "#212734",
+     "blurb": "Blue-cast steel. Crisp without going pale."},
+    {"id": "forest",   "name": "Forest",    "price": 1200, "light": "#28382F", "dark": "#1A241E",
+     "blurb": "Deep green. Easy on the eyes over long sessions."},
+    {"id": "ember",    "name": "Ember",     "price": 1200, "light": "#3C312A", "dark": "#281F1A",
+     "blurb": "Warm brown, the only warm board that stays dark."},
+    {"id": "royal",    "name": "Royal",     "price": 1500, "light": "#3A3154", "dark": "#251E38",
+     "blurb": "Violet. Matches the accent without shouting."},
+]
+
+PIECE_SETS = [
+    {"id": "classic", "name": "Classic", "price": 0,    "dir": "",
+     "blurb": "The house set. Warm ivory against slate."},
+    {"id": "mono",    "name": "Mono",    "price": 800,  "dir": "mono/",
+     "blurb": "Maximum contrast, zero colour. The most legible set."},
+    {"id": "frost",   "name": "Frost",   "price": 1100, "dir": "frost/",
+     "blurb": "Cool blue-white. Pairs with Ice and Slate."},
+    {"id": "jade",    "name": "Jade",    "price": 1100, "dir": "jade/",
+     "blurb": "Soft green-tinted ivory. Pairs with Forest."},
+    {"id": "ember",   "name": "Ember",   "price": 1400, "dir": "ember/",
+     "blurb": "Warm copper detailing. Pairs with Ember board."},
+]
+
+COSMETIC_KINDS = {"board": BOARD_THEMES, "pieces": PIECE_SETS}
+
+def cosmetic_payload(user):
+    """What the equipped cosmetics actually resolve to.
+
+    Returns the concrete values (square colours, piece directory) rather than
+    just ids, so the frontend can paint on first load without another request.
+    """
+    cos = get_cosmetics(user)
+    board = cosmetic_item("board", cos["equipped"]["board"]) or BOARD_THEMES[0]
+    pieces = cosmetic_item("pieces", cos["equipped"]["pieces"]) or PIECE_SETS[0]
+    return {"board": board["id"], "pieces": pieces["id"],
+            "light": board["light"], "dark": board["dark"], "dir": pieces["dir"],
+            "owned": cos["owned"]}
+
+def cosmetic_item(kind, item_id):
+    for it in COSMETIC_KINDS.get(kind, []):
+        if it["id"] == item_id:
+            return it
+    return None
+
+def default_cosmetics():
+    return {"owned": {"board": ["midnight"], "pieces": ["classic"]},
+            "equipped": {"board": "midnight", "pieces": "classic"}}
+
+def get_cosmetics(user):
+    """Cosmetics state, repaired against the live catalog.
+
+    Anything equipped but no longer owned or no longer in the catalog falls back
+    to the free default rather than rendering an undefined theme.
+    """
+    c = user.get("cosmetics")
+    if not isinstance(c, dict):
+        c = default_cosmetics()
+    owned = c.get("owned") if isinstance(c.get("owned"), dict) else {}
+    equipped = c.get("equipped") if isinstance(c.get("equipped"), dict) else {}
+    out = {"owned": {}, "equipped": {}}
+    for kind, catalog in COSMETIC_KINDS.items():
+        valid = {it["id"] for it in catalog}
+        free = [it["id"] for it in catalog if it["price"] == 0]
+        have = [i for i in (owned.get(kind) or []) if i in valid]
+        for f in free:
+            if f not in have:
+                have.append(f)
+        out["owned"][kind] = have
+        eq = equipped.get(kind)
+        out["equipped"][kind] = eq if eq in have else (free[0] if free else None)
+    return out
+
 def games_today(user):
     today = time.strftime("%Y-%m-%d")
     return user.get("daily_counts", {}).get(today, 0)
@@ -531,6 +691,7 @@ def login():
     if not user or not verify_password(password,user["password"]): time.sleep(0.3); return jsonify({"error":"Incorrect username or password."}),401
     session["username"]=username; session.permanent=True
     return jsonify({"ok":True,"username":username,"xp":user.get("xp",0),"plan":user.get("plan","free"),
+                    "balance":xp_balance(user),"cosmetics":cosmetic_payload(user),
                     "progress":user.get("progress",empty_progress()),"games":user.get("games",[]),
                     "onboarding":get_onboarding(user)})
 
@@ -545,6 +706,7 @@ def me():
     user=get_user(u)
     if not user: session.clear(); return jsonify({"loggedIn":False})
     return jsonify({"loggedIn":True,"username":u,"xp":user.get("xp",0),"plan":user.get("plan","free"),
+                    "balance":xp_balance(user),"cosmetics":cosmetic_payload(user),
                     "progress":user.get("progress",empty_progress()),"games":user.get("games",[]),
                     "onboarding":get_onboarding(user)})
 
@@ -595,21 +757,103 @@ def save_game():
 @login_required
 def add_xp():
     u=current_user(); data=request.get_json(silent=True) or {}
-    amount=max(0,min(int(data.get("amount",0)),500))
+    # The client's `amount` is deliberately ignored -- XP buys cosmetics now, so
+    # the server prices the event itself. Only the event type is taken on trust.
     xp_type=data.get("type",""); lesson_id=data.get("lesson_id","")
     user=get_user(u)
     if not user: return jsonify({"error":"User not found"}),404
-    user["xp"]=user.get("xp",0)+amount
     prog=user.get("progress",empty_progress())
-    if xp_type=="puzzle": prog["puzzles_solved"]=prog.get("puzzles_solved",0)+1
+    granted=0
+    if xp_type=="puzzle":
+        prog["puzzles_solved"]=prog.get("puzzles_solved",0)+1
+        granted=grant_xp(user,"puzzle_solved")
     if xp_type=="analysis": prog["games_analysed"]=prog.get("games_analysed",0)+1
     if xp_type=="lesson" and lesson_id:
         completed=prog.get("lessons_completed",[])
-        if lesson_id not in completed: completed.append(lesson_id)
+        if lesson_id not in completed:
+            completed.append(lesson_id)
+            granted=grant_xp(user,"lesson_done")   # only the first completion pays
         prog["lessons_completed"]=completed
     user["progress"]=prog
     save_user(u,user)
-    return jsonify({"ok":True,"xp":user["xp"],"progress":prog})
+    return jsonify({"ok":True,"xp":user["xp"],"granted":granted,
+                    "balance":xp_balance(user),"progress":prog})
+
+@app.route("/shop/catalog")
+@login_required
+def shop_catalog():
+    """The catalog, plus what this user owns, has equipped, and can afford."""
+    user = get_user(current_user())
+    if not user: return jsonify({"error": "User not found"}), 404
+    cos = get_cosmetics(user)
+    bal = xp_balance(user)
+    pro = is_pro(user)
+    def pack(kind, catalog):
+        out = []
+        for it in catalog:
+            owned = it["id"] in cos["owned"][kind]
+            row = {k: it[k] for k in ("id", "name", "price", "blurb")}
+            row.update({"owned": owned, "equipped": cos["equipped"][kind] == it["id"],
+                        "affordable": owned or bal >= it["price"]})
+            if kind == "board":
+                row["light"], row["dark"] = it["light"], it["dark"]
+            else:
+                row["dir"] = it["dir"]
+            out.append(row)
+        return out
+    return jsonify({"ok": True, "balance": bal, "lifetime": user.get("xp", 0),
+                    "is_pro": pro, "equipped": cos["equipped"],
+                    "board": pack("board", BOARD_THEMES),
+                    "pieces": pack("pieces", PIECE_SETS),
+                    "rules": XP_RULES})
+
+@app.route("/shop/buy", methods=["POST"])
+@login_required
+def shop_buy():
+    user = get_user(current_user())
+    if not user: return jsonify({"error": "User not found"}), 404
+    if not is_pro(user):
+        return jsonify({"error": "The cosmetics shop is a Pro feature.", "need_pro": True}), 403
+    d = request.get_json(silent=True) or {}
+    kind, item_id = d.get("kind", ""), d.get("id", "")
+    it = cosmetic_item(kind, item_id)
+    if not it: return jsonify({"error": "No such item"}), 400
+    cos = get_cosmetics(user)
+    if item_id in cos["owned"][kind]:
+        return jsonify({"error": "Already owned"}), 400
+    bal = xp_balance(user)
+    if bal < it["price"]:
+        return jsonify({"error": "Not enough XP", "balance": bal, "price": it["price"]}), 400
+    w = get_wallet(user)
+    w["spent"] = w.get("spent", 0) + it["price"]
+    user["wallet"] = w
+    cos["owned"][kind].append(item_id)
+    cos["equipped"][kind] = item_id          # buying equips it straight away
+    user["cosmetics"] = cos
+    save_user(current_user(), user)
+    return jsonify({"ok": True, "balance": xp_balance(user), "equipped": cos["equipped"],
+                    "owned": cos["owned"]})
+
+@app.route("/shop/equip", methods=["POST"])
+@login_required
+def shop_equip():
+    user = get_user(current_user())
+    if not user: return jsonify({"error": "User not found"}), 404
+    d = request.get_json(silent=True) or {}
+    kind, item_id = d.get("kind", ""), d.get("id", "")
+    it = cosmetic_item(kind, item_id)
+    if not it: return jsonify({"error": "No such item"}), 400
+    cos = get_cosmetics(user)
+    if item_id not in cos["owned"][kind]:
+        return jsonify({"error": "You do not own that"}), 400
+    # Free defaults stay equippable without Pro, so a lapsed subscriber is never
+    # stuck looking at a board they can no longer change.
+    if it["price"] > 0 and not is_pro(user):
+        return jsonify({"error": "Equipping paid cosmetics is a Pro feature.", "need_pro": True}), 403
+    cos["equipped"][kind] = item_id
+    user["cosmetics"] = cos
+    save_user(current_user(), user)
+    return jsonify({"ok": True, "equipped": cos["equipped"]})
 
 @app.route("/auth/upgrade", methods=["POST"])
 @login_required
@@ -3288,14 +3532,25 @@ def training_submit():
     p["due"] = int(time.time()) + p["interval_days"] * 86400
     # streak
     today = time.strftime("%Y-%m-%d"); st = tr["streak"]
-    if st.get("last_day") != today:
+    new_streak_day = st.get("last_day") != today
+    if new_streak_day:
         st["count"] = (st.get("count", 0) + 1) if _is_yesterday(st.get("last_day", "")) else 1
         st["last_day"] = today
     tr.setdefault("history", []).append({"day": today, "correct": correct, "total": total})
     tr["history"] = tr["history"][-90:]
+    mastered = passed and p["strength"] >= 80
+    # XP for drills, priced here where the result is already verified.
+    granted = 0
+    if passed:
+        granted += grant_xp(user, "drill_passed")
+        if mastered:
+            granted += grant_xp(user, "pattern_mastered")
+    if new_streak_day:
+        granted += grant_xp(user, "streak_day")
     user["training"] = tr; save_user(u, user)
     return jsonify({"ok": True, "pattern": name, "strength": p["strength"], "band": strength_band(p["strength"]),
-                    "passed": passed, "mastered": passed and p["strength"] >= 80, "streak": st["count"],
+                    "passed": passed, "mastered": mastered, "streak": st["count"],
+                    "xp_granted": granted, "balance": xp_balance(user),
                     "next_review_days": p["interval_days"]})
 
 @app.route("/training/streak")
@@ -4126,6 +4381,15 @@ def candidates_review():
     user = get_user(current_user())
     if user:
         _fold_profile(user, verdict["dims"])
+        # Reward the habit itself: weighing more than one move, and more again
+        # when the engine's choice was actually among what they weighed.
+        granted = 0
+        if len(cands) >= 2:
+            granted += grant_xp(user, "candidates_reviewed")
+            if cmp_.get("best") and cmp_["best"] in cands:
+                granted += grant_xp(user, "found_best")
+        verdict["xp_granted"] = granted
+        verdict["balance"] = xp_balance(user)
         save_user(current_user(), user)
 
     return jsonify({"comparison": cmp_, "headline": verdict["headline"],
@@ -4416,8 +4680,13 @@ def progress_record():
     }]
     st["daily"][time.strftime("%Y-%m-%d")] = st["daily"].get(time.strftime("%Y-%m-%d"), 0) + 1
     user["stats"] = st
+    # XP for finishing a game. Solo pays more than coached because solo is the
+    # honest test -- it is also the only mode the rating estimate trusts.
+    granted = grant_xp(user, "game_solo" if mode == "solo" else "game_coached")
+    if int(d.get("moves") or 0) >= 20 and int(d.get("blunders") or 0) == 0:
+        granted += grant_xp(user, "clean_game")
     save_user(current_user(), user)
-    return jsonify({"ok": True})
+    return jsonify({"ok": True, "xp_granted": granted, "balance": xp_balance(user)})
 
 @app.route("/progress/report")
 @login_required
