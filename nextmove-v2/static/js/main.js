@@ -1584,6 +1584,7 @@ function startBotGame(){
   BotState.board.clearMarks();
   document.getElementById('bot-move-history').innerHTML = '';
   document.getElementById('bot-review-card').classList.add('hidden');
+  if(window.AskForge){ AskForge.reset(); const _af=document.getElementById('askf'); if(_af) _af.classList.add('hidden'); }   // new game -> fresh conversation
   hidePause();
   Coach.reset();
   const estElo = getEloFromAnalysis();
@@ -1982,6 +1983,8 @@ function showBotReview(){
   const card = document.getElementById('bot-review-card');
   const content = document.getElementById('bot-review-content');
   card.classList.remove('hidden');
+  // The review is the moment the player has questions — open the chat with it.
+  if(window.AskForge) AskForge.open();
   const moves = BotState.game.history({verbose:true});
   const total = moves.length;
   const playerMoves = moves.filter(m => (m.color === 'w') === (BotState.playerColor === 'white'));
@@ -4148,3 +4151,146 @@ window.SolveHelp = SolveHelp;
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 })();
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   AskForge — context-aware chat about the position under review.
+
+   The user never says which move they mean: the panel sends the FEN, move
+   number, played move and move list with every question, so "why was this a
+   blunder" always refers to what is on screen. Conversation history goes with
+   each request so follow-ups ("why didn't I see that?") stay coherent.
+   ═══════════════════════════════════════════════════════════════════════════ */
+const AskForge = (function(){
+  const $ = (id)=>document.getElementById(id);
+  let history = [];      // [{role, content}] for this game review only
+  let lastAnswer = null;
+  let busy = false;
+
+  function ctx(){
+    const g = window.BotState && BotState.game;
+    return {
+      fen: g ? g.fen() : null,
+      moves: g ? g.history() : [],
+      move_number: g ? Math.ceil(g.history().length / 2) : null,
+      san_played: (g && g.history().length) ? g.history()[g.history().length-1] : null,
+      player_color: (window.BotState && BotState.playerColor) || 'white',
+    };
+  }
+
+  function bubble(cls, text){
+    const d = document.createElement('div');
+    d.className = 'askf-msg ' + cls;
+    d.textContent = text;
+    $('askf-thread').appendChild(d);
+    return d;
+  }
+
+  // The engine facts are shown even when the coaching voice is off, so the
+  // panel is never an empty promise.
+  function facts(d){
+    const e = d.engine || {};
+    const bits = [];
+    if(e.mate) bits.push('<b>Eval</b> ' + esc(e.mate));
+    else if(typeof e.eval === 'number') bits.push('<b>Eval</b> ' + (e.eval>0?'+':'') + e.eval.toFixed(2));
+    if(e.best_san) bits.push('<b>Best</b> ' + esc(e.best_san));
+    if(e.pv_san && e.pv_san.length) bits.push('<b>Line</b> ' + esc(e.pv_san.join(' ')));
+    (d.what_if||[]).forEach(w=>{
+      bits.push('<b>' + esc(w.move) + '</b> → ' + (w.eval_after>0?'+':'') + w.eval_after.toFixed(2)
+                + (w.opponent_best ? ', they reply ' + esc(w.opponent_best) : ''));
+    });
+    if(!bits.length) return null;
+    const el = document.createElement('div');
+    el.className = 'askf-facts';
+    el.innerHTML = bits.join('<br>');
+    return el;
+  }
+
+  function chips(list){
+    const wrap = $('askf-chips'); if(!wrap) return;
+    wrap.innerHTML = '';
+    (list||[]).forEach(t=>{
+      const b = document.createElement('button');
+      b.type='button'; b.className='askf-chip'; b.textContent = t;
+      b.addEventListener('click', ()=>ask(t));
+      wrap.appendChild(b);
+    });
+    if(lastAnswer){
+      const c = document.createElement('button');
+      c.type='button'; c.className='askf-chip confused'; c.textContent = "I'm still confused";
+      c.addEventListener('click', ()=>ask("I still don't understand — explain it a different way.", true));
+      wrap.appendChild(c);
+    }
+  }
+
+  async function ask(question, stillConfused){
+    if(busy || !question) return;
+    busy = true;
+    const send = $('askf-send'); if(send) send.disabled = true;
+    const input = $('askf-input'); if(input) input.value = '';
+    bubble('you', question);
+    const thinking = bubble('note', 'GM Forge is looking at the position…');
+    $('askf-thread').scrollTop = $('askf-thread').scrollHeight;
+
+    try{
+      const body = Object.assign(ctx(), {
+        question,
+        history,
+        level: ($('askf-level')||{}).value || 'coach',
+        still_confused: !!stillConfused,
+      });
+      const r = await fetch('/ask-forge', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(body), credentials:'include'
+      });
+      const d = await r.json();
+      thinking.remove();
+
+      if(r.status === 402){
+        bubble('note', d.message || 'Ask GM Forge is part of Pro.');
+        chips([]); return;
+      }
+      if(d.answer){
+        const b = bubble('forge', d.answer);
+        const f = facts(d); if(f) b.appendChild(f);
+        lastAnswer = d.answer;
+        history.push({role:'user', content:question});
+        history.push({role:'assistant', content:d.answer});
+        if(history.length > 16) history = history.slice(-16);
+      } else {
+        const b = bubble('note', d.message || d.error || 'No answer available.');
+        const f = facts(d); if(f) b.appendChild(f);
+      }
+      chips(d.suggested);
+    }catch(e){
+      thinking.remove();
+      bubble('note', 'Could not reach GM Forge. Check your connection and try again.');
+    }finally{
+      busy = false;
+      const s2 = $('askf-send'); if(s2) s2.disabled = false;
+      const t = $('askf-thread'); if(t) t.scrollTop = t.scrollHeight;
+    }
+  }
+
+  function open(){
+    const p = $('askf'); if(!p) return;
+    p.classList.remove('hidden');
+    if(!history.length && !$('askf-thread').children.length){
+      bubble('note', 'Ask me anything about this position — why a move failed, what you missed, '
+                   + 'or what would have happened if you had played something else.');
+      chips(['Why was that a mistake?', 'What was I missing?', 'What was my opponent threatening?']);
+    }
+  }
+  function reset(){ history = []; lastAnswer = null;
+    const t = $('askf-thread'); if(t) t.innerHTML = '';
+    const c = $('askf-chips'); if(c) c.innerHTML = ''; }
+
+  function init(){
+    const f = $('askf-form');
+    if(f) f.addEventListener('submit', (e)=>{ e.preventDefault(); ask(($('askf-input')||{}).value); });
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+
+  return {ask, open, reset, init};
+})();
+window.AskForge = AskForge;

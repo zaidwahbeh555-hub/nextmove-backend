@@ -3374,6 +3374,329 @@ def my_puzzles():
     except Exception:
         return jsonify({"puzzles": []})
 
+# ══════════════════════════════════════════════════════════════════════════════
+# ASK GM FORGE — context-aware post-game chat.
+#
+# Not a general chatbot: every answer is anchored to the exact position the user
+# is looking at and grounded in real Stockfish analysis. "What if I played Nf3?"
+# analyses Nf3 rather than guessing.
+#
+# The model call is deliberately gated on ANTHROPIC_API_KEY. Without a key the
+# endpoint still returns the full engine analysis and says plainly that the
+# conversational layer is not configured — it never invents an answer.
+# ══════════════════════════════════════════════════════════════════════════════
+
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+ASK_MODEL         = os.environ.get("ASK_FORGE_MODEL", "claude-opus-5")
+
+# How the answer is pitched. The user can say "explain like I'm 800".
+ASK_LEVELS = {
+    "beginner": "a complete beginner. Avoid notation-heavy lines. Name squares plainly and explain any term you use.",
+    "800":      "roughly 800 Elo. They know how the pieces move and little else. One idea per paragraph.",
+    "1000":     "roughly 1000 Elo. They spot simple one-move threats but miss two-move ideas.",
+    "1500":     "roughly 1500 Elo. They know common tactics and basic plans; skip the basics.",
+    "1800":     "roughly 1800 Elo. Talk in terms of plans, structures and imbalances.",
+    "2000":     "roughly 2000 Elo. Be concrete and concise; assume strong tactical vision.",
+    "coach":    "a student sitting across from you. Warm, direct, and always concrete.",
+    "gm":       "a strong player. Speak in the language of imbalances, prophylaxis and long-term plans.",
+}
+
+def _ask_level_from(text, explicit):
+    """Pick an explanation level from the request, falling back to the question text."""
+    if explicit in ASK_LEVELS:
+        return explicit
+    low = (text or "").lower()
+    for key in ("beginner", "800", "1000", "1500", "1800", "2000", "grandmaster", "gm"):
+        if key in low:
+            return "gm" if key in ("grandmaster", "gm") else key
+    return "coach"
+
+_WHATIF = re.compile(
+    r"\b(?:what if|what about|why not|instead of|could i(?:'ve| have)?|should i(?:'ve| have)?)\b",
+    re.I)
+
+def _candidate_moves(question, board):
+    """Pull any legal SAN moves the user named, so we can analyse what they asked about."""
+    found = []
+    for tok in re.findall(r"\b(?:O-O-O|O-O|[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?[+#]?)\b", question or ""):
+        try:
+            mv = board.parse_san(tok)
+        except Exception:
+            continue
+        if mv in board.legal_moves and tok not in found:
+            found.append(tok)
+    return found[:3]
+
+def _score_pawns(info, turn):
+    sc = info["score"].pov(turn)
+    if sc.is_mate():
+        m = sc.mate()
+        return (100.0 if m and m > 0 else -100.0), ("mate in %d" % abs(m) if m else "mate")
+    cp = sc.score() or 0
+    return round(cp / 100.0, 2), None
+
+def _analyse_position(engine, board, depth=14, multipv=3):
+    """Engine facts for the position on the board: eval, best line, alternatives."""
+    out = {"eval": 0.0, "mate": None, "best_san": None, "pv_san": [], "alternatives": []}
+    try:
+        infos = engine.analyse(board, chess.engine.Limit(depth=depth), multipv=multipv)
+        if isinstance(infos, dict):
+            infos = [infos]
+        for i, info in enumerate(infos):
+            pv = info.get("pv") or []
+            ev, mate = _score_pawns(info, board.turn)
+            san_line, tmp = [], board.copy()
+            for mv in pv[:6]:
+                try:
+                    san_line.append(tmp.san(mv)); tmp.push(mv)
+                except Exception:
+                    break
+            if i == 0:
+                out["eval"] = ev; out["mate"] = mate
+                out["best_san"] = san_line[0] if san_line else None
+                out["pv_san"] = san_line
+            elif san_line:
+                out["alternatives"].append({"move": san_line[0], "eval": ev, "line": san_line})
+    except Exception as e:
+        print("ask-forge analyse error:", e)
+    return out
+
+def _analyse_what_if(engine, board, san):
+    """Play the user's suggested move and report what actually happens after it."""
+    try:
+        mv = board.parse_san(san)
+    except Exception:
+        return None
+    if mv not in board.legal_moves:
+        return None
+    after = board.copy(); after.push(mv)
+    res = _analyse_position(engine, after, depth=13, multipv=1)
+    return {
+        "move": san,
+        "eval_after": -res["eval"],        # flip: eval is from the mover's side after the move
+        "opponent_best": res["best_san"],
+        "continuation": res["pv_san"],
+        "gives_check": after.is_check(),
+        "is_mate": after.is_checkmate(),
+    }
+
+def _position_facts(board):
+    """Cheap structural facts so the coach can name real squares, not vague ideas."""
+    us = board.turn
+    facts = {"side_to_move": "white" if us == chess.WHITE else "black",
+             "fullmove": board.fullmove_number, "in_check": board.is_check()}
+    loose = []
+    for sq, pc in board.piece_map().items():
+        if pc.color != us or pc.piece_type == chess.KING:
+            continue
+        atk = len(board.attackers(not us, sq)); dfn = len(board.attackers(us, sq))
+        if atk > dfn:
+            loose.append("%s on %s (%d attackers, %d defenders)"
+                         % (PIECE_NAMES.get(pc.piece_type, "piece"), chess.square_name(sq), atk, dfn))
+    facts["your_loose_pieces"] = loose[:5]
+    try:
+        facts["material"] = total_non_king_material(board)
+    except Exception:
+        pass
+    return facts
+
+def _build_ask_context(engine, board, payload):
+    """Everything the coach is allowed to rely on. Engine-derived, never guessed."""
+    ctx = {
+        "fen": board.fen(),
+        "move_number": payload.get("move_number"),
+        "move_played": payload.get("san_played"),
+        "player_color": payload.get("player_color") or "white",
+        "facts": _position_facts(board),
+        "engine": _analyse_position(engine, board),
+    }
+    try:
+        moves = payload.get("moves") or []
+        if moves:
+            ctx["opening"] = detect_opening([m for m in moves if isinstance(m, str)][:20])
+    except Exception:
+        pass
+    q = payload.get("question") or ""
+    if _WHATIF.search(q) or _candidate_moves(q, board):
+        ctx["what_if"] = [w for w in
+                          (_analyse_what_if(engine, board, san) for san in _candidate_moves(q, board))
+                          if w]
+    return ctx
+
+ASK_SYSTEM = """You are GM Forge, a patient grandmaster sitting beside the student reviewing their game.
+
+Ground rules, in order of importance:
+1. Every claim about the position must come from the ENGINE FACTS given to you. Never invent a
+   move, an evaluation or a line. If the facts do not cover something, say so plainly.
+2. Always name concrete squares and pieces. "Your knight on f3 is overloaded defending d4 and h4"
+   — never "your position is a bit loose".
+3. Explain the idea, the consequence, and what the opponent wanted. Not just the move.
+4. Never dump an evaluation number as the answer. Translate it: what does the position feel like
+   to play, and why.
+5. You are mid-conversation about one specific position. The student does not need to tell you
+   which move they mean — it is the position in the facts unless they name another.
+6. Be warm and direct. Ask a follow-up question when curiosity would help. Never robotic.
+
+Answer in 2-5 short paragraphs unless asked for more. No preamble, no restating the question."""
+
+def _ask_prompt(ctx, question, level_key, confused):
+    e = ctx["engine"]
+    lines = [
+        "ENGINE FACTS (authoritative — everything you say must follow from these)",
+        "Position (FEN): " + ctx["fen"],
+        "Side to move: %s | Move %s | In check: %s" % (
+            ctx["facts"]["side_to_move"], ctx["facts"].get("fullmove"), ctx["facts"]["in_check"]),
+    ]
+    if ctx.get("move_played"):
+        lines.append("The move actually played here: " + str(ctx["move_played"]))
+    if e.get("mate"):
+        lines.append("Evaluation: %s" % e["mate"])
+    else:
+        lines.append("Evaluation: %+.2f pawns (from the side-to-move's point of view)" % e["eval"])
+    if e.get("best_san"):
+        lines.append("Engine's best move: %s" % e["best_san"])
+    if e.get("pv_san"):
+        lines.append("Main line: " + " ".join(e["pv_san"]))
+    for alt in e.get("alternatives", []):
+        lines.append("Alternative: %s (%+.2f) — %s" % (alt["move"], alt["eval"], " ".join(alt["line"])))
+    if ctx["facts"].get("your_loose_pieces"):
+        lines.append("Undefended or outnumbered: " + "; ".join(ctx["facts"]["your_loose_pieces"]))
+    if ctx.get("opening"):
+        lines.append("Opening: " + str(ctx["opening"]))
+    for w in ctx.get("what_if", []):
+        lines.append(
+            "IF %s IS PLAYED: evaluation becomes %+.2f for the mover%s. Opponent's best reply: %s. Line: %s"
+            % (w["move"], w["eval_after"],
+               " (checkmate)" if w["is_mate"] else (" (with check)" if w["gives_check"] else ""),
+               w["opponent_best"] or "unclear", " ".join(w["continuation"]) or "unclear"))
+    lines.append("")
+    lines.append("Pitch the explanation for: " + ASK_LEVELS.get(level_key, ASK_LEVELS["coach"]))
+    if confused:
+        lines.append(
+            "IMPORTANT: the student already read your previous answer and said they still do not "
+            "understand. Do NOT repeat it. Teach the same idea a different way — if you explained "
+            "strategically, go concrete and tactical; if you gave a line, compare the two positions "
+            "side by side; if that failed, use the simplest possible language or a real-world analogy.")
+    lines.append("")
+    lines.append("STUDENT'S QUESTION: " + question)
+    return "\n".join(lines)
+
+def _suggested_actions(ctx):
+    """Follow-ups that keep the student learning instead of ending the exchange."""
+    out = []
+    e = ctx["engine"]
+    if e.get("best_san"):
+        out.append("Why is %s better than what I played?" % e["best_san"])
+    if e.get("pv_san"):
+        out.append("Show me how the engine line continues")
+    if ctx.get("what_if"):
+        out.append("Compare both positions for me")
+    out.append("What was my opponent threatening?")
+    out.append("Which of my pieces is worst here?")
+    out.append("Turn this into a training puzzle")
+    return out[:4]
+
+@app.route("/ask-forge", methods=["POST"])
+@login_required
+def ask_forge():
+    user = get_user(current_user())
+    if not user:
+        return jsonify({"error": "Not logged in"}), 401
+    if not is_pro(user):
+        return jsonify({"error": "pro_required",
+                        "message": "Ask GM Forge is part of Pro. Upgrade to ask about any position "
+                                   "in your games."}), 402
+
+    d = request.get_json(force=True, silent=True) or {}
+    question = (d.get("question") or "").strip()
+    if not question:
+        return jsonify({"error": "Ask me something about this position."}), 400
+    if len(question) > 800:
+        question = question[:800]
+
+    try:
+        board = chess.Board(d.get("fen") or chess.STARTING_FEN)
+    except Exception:
+        return jsonify({"error": "That position could not be read."}), 400
+
+    sf = find_stockfish()
+    if not sf:
+        return jsonify({"error": "Engine unavailable right now."}), 503
+
+    engine = None
+    try:
+        engine = chess.engine.SimpleEngine.popen_uci(sf)
+        ctx = _build_ask_context(engine, board, d)
+    except Exception as e:
+        print("ask-forge context error:", e)
+        return jsonify({"error": "Could not analyse that position."}), 500
+    finally:
+        if engine:
+            try: engine.quit()
+            except Exception: pass
+
+    level = _ask_level_from(question, d.get("level"))
+    confused = bool(d.get("still_confused"))
+    prompt = _ask_prompt(ctx, question, level, confused)
+
+    # ── The model call. Everything above runs with or without a key. ──────────
+    if not ANTHROPIC_API_KEY:
+        return jsonify({
+            "configured": False,
+            "answer": "",
+            "engine": ctx["engine"],
+            "what_if": ctx.get("what_if", []),
+            "facts": ctx["facts"],
+            "suggested": _suggested_actions(ctx),
+            "level": level,
+            "message": "GM Forge's conversational coaching is not switched on yet. The engine "
+                       "analysis below is live and real — set ANTHROPIC_API_KEY to enable the "
+                       "coaching voice on top of it.",
+        })
+
+    try:
+        import anthropic
+    except ImportError:
+        return jsonify({"configured": False, "engine": ctx["engine"],
+                        "suggested": _suggested_actions(ctx),
+                        "message": "The anthropic package is not installed on the server."}), 503
+
+    try:
+        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        history = []
+        for turn in (d.get("history") or [])[-8:]:
+            role = turn.get("role")
+            text = (turn.get("content") or "")[:2000]
+            if role in ("user", "assistant") and text:
+                history.append({"role": role, "content": text})
+        resp = client.messages.create(
+            model=ASK_MODEL,
+            max_tokens=1600,
+            system=ASK_SYSTEM,
+            messages=history + [{"role": "user", "content": prompt}],
+        )
+        if resp.stop_reason == "refusal":
+            return jsonify({"configured": True, "answer": "",
+                            "error": "I can't answer that one. Ask me about the position instead.",
+                            "engine": ctx["engine"], "suggested": _suggested_actions(ctx)})
+        answer = "".join(b.text for b in resp.content if b.type == "text").strip()
+    except Exception as e:
+        print("ask-forge model error:", e)
+        return jsonify({"configured": True, "answer": "",
+                        "error": "GM Forge could not answer just now. The engine analysis is still below.",
+                        "engine": ctx["engine"], "what_if": ctx.get("what_if", []),
+                        "suggested": _suggested_actions(ctx)}), 502
+
+    return jsonify({
+        "configured": True,
+        "answer": answer,
+        "engine": ctx["engine"],
+        "what_if": ctx.get("what_if", []),
+        "facts": ctx["facts"],
+        "suggested": _suggested_actions(ctx),
+        "level": level,
+    })
+
 @app.route("/health")
 def health():
     sf=find_stockfish()

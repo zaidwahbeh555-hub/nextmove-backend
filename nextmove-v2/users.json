@@ -164,5 +164,29 @@
       "calibration_game": null,
       "coached_game": null
     }
+  },
+  "askfree": {
+    "password": "3b28bfbd3eb8e2de80109f4973b527eb:8e1f96df7f75ee891b0d396d1e27d46f6935777c016e1ffef76f00aaae96fe56",
+    "email": "af@t.com",
+    "created": 1785288822,
+    "xp": 0,
+    "plan": "pro",
+    "plan_expires": null,
+    "daily_counts": {},
+    "games": [],
+    "progress": {
+      "games_analysed": 0,
+      "blunders_found": 0,
+      "puzzles_solved": 0,
+      "lessons_completed": [],
+      "challenge_solved": []
+    },
+    "onboarding": {
+      "new_user": false,
+      "complete": true,
+      "step": "done",
+      "calibration_game": null,
+      "coached_game": null
+    }
   }
 }

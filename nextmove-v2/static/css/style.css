@@ -1680,3 +1680,36 @@ body:not(.play-locked) #page-training,body:not(.play-locked) #page-puzzles{overf
 .status-box,.hint-box{border-radius:12px}
 .topbar .nav-links{backdrop-filter:blur(10px)}
 .card::before{display:none}   /* the old cyan hairline gradient on every card */
+
+/* ── Ask GM Forge ────────────────────────────────────────────────────────── */
+.askf{background:var(--bg-panel);border:1px solid var(--border);border-radius:16px;
+  padding:16px;margin-bottom:12px;display:flex;flex-direction:column;gap:12px}
+.askf.hidden{display:none}
+.askf-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.askf-title{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--text-1)}
+.askf-dot{width:7px;height:7px;border-radius:999px;background:var(--accent)}
+.askf-level{background:var(--bg-panel-hi);border:1px solid var(--border);color:var(--text-2);
+  border-radius:999px;padding:5px 10px;font-size:11.5px;font-family:var(--font-ui);cursor:pointer}
+.askf-thread{display:flex;flex-direction:column;gap:10px;max-height:340px;overflow-y:auto;scrollbar-width:thin}
+.askf-thread:empty{display:none}
+.askf-msg{font-size:13px;line-height:1.6;border-radius:12px;padding:10px 13px;white-space:pre-wrap}
+.askf-msg.you{background:var(--accent-soft);color:var(--text-1);align-self:flex-end;max-width:88%}
+.askf-msg.forge{background:var(--bg-panel-hi);color:var(--text-1);border-left:2px solid var(--accent)}
+.askf-msg.note{background:transparent;border:1px dashed var(--border-hi);color:var(--text-2);font-size:12px}
+.askf-facts{margin-top:8px;padding-top:8px;border-top:1px solid var(--border);
+  font-family:var(--f-mono,ui-monospace,monospace);font-size:11.5px;color:var(--text-2);line-height:1.65}
+.askf-facts b{color:var(--text-1);font-weight:600}
+.askf-chips{display:flex;flex-wrap:wrap;gap:6px}
+.askf-chips:empty{display:none}
+.askf-chip{background:transparent;border:1px solid var(--border);color:var(--text-2);
+  border-radius:999px;padding:6px 11px;font-size:11.5px;font-family:var(--font-ui);cursor:pointer;
+  transition:border-color .12s cubic-bezier(.32,.72,0,1),color .12s cubic-bezier(.32,.72,0,1)}
+.askf-chip:hover{border-color:var(--border-hi);color:var(--text-1)}
+.askf-chip.confused{border-color:rgba(229,167,61,.45);color:var(--orange)}
+.askf-form{display:flex;gap:8px}
+.askf-form input{flex:1;background:var(--bg-panel-hi);border:1px solid var(--border);border-radius:999px;
+  color:var(--text-1);font-family:var(--font-ui);font-size:13px;padding:10px 14px;outline:none}
+.askf-form input:focus{border-color:var(--accent)}
+.askf-send{background:var(--accent);color:#fff;border:none;border-radius:999px;padding:10px 18px;
+  font-family:var(--font-ui);font-size:13px;font-weight:600;cursor:pointer}
+.askf-send:disabled{opacity:.5;cursor:not-allowed}
