@@ -1091,7 +1091,9 @@ def coach_position():
                 text = f"{'You are' if good else 'They are'} {state} ({'+' if eval_pawns>=0 else ''}{eval_pawns}). Engine's move: {best_san}."
             return jsonify({
                 "silent": False, "scenario": request_type, "reaction": "neutral",
-                "dialogue": [{"phase": "reveal", "text": text, "wait": False}],
+                "dialogue": [{"phase": "reveal",
+                              "text": socratic_guard(text, best_san, light, "threat"),
+                              "wait": False}],
                 "arrows": [build_arrow(best_uci, "#26d07c")], "highlights": [],
                 "eval": eval_pawns, "best_move_san": best_san,
             })
@@ -1132,23 +1134,54 @@ def coach_position():
         light.update({"opp_san": last_san or "that move", "opp_to": opp_to or "that square",
                       "opp_piece": opp_piece, "best": best_san or "the engine move"})
 
-        # ROUTINE — he always says something, but it never blocks the game
-        if level == "routine" or scenario == "quiet":
+        # QUIET — a coach watches most of the time. He speaks here only when
+        # something he has been tracking is worth raising; otherwise he says
+        # nothing at all, which is what makes the loud moments land.
+        if level in ("routine", "silent") or scenario == "quiet":
             mem = build_game_memory(played_moves)
             mctx = memory_ctx(mem)
-            if mctx and len(played_moves) > 12 and random.random() < 0.25:
+            speak_odds = 0.22 if len(played_moves) > 12 else 0.12
+            if random.random() > speak_odds:
+                return jsonify({"silent": True, "engagement": "silent",
+                                "scenario": scenario, "blocking": False,
+                                "dialogue": [], "arrows": [], "highlights": [],
+                                "eval": eval_pawns, "best_move_san": best_san})
+            if mctx and len(played_moves) > 12 and random.random() < 0.4:
                 text = pick_line(MEMORY_LINES, dict(light, **mctx), recent)   # refer back
             else:
                 text = factual_line(board, "routine", light, played_moves)
+            # Even a passing remark must not hand over the move.
+            text = socratic_guard(text, best_san, light, "activity")
             try: session["recent_lines"] = recent
             except Exception: pass
             return jsonify({
                 "silent": False, "engagement": "routine", "scenario": scenario,
                 "reaction": "neutral", "blocking": False,
-                "dialogue": [{"phase": "reveal", "text": text, "wait": False}],
+                "dialogue": [{"phase": "reveal",
+                              "text": socratic_guard(text, best_san, light, "threat"),
+                              "wait": False}],
                 "arrows": [], "highlights": [],
                 "eval": eval_pawns, "best_move_san": best_san,
             })
+
+        # RHYTHM COOLDOWN — a coach does not comment two moves running. Only a
+        # critical moment breaks the silence; anything less waits its turn. This
+        # is what makes an interruption feel like it means something.
+        if level == "notable":
+            ply = len(played_moves)
+            try:
+                last = session.get("coach_last_ply", -99)
+            except Exception:
+                last = -99
+            if ply - last < 4:
+                return jsonify({"silent": True, "engagement": "silent",
+                                "scenario": scenario, "blocking": False,
+                                "dialogue": [], "arrows": [], "highlights": [],
+                                "eval": eval_pawns, "best_move_san": best_san})
+            try:
+                session["coach_last_ply"] = ply
+            except Exception:
+                pass
 
         # NOTABLE — one short question, still non-blocking
         if level == "notable":
@@ -1161,7 +1194,9 @@ def coach_position():
             return jsonify({
                 "silent": False, "engagement": "notable", "scenario": scenario,
                 "reaction": ctx.get("reaction", "curious"), "blocking": False,
-                "dialogue": [{"phase": "question", "text": text, "wait": False}],
+                "dialogue": [{"phase": "question",
+                              "text": socratic_guard(text, best_san, light, "calculation"),
+                              "wait": False}],
                 "arrows": [], "highlights": hl,
                 "eval": eval_pawns, "best_move_san": best_san,
             })
@@ -1172,9 +1207,15 @@ def coach_position():
             text = pick_line(ROUTINE, light, recent)
             return jsonify({"silent": False, "engagement": "routine", "scenario": scenario,
                             "reaction": "neutral", "blocking": False,
-                            "dialogue": [{"phase": "reveal", "text": text, "wait": False}],
+                            "dialogue": [{"phase": "reveal",
+                              "text": socratic_guard(text, best_san, light, "threat"),
+                              "wait": False}],
                             "arrows": [], "highlights": [],
                             "eval": eval_pawns, "best_move_san": best_san})
+        try:
+            session["coach_last_ply"] = len(played_moves)   # go quiet again after this
+        except Exception:
+            pass
         mcq = maybe_build_mcq(board, top_lines, position_type="tactical" if scenario == "tactical_opportunity" else "positional", force=False)
         return jsonify({
             "silent": False,
@@ -1182,7 +1223,7 @@ def coach_position():
             "blocking": True,
             "scenario": scenario,
             "reaction": ctx.get("reaction", "neutral"),
-            "dialogue": built["dialogue"],
+            "dialogue": socratic_dialogue(built["dialogue"], best_san, ctx, "safety"),
             "arrows": built["arrows"],
             "highlights": built["highlights"],
             "eval": eval_pawns,
@@ -1909,12 +1950,15 @@ def _recent_store():
         return []
 
 def engagement_for(scenario):
-    """Critical stops the game; notable asks briefly; routine just reacts."""
+    """Critical stops the game; notable asks briefly; routine stays SILENT.
+
+    A coach who comments on every move is noise. Staying quiet most of the time
+    is what makes an interruption mean something."""
     if scenario in ("opponent_fork","opponent_pin","player_about_to_blunder",
                     "player_can_win_material","player_found_brilliancy"): return "critical"
     if scenario in ("opponent_threat_single_piece","critical_castling_decision",
                     "opening_deviation","endgame_technique_moment"): return "notable"
-    return "routine"
+    return "silent"
 
 def build_game_memory(played_moves):
     """Track what happened earlier so GM Forge can refer back to it."""
@@ -2198,13 +2242,14 @@ def build_moment(board, top_lines, played_moves, engine=None):
         return {
             "intensity":"critical", "pattern":"hanging", "concept":"hanging", "blocking":True,
             "dialogue":[
-                {"text":"Careful - your " + h["piece"] + " on " + h["square"] + " has " + str(h["attackers"]) +
-                        " attackers and " + str(h["defenders"]) + " defenders.", "point":[h["square"]]},
-                {"text":"That is not a trade, that is a loss. Defend it, move it, or make a bigger threat.",
-                 "point":[h["square"]]}],
-            "question":{"kind":"tile_tap","prompt":"Tap the piece that is hanging.",
+                # Was a stat readout ("2 attackers and 0 defenders") followed by an
+                # instruction. A coach points and asks; the player does the counting.
+                {"text":"Hold on. Take another look at your " + h["piece"] + " on " + h["square"] + ".",
+                 "point":[h["square"]]},
+                {"text":"Is it still defended if they take it?", "point":[h["square"]]}],
+            "question":{"kind":"tile_tap","prompt":"Which of your pieces is not defended right now?",
                         "correct":[h["square"]],"options":[],
-                        "on_wrong":"Not that one - count attackers against defenders again."},
+                        "on_wrong":"Not that one. Go piece by piece and ask who is covering it."},
             "help":{"concept_label":concept_lbl,"concept_text":concept_txt,
                     "hint":"Count the attackers and the defenders on every piece you own.",
                     "answer_move":best_san,
@@ -2307,6 +2352,110 @@ def classify_moment(board, top_lines, played_moves):
 
     return "quiet", ctx
 
+# ══════════════════════════════════════════════════════════════════════════════
+# SOCRATIC LAYER
+#
+# GM Forge is a coach, not an engine readout. He never names the move he wants
+# played. Everything he says passes through socratic_guard(), which rewrites any
+# line that would give the answer away into a question or a nudge toward the
+# right part of the board. The player should feel they found the move.
+# ══════════════════════════════════════════════════════════════════════════════
+
+SOCRATIC_QUESTIONS = {
+    "threat": [
+        "What changed after that last move?",
+        "What is your opponent threatening right now?",
+        "If you did nothing at all here, what would they play?",
+        "If you were playing the other side, what move would scare you?",
+    ],
+    "safety": [
+        "Before you commit — is everything of yours still defended?",
+        "Before attacking, are you completely safe?",
+        "If you move that piece, what stops being defended?",
+        "Which of your pieces is doing too many jobs at once?",
+    ],
+    "activity": [
+        "Which of your pieces is doing the least work?",
+        "What is your worst-placed piece?",
+        "Which move improves your position even if there is no tactic here?",
+        "What happens if nothing changes for the next three moves?",
+    ],
+    "calculation": [
+        "Are you looking at both captures, or only the obvious one?",
+        "Can you rule one of your candidate moves out immediately?",
+        "You have a candidate. What is your opponent's best answer to it?",
+        "Have you checked every forcing move — every check and every capture?",
+    ],
+}
+
+ATTENTION_LINES = {
+    "piece":  ["Take another look at that {piece} on {sq}.",
+               "What is that {piece} on {sq} really doing?",
+               "That {piece} on {sq} is worth a second look."],
+    "square": ["I think there's one square here you're overlooking.",
+               "Look again at {sq} before you decide.",
+               "Something about {sq} is more important than it looks."],
+    "line":   ["Notice that diagonal for a moment.",
+               "Look down that file again before you move.",
+               "That rook is far stronger now than it was two moves ago."],
+}
+
+# Anything that hands the player the answer.
+_ANSWER_PATTERNS = [
+    re.compile(r"\bthe best move is\b", re.I),
+    re.compile(r"\byou should (?:play|move)\b", re.I),
+    re.compile(r"\bplay\s+(?:O-O-O|O-O|[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8])", re.I),
+    re.compile(r"\bthe (?:engine|computer) (?:prefers|likes|wants|recommends)\b", re.I),
+    re.compile(r"\bcorrect move (?:is|was)\b", re.I),
+    re.compile(r"\binstead,? (?:play|try)\b", re.I),
+]
+
+def _names_move(text, best_san):
+    """True if the text hands over the move, either by name or by instruction."""
+    if not text:
+        return False
+    if best_san:
+        bare = re.sub(r"[+#!?]", "", best_san)
+        if re.search(r"(?<![\w])" + re.escape(bare) + r"(?![\w])", text):
+            return True
+    return any(p.search(text) for p in _ANSWER_PATTERNS)
+
+def socratic_guard(text, best_san, ctx=None, topic="threat"):
+    """Rewrite anything that gives the answer away into a question or a nudge.
+
+    Returns coaching text that raises awareness without ever naming the move."""
+    if not _names_move(text, best_san):
+        return text
+    ctx = ctx or {}
+    sq = ctx.get("sq") or ctx.get("tsq") or ctx.get("fsq")
+    piece = ctx.get("piece") or ctx.get("tpiece")
+    # Prefer pointing at the board when we know where to point.
+    if sq and piece and piece != "piece":
+        pool = ATTENTION_LINES["piece"]
+    elif sq:
+        pool = ATTENTION_LINES["square"]
+    else:
+        pool = SOCRATIC_QUESTIONS.get(topic) or SOCRATIC_QUESTIONS["threat"]
+    line = gm_phrase(pool)
+    try:
+        return _fmt(line, {"sq": sq or "that square", "piece": piece or "piece"})
+    except Exception:
+        return gm_phrase(SOCRATIC_QUESTIONS[topic])
+
+def socratic_dialogue(lines, best_san, ctx=None, topic="threat"):
+    """Run a whole dialogue list through the guard, dropping anything left empty."""
+    out = []
+    for item in (lines or []):
+        if isinstance(item, dict):
+            t = socratic_guard(item.get("text", ""), best_san, ctx, topic)
+            if t:
+                nd = dict(item); nd["text"] = t; out.append(nd)
+        elif isinstance(item, str):
+            t = socratic_guard(item, best_san, ctx, topic)
+            if t:
+                out.append(t)
+    return out
+
 def build_coach_dialogue(scenario, ctx, board, top_lines):
     """Two-phase dialogue + synced arrows/highlights, using the REAL engine move."""
     best_uci = top_lines[0]["move"]
@@ -2325,6 +2474,12 @@ def build_coach_dialogue(scenario, ctx, board, top_lines):
         ctx.setdefault(k, v)
     question = _fmt(gm_phrase(bank["q"]), ctx)
     reveal = _fmt(gm_phrase(bank["r"]), ctx)
+    # The "reveal" half of the bank names the engine move. A coach does not do
+    # that — turn it into a question or a nudge toward the right part of the board.
+    topic = ("safety" if scenario in ("player_about_to_blunder", "opponent_fork", "opponent_pin")
+             else "calculation" if scenario == "player_can_win_material" else "threat")
+    question = socratic_guard(question, best_san, ctx, topic)
+    reveal   = socratic_guard(reveal,   best_san, ctx, topic)
     red, green = "#ff4d4d", "#26d07c"
     highlights, arrows = [], []
     if scenario == "opponent_fork":

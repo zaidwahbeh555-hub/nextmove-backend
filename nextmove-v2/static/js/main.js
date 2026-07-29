@@ -1834,7 +1834,14 @@ function showPause(data, fenBefore, sanPlayed){
   BotState._pauseData = data || {};
   BotState._pbFrames = buildPauseFrames(fenBefore, sanPlayed, data||{});
   BotState._pbIdx = Math.min(1, BotState._pbFrames.length-1);  // start on "you played"
-  const flag=document.getElementById('blunder-flag'); if(flag) flag.classList.remove('hidden');
+  const flag=document.getElementById('blunder-flag');
+  if(flag){
+    flag.classList.remove('hidden');
+    // Auto-clear: this used to stay until something else happened to hide it,
+    // so a warning from three moves ago was still on screen.
+    clearTimeout(window._blunderFlagT);
+    window._blunderFlagT = setTimeout(()=>flag.classList.add('hidden'), 4000);
+  }
   const alert=document.getElementById('blunder-alert'); if(alert) alert.classList.remove('hidden');
   const txt=document.getElementById('ba-text');
   if(txt) txt.textContent = (data && data.commentary) ? data.commentary : 'Take a breath — step through what happens next.';
@@ -2811,7 +2818,7 @@ const CoachMoment = {
     document.querySelectorAll('.fb-sq.sq-focus').forEach(c=>c.classList.remove('sq-focus'));
     BotState.boardLocked=false;
     Coach.setStatus('Your move.');
-    setTimeout(()=>{ if(window.ForgePointer) ForgePointer.retract(); }, 1800);
+    setTimeout(()=>{ if(window.ForgePointer) ForgePointer.retract(); }, 900);   // was 1800 — hand overstayed
   },
   stop(){
     clearTimeout(this.timer); this._endTap();
@@ -2845,6 +2852,10 @@ const StopSign = {
     wrap.appendChild(n); this.el=n;
     n.addEventListener('pointerdown', e=>this._down(e));
     setTimeout(()=>n.classList.add('in'), 20);
+    // A nudge should not become furniture. It clears itself, and any click on
+    // the board clears it too — the player has seen it by then.
+    clearTimeout(this._t);
+    this._t = setTimeout(()=>this.hide(), 6000);
   },
   _down(e){
     const r=this.el.getBoundingClientRect();
@@ -2926,7 +2937,7 @@ const CoachDialogue = {
     }
     Coach.setStatus('Your move.');
     document.body.classList.remove('forge-focus');
-    setTimeout(function(){ if(window.ForgePointer) ForgePointer.retract(); }, 2600);
+    setTimeout(function(){ if(window.ForgePointer) ForgePointer.retract(); }, 1200);  // was 2600
     setTimeout(()=>CoachFigure.mood('idle'), 2400);
   },
   _renderEngage(scenario){
@@ -3213,6 +3224,26 @@ const Coach = (function(){
 })();
 
 /* Board lock — force engagement when an MCQ is open */
+// A pointed finger is an invitation to look. The moment the player touches the
+// board they have looked, so it should get out of the way rather than sit there.
+(function(){
+  function dismiss(){
+    if(window.ForgePointer) ForgePointer.retract();
+    document.body.classList.remove('forge-focus');
+    document.querySelectorAll('.fb-sq--pointed').forEach(c=>c.classList.remove('fb-sq--pointed'));
+    const f = document.getElementById('blunder-flag'); if(f) f.classList.add('hidden');
+    if(window.StopSign && StopSign.hide) StopSign.hide();
+  }
+  function bind(){
+    const b = document.getElementById('bot-board');
+    if(b) b.addEventListener('mousedown', dismiss, true);
+    document.addEventListener('keydown', e=>{ if(e.key === 'Escape') dismiss(); });
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind);
+  else bind();
+  window.forgeDismissPointer = dismiss;
+})();
+
 function showBoardLock(on){
   const el = document.getElementById('board-lock');
   if(!el) return;
