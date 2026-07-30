@@ -67,9 +67,16 @@ function check(label, cond, detail){ total++; if(cond) pass++;
 Cosmetics.apply({board:'forest', light:'#28382F', dark:'#1A241E', dir:'', pieces:'classic'});
 check('theme sets --sq-light', setProps['--sq-light']==='#28382F', setProps['--sq-light']);
 check('theme sets --sq-dark',  setProps['--sq-dark']==='#1A241E',  setProps['--sq-dark']);
-check('theme sets nothing else', Object.keys(setProps).length===2, Object.keys(setProps).join(','));
+// Colours plus the two optional texture layers -- and nothing else. The point
+// of this assertion is that a theme is paint only, never geometry.
+check('theme sets only paint properties',
+      Object.keys(setProps).every(k=>/^--sq-(light|dark)(-tex)?$/.test(k)),
+      Object.keys(setProps).join(','));
 check('no layout property touched',
-      !Object.keys(setProps).some(k=>/width|height|flex|aspect|position|display/i.test(k)));
+      !Object.keys(setProps).some(k=>/width|height|flex|aspect|position|display|margin|padding/i.test(k)));
+check('an untextured theme clears any previous texture',
+      setProps['--sq-light-tex']==='none' && setProps['--sq-dark-tex']==='none',
+      setProps['--sq-light-tex']);
 
 // ── the piece directory feeds the real image markup ─────────────────────────
 check('default set uses the base directory', fbPieceEl('n','w').includes('/static/custom/wN.svg'), fbPieceEl('n','w'));

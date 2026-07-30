@@ -1326,8 +1326,8 @@ html{height:100%}
 body{min-height:100%;background:var(--bg);color:var(--text-1)}
 body::before{display:none}
 /* ── board: both shades dark ── */
-.fb-light{background:var(--sq-light)}
-.fb-dark{background:var(--sq-dark)}
+.fb-light{background-color:var(--sq-light);background-image:var(--sq-light-tex,none)}
+.fb-dark{background-color:var(--sq-dark);background-image:var(--sq-dark-tex,none)}
 /* Board carries the dark-square colour itself, so any sub-pixel seam left by
    fractional zoom shows board colour rather than the page background. */
 .fb-board{border:1px solid var(--border);border-radius:6px;overflow:hidden;background:var(--sq-dark)}
@@ -2184,3 +2184,13 @@ body.blunder-open #page-coach #coach-panel{opacity:.12;pointer-events:none;trans
 .forge-mini{display:block;width:100%;aspect-ratio:200/220;max-height:200px;
   background:var(--bg-panel-hi)}
 .shop-card-art .forge-mini{border-radius:0}
+
+/* Textured themes paint a background-image over the flat square colour. The
+   replay board (chessboard.js) follows the same two variables. */
+#bot-board .white-1e1d7,#puzzle-board .white-1e1d7,#replay-board .white-1e1d7{
+  background-image:var(--sq-light-tex,none) !important}
+#bot-board .black-3c85d,#puzzle-board .black-3c85d,#replay-board .black-3c85d{
+  background-image:var(--sq-dark-tex,none) !important}
+/* Shop previews need the texture too, or a textured board looks flat on its
+   own card. Set as an inline style by shopMiniBoard(). */
+.shop-mini i{background-repeat:repeat;background-size:auto}

@@ -43,29 +43,57 @@ def contrast(a, b):
     return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
 
 
+def side_colors(svg):
+    """Body and edge colour for one piece, read off the file itself.
+
+    A textured set fills the body with url(#tex); its effective tone is the
+    middle stop of the gradient that pattern paints, so that is what gets gated.
+    """
+    edge = re.search(r"\.d\{fill:(#[0-9A-Fa-f]{6})", svg).group(1)
+    m = re.search(r"\.s\{fill:(#[0-9A-Fa-f]{6})", svg)
+    if m:
+        return m.group(1), edge
+    stops = re.findall(r'stop-color="(#[0-9A-Fa-f]{6})"', svg)
+    assert stops, "textured piece has neither a flat fill nor gradient stops"
+    return stops[len(stops) // 2], edge
+
+
 def set_colors(set_id):
     """Read a set's real colours back off disk, not from a duplicated table."""
     if set_id == "classic":
-        return BASE["w_body"], BASE["b_detail"]
+        return (BASE["w_body"], BASE["w_detail"]), (BASE["b_body"], BASE["b_detail"])
     d = os.path.join(ROOT, "static", "custom", set_id)
-    wk = open(os.path.join(d, "wK.svg")).read()
-    bk = open(os.path.join(d, "bK.svg")).read()
-    w_body = re.search(r"\.s\{fill:(#[0-9A-Fa-f]{6})", wk).group(1)
-    b_detail = re.search(r"\.d\{fill:(#[0-9A-Fa-f]{6})", bk).group(1)
-    return w_body, b_detail
+    return (side_colors(open(os.path.join(d, "wK.svg")).read()),
+            side_colors(open(os.path.join(d, "bK.svg")).read()))
 
 
 # ── every set x every theme x both shades ────────────────────────────────────
+# A piece is legible if EITHER its body or its edge separates from the square.
+# On a dark board a black piece reads by its light outline; on a bright board it
+# reads by its dark body. Gating the outline alone (an earlier version of this
+# file) forces every square dark and makes all the themes look identical.
 for ps in PIECE_SETS:
-    w_body, b_detail = set_colors(ps["id"])
+    (wb, we), (bb, be) = set_colors(ps["id"])
     for th in BOARD_THEMES:
         for shade in ("light", "dark"):
             sq = th[shade]
-            cw, cb = contrast(w_body, sq), contrast(b_detail, sq)
+            cw = max(contrast(wb, sq), contrast(we, sq))
+            cb = max(contrast(bb, sq), contrast(be, sq))
             ok(cw >= THRESHOLD,
-               "white %s body on %s %s: %.2f < %.1f" % (ps["id"], th["id"], shade, cw, THRESHOLD))
+               "white %s on %s %s: %.2f < %.1f" % (ps["id"], th["id"], shade, cw, THRESHOLD))
             ok(cb >= THRESHOLD,
-               "black %s outline on %s %s: %.2f < %.1f" % (ps["id"], th["id"], shade, cb, THRESHOLD))
+               "black %s on %s %s: %.2f < %.1f" % (ps["id"], th["id"], shade, cb, THRESHOLD))
+
+# ── no dark square may sit in the mid-tone dead band ─────────────────────────
+# Between roughly 0.045 and 0.153 luminance neither the default set's black body
+# nor its outline clears 3:1. Darkening a failing square makes it worse, so this
+# is called out separately rather than left as a mysterious contrast failure.
+for th in BOARD_THEMES:
+    for shade in ("light", "dark"):
+        L = lum(th[shade])
+        ok(not (0.0449 < L < 0.1336),
+           "%s %s square sits in the dead band (lum %.4f) -- go brighter or darker, "
+           "not slightly darker" % (th["id"], shade, L))
 
 # ── every non-default set has all 12 files on disk ───────────────────────────
 for ps in PIECE_SETS:

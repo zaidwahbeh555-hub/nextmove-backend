@@ -448,21 +448,46 @@ def grant_xp(user, event, times=1):
 # Every light-square value below was solved so the default piece set's black
 # outline (#7E8598) clears a 3:1 contrast ratio; see tests/test_cosmetics.py,
 # which re-checks all 70 piece-set x theme x square combinations.
+# Dark squares avoid the mid-tone dead band (roughly 0.045-0.153 luminance),
+# where neither a dark piece body nor a light piece outline separates from the
+# square. See tools/gen_piece_sets.py; tests/test_cosmetics.py enforces it.
+# `tex` is an optional CSS background-image layered over the flat colour.
+_GRAIN = ("repeating-linear-gradient(97deg, rgba(0,0,0,.055) 0 1px, "
+          "rgba(0,0,0,0) 1px 5px), repeating-linear-gradient(94deg, "
+          "rgba(255,255,255,.05) 0 1px, rgba(255,255,255,0) 1px 9px)")
+_VEIN = ("radial-gradient(120% 90% at 18% 12%, rgba(255,255,255,.20), rgba(255,255,255,0) 55%), "
+         "radial-gradient(90% 70% at 82% 78%, rgba(0,0,0,.12), rgba(0,0,0,0) 60%), "
+         "repeating-linear-gradient(123deg, rgba(0,0,0,.05) 0 1px, rgba(0,0,0,0) 1px 14px)")
+
 BOARD_THEMES = [
+    # ── restrained ──
     {"id": "midnight", "name": "Midnight",  "price": 0,    "light": "#2E3446", "dark": "#1E2231",
-     "blurb": "The original. Cool indigo-grey."},
-    {"id": "obsidian", "name": "Obsidian",  "price": 600,  "light": "#2B2B32", "dark": "#1A1A1F",
+     "blurb": "The original. Cool indigo-grey, stays out of the way."},
+    {"id": "obsidian", "name": "Obsidian",  "price": 500,  "light": "#2B2B32", "dark": "#1A1A1F",
      "blurb": "Near-neutral graphite. The quietest board here."},
-    {"id": "slate",    "name": "Slate",     "price": 900,  "light": "#343A48", "dark": "#23262F",
-     "blurb": "A step lighter and cooler than Midnight."},
-    {"id": "ice",      "name": "Ice",       "price": 900,  "light": "#313A4A", "dark": "#212734",
-     "blurb": "Blue-cast steel. Crisp without going pale."},
-    {"id": "forest",   "name": "Forest",    "price": 1200, "light": "#28382F", "dark": "#1A241E",
-     "blurb": "Deep green. Easy on the eyes over long sessions."},
-    {"id": "ember",    "name": "Ember",     "price": 1200, "light": "#3C312A", "dark": "#281F1A",
-     "blurb": "Warm brown, the only warm board that stays dark."},
+    # ── vivid ──
+    {"id": "emerald",  "name": "Emerald",   "price": 800,  "light": "#E9F3DC", "dark": "#4E9A5A",
+     "blurb": "Bright tournament green. The most readable board in the shop."},
+    {"id": "lagoon",   "name": "Lagoon",    "price": 900,  "light": "#D8EFF5", "dark": "#3893AE",
+     "blurb": "Clear teal water. Cool and wide awake."},
+    {"id": "azure",    "name": "Azure",     "price": 900,  "light": "#DEE9F8", "dark": "#4477C4",
+     "blurb": "Strong cobalt blue against pale sky."},
+    {"id": "coral",    "name": "Coral",     "price": 1100, "light": "#FCE4DC", "dark": "#D46A57",
+     "blurb": "Warm coral red. Nothing else here looks like it."},
+    {"id": "sunset",   "name": "Sunset",    "price": 1100, "light": "#FCEBCF", "dark": "#D89344",
+     "blurb": "Amber and cream. The brightest board of the lot."},
+    {"id": "amethyst", "name": "Amethyst",  "price": 1300, "light": "#E9E1F8", "dark": "#8E6FD4",
+     "blurb": "Vivid violet. Loud, and knows it."},
+    # ── textured ──
+    {"id": "walnut",   "name": "Walnut",    "price": 1600, "light": "#E4CBA5", "dark": "#A5754C",
+     "blurb": "Real wood grain running across every square.",
+     "tex_light": _GRAIN, "tex_dark": _GRAIN},
+    {"id": "marble",   "name": "Marble",    "price": 1900, "light": "#EFEFEA", "dark": "#9AA3AD",
+     "blurb": "Polished stone with veining and a lit corner on each square.",
+     "tex_light": _VEIN, "tex_dark": _VEIN},
+    # ── dark showpieces ──
     {"id": "royal",    "name": "Royal",     "price": 1500, "light": "#3A3154", "dark": "#251E38",
-     "blurb": "Violet. Matches the accent without shouting."},
+     "blurb": "Deep violet. Matches the accent without shouting."},
     {"id": "blackice", "name": "Black Ice", "price": 2200, "light": "#28323F", "dark": "#12171E",
      "blurb": "Glossy near-black with a cold blue cast. The darkest board here."},
 ]
@@ -480,6 +505,8 @@ PIECE_SETS = [
      "blurb": "Warm copper detailing. Pairs with Ember board."},
     {"id": "blackice","name": "Black Ice","price": 2200, "dir": "blackice/",
      "blurb": "Near-black bodies with ice-blue edge light. Pairs with the Black Ice board."},
+    {"id": "marble",  "name": "Marble",  "price": 2400, "dir": "marble/",
+     "blurb": "Carved stone: a polished gradient with speckle and veining in the surface."},
 ]
 
 # ── GM Forge cosmetics ───────────────────────────────────────────────────────
@@ -515,6 +542,34 @@ FORGE_OUTFITS = [
 COSMETIC_KINDS = {"board": BOARD_THEMES, "pieces": PIECE_SETS,
                   "topper": FORGE_TOPPERS, "face": FORGE_FACE, "outfit": FORGE_OUTFITS}
 
+# Themes withdrawn from the catalog, with what they cost. get_cosmetics() drops
+# anything not in the catalog, so without this a player who had bought one would
+# lose both the item and the XP they paid for it.
+RETIRED_PRICES = {
+    ("board", "slate"): 900, ("board", "ice"): 900,
+    ("board", "forest"): 1200, ("board", "ember"): 1200,
+}
+
+def reconcile_retired(username, user):
+    """Refund anything the player owns that no longer exists. Returns XP given back."""
+    raw = user.get("cosmetics")
+    if not isinstance(raw, dict):
+        return 0
+    owned = raw.get("owned") if isinstance(raw.get("owned"), dict) else {}
+    refund = 0
+    for kind, ids in owned.items():
+        valid = {i["id"] for i in COSMETIC_KINDS.get(kind, [])}
+        for item_id in (ids or []):
+            if item_id not in valid:
+                refund += RETIRED_PRICES.get((kind, item_id), 0)
+    if refund:
+        w = get_wallet(user)
+        w["spent"] = max(0, w.get("spent", 0) - refund)
+        user["wallet"] = w
+        user["cosmetics"] = get_cosmetics(user)   # prune the dead ids
+        save_user(username, user)
+    return refund
+
 def cosmetic_payload(user):
     """What the equipped cosmetics actually resolve to.
 
@@ -526,6 +581,7 @@ def cosmetic_payload(user):
     pieces = cosmetic_item("pieces", cos["equipped"]["pieces"]) or PIECE_SETS[0]
     return {"board": board["id"], "pieces": pieces["id"],
             "light": board["light"], "dark": board["dark"], "dir": pieces["dir"],
+            "tex_light": board.get("tex_light") or "", "tex_dark": board.get("tex_dark") or "",
             "topper": cos["equipped"].get("topper") or "none",
             "face":   cos["equipped"].get("face")   or "none",
             "outfit": cos["equipped"].get("outfit") or "none",
@@ -891,6 +947,7 @@ def shop_catalog():
     """The catalog, plus what this user owns, has equipped, and can afford."""
     user = get_user(current_user())
     if not user: return jsonify({"error": "User not found"}), 404
+    refunded = reconcile_retired(current_user(), user)
     cos = get_cosmetics(user)
     bal = xp_balance(user)
     pro = is_pro(user)
@@ -903,11 +960,13 @@ def shop_catalog():
                         "affordable": owned or bal >= it["price"]})
             if kind == "board":
                 row["light"], row["dark"] = it["light"], it["dark"]
+                row["tex_light"] = it.get("tex_light") or ""
+                row["tex_dark"]  = it.get("tex_dark") or ""
             elif kind == "pieces":
                 row["dir"] = it["dir"]
             out.append(row)
         return out
-    return jsonify({"ok": True, "balance": bal, "lifetime": user.get("xp", 0),
+    return jsonify({"ok": True, "balance": bal, "lifetime": user.get("xp", 0), "refunded": refunded,
                     "is_pro": pro, "equipped": cos["equipped"],
                     "board":  pack("board",  BOARD_THEMES),
                     "pieces": pack("pieces", PIECE_SETS),

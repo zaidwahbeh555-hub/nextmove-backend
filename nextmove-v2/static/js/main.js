@@ -27,6 +27,10 @@ const Cosmetics = {
       const root = document.documentElement.style;
       root.setProperty('--sq-light', c.light);
       root.setProperty('--sq-dark',  c.dark);
+      // Texture is a CSS background-image layered over the flat colour. Still
+      // paint only -- no geometry, no layout.
+      root.setProperty('--sq-light-tex', c.tex_light || 'none');
+      root.setProperty('--sq-dark-tex',  c.tex_dark  || 'none');
       this.board = c.board || this.board;
     }
     if(typeof c.dir === 'string' && c.dir !== this.dir){
@@ -469,14 +473,17 @@ const XP_RULE_LABELS = {
 // A small board drawn in a theme's own colours, with real pieces from a set.
 // Fixed pixel sizing on purpose: this never participates in the page's flex
 // layout, so it cannot repeat the collapsed-board bug.
-function shopMiniBoard(light, dark, dir){
+function shopMiniBoard(light, dark, dir, texL, texD){
   const back = ['r','n','b','q'], out = [];
   for(let r=0;r<4;r++) for(let f=0;f<4;f++){
     const isLight = (r+f)%2===0;
     let inner = '';
     if(r===0) inner = '<img alt="" src="/static/custom/'+dir+'b'+back[f].toUpperCase()+'.svg?v='+PIECE_VER+'">';
     if(r===3) inner = '<img alt="" src="/static/custom/'+dir+'w'+back[f].toUpperCase()+'.svg?v='+PIECE_VER+'">';
-    out.push('<i style="background:'+(isLight?light:dark)+'">'+inner+'</i>');
+    // A textured theme must preview textured, or its card sells a flat board.
+    const tex = isLight ? texL : texD;
+    const bg = 'background-color:'+(isLight?light:dark)+(tex ? ';background-image:'+tex : '');
+    out.push('<i style="'+bg+'">'+inner+'</i>');
   }
   return '<div class="shop-mini">'+out.join('')+'</div>';
 }
@@ -485,8 +492,8 @@ const SHOP_VERBS = {board:'Use these colours', pieces:'Use this set',
                     topper:'Put it on', face:'Wear it', outfit:'Wear it'};
 
 function shopCard(kind, it, ctx){
-  const cur = kind==='board'  ? shopMiniBoard(it.light, it.dark, Cosmetics.dir)
-            : kind==='pieces' ? shopMiniBoard(ctx.light, ctx.dark, it.dir)
+  const cur = kind==='board'  ? shopMiniBoard(it.light, it.dark, Cosmetics.dir, it.tex_light, it.tex_dark)
+            : kind==='pieces' ? shopMiniBoard(ctx.light, ctx.dark, it.dir, ctx.texL, ctx.texD)
             :                   forgePreview(kind, it.id);
   // Free players get the action they wanted to take, worded plainly, and are
   // told why it did not happen only once they reach for it. A button that says
@@ -605,7 +612,8 @@ async function renderShop(){
     }
     // The equipped board's colours are the backdrop for piece-set previews.
     const eqBoard = (d.board||[]).find(b=>b.equipped) || d.board[0];
-    const ctx = {is_pro:d.is_pro, light:eqBoard.light, dark:eqBoard.dark, balance:d.balance};
+    const ctx = {is_pro:d.is_pro, light:eqBoard.light, dark:eqBoard.dark,
+                 texL:eqBoard.tex_light, texD:eqBoard.tex_dark, balance:d.balance};
     ['board','pieces','topper','face','outfit'].forEach(kind=>{
       const el = document.getElementById('shop-'+kind);
       if(el) el.innerHTML = (d[kind]||[]).map(it=>shopCard(kind,it,ctx)).join('');
