@@ -312,6 +312,36 @@ def get_onboarding(user):
 
 def is_pro(user): return user.get("plan") == "pro"
 
+# Pro access and paid-for Pro are not the same thing. Comped accounts -- granted
+# from the admin page or /auth/upgrade -- get every Pro feature but must never
+# show up as revenue. Only an account Stripe actually billed counts.
+def is_paying(user):
+    return user.get("plan") == "pro" and user.get("billing") == "stripe"
+
+def mark_billing(user, source):
+    """Record how an account got Pro: 'stripe' (paid) or 'comp' (granted)."""
+    user["billing"] = source
+    if source == "stripe":
+        user.setdefault("plan_started", int(time.time()))
+    return user
+
+def monthly_revenue(db):
+    return sum(1 for u in db.values() if is_paying(u)) * PRO_PRICE
+
+PRO_PRICE = 9
+
+# Last activity. /auth/me fires once per page load, so this is a good enough
+# heartbeat without writing to the database on every request.
+SEEN_THROTTLE = 300   # seconds
+
+def touch_seen(username, user):
+    now = int(time.time())
+    if now - int(user.get("last_seen") or 0) < SEEN_THROTTLE:
+        return False
+    user["last_seen"] = now
+    save_user(username, user)
+    return True
+
 # ══ XP ECONOMY ═══════════════════════════════════════════════════════════════
 # XP is currency now, so the client no longer says how much it earned -- it says
 # what happened, and the server prices it. Each rule is awarded from inside the
@@ -690,6 +720,10 @@ def login():
     user=get_user(username)
     if not user or not verify_password(password,user["password"]): time.sleep(0.3); return jsonify({"error":"Incorrect username or password."}),401
     session["username"]=username; session.permanent=True
+    now=int(time.time())
+    user["last_login"]=now; user["last_seen"]=now
+    user["login_count"]=int(user.get("login_count") or 0)+1
+    save_user(username,user)
     return jsonify({"ok":True,"username":username,"xp":user.get("xp",0),"plan":user.get("plan","free"),
                     "balance":xp_balance(user),"cosmetics":cosmetic_payload(user),
                     "progress":user.get("progress",empty_progress()),"games":user.get("games",[]),
@@ -705,6 +739,9 @@ def me():
     if not u: return jsonify({"loggedIn":False})
     user=get_user(u)
     if not user: session.clear(); return jsonify({"loggedIn":False})
+    # Sessions persist, so many people never hit /auth/login again. This is what
+    # keeps "last seen" honest for returning users.
+    touch_seen(u, user)
     return jsonify({"loggedIn":True,"username":u,"xp":user.get("xp",0),"plan":user.get("plan","free"),
                     "balance":xp_balance(user),"cosmetics":cosmetic_payload(user),
                     "progress":user.get("progress",empty_progress()),"games":user.get("games",[]),
@@ -863,7 +900,7 @@ def upgrade():
     if key!=os.environ.get("ADMIN_KEY",""): return jsonify({"error":"Unauthorized"}),403
     user=get_user(u)
     if not user: return jsonify({"error":"User not found"}),404
-    user["plan"]="pro"; save_user(u,user)
+    user["plan"]="pro"; mark_billing(user,"comp"); save_user(u,user)
     return jsonify({"ok":True,"plan":"pro"})
 
 # ── Admin Routes ───────────────────────────────────────────────────────────────
@@ -884,13 +921,25 @@ def admin_users():
     if not session.get("is_admin"): return jsonify({"error":"Unauthorized"}),401
     db=load_db()
     users=[]
+    now=int(time.time())
     for username,user in db.items():
         users.append({"username":username,"email":user.get("email",""),"plan":user.get("plan","free"),
+                      "billing":user.get("billing") or ("comp" if user.get("plan")=="pro" else None),
+                      "paying":is_paying(user),
                       "xp":user.get("xp",0),"games_count":len(user.get("games",[])),"created":user.get("created",0),
+                      "last_login":user.get("last_login") or 0,
+                      "last_seen":user.get("last_seen") or user.get("last_login") or 0,
+                      "login_count":int(user.get("login_count") or 0),
                       "games_analysed":user.get("progress",{}).get("games_analysed",0)})
-    users.sort(key=lambda x:x["created"],reverse=True)
+    users.sort(key=lambda x:x["last_seen"],reverse=True)
     total=len(users); pro=sum(1 for u in users if u["plan"]=="pro")
-    return jsonify({"users":users,"total":total,"pro":pro,"free":total-pro})
+    paying=sum(1 for u in users if u["paying"])
+    day=sum(1 for u in users if u["last_seen"] and now-u["last_seen"]<86400)
+    week=sum(1 for u in users if u["last_seen"] and now-u["last_seen"]<604800)
+    return jsonify({"users":users,"total":total,"pro":pro,"free":total-pro,
+                    "paying":paying,"comped":pro-paying,
+                    "revenue":paying*PRO_PRICE,"price":PRO_PRICE,
+                    "active_24h":day,"active_7d":week,"now":now})
 
 @app.route("/admin/set-plan", methods=["POST"])
 def admin_set_plan():
@@ -899,8 +948,15 @@ def admin_set_plan():
     username=data.get("username",""); plan=data.get("plan","free")
     user=get_user(username)
     if not user: return jsonify({"error":"User not found"}),404
+    # A plan handed out from this page is comped, never revenue. An explicit
+    # billing value is still accepted so a Stripe payer can be corrected by hand.
+    billing=data.get("billing")
+    if plan=="pro":
+        mark_billing(user, billing if billing in ("stripe","comp") else "comp")
+    else:
+        user["billing"]=None
     user["plan"]=plan; save_user(username,user)
-    return jsonify({"ok":True})
+    return jsonify({"ok":True,"plan":plan,"billing":user.get("billing")})
 
 @app.route("/admin/delete-user", methods=["POST"])
 def admin_delete_user():
@@ -924,15 +980,22 @@ def admin_send_report():
     if not session.get("is_admin"): return jsonify({"error":"Unauthorized"}),401
     db=load_db()
     total=len(db); pro=sum(1 for u in db.values() if u.get("plan")=="pro")
+    paying=sum(1 for u in db.values() if is_paying(u))
     today=time.strftime("%Y-%m-%d")
+    now=int(time.time())
     new_today=sum(1 for u in db.values() if time.strftime("%Y-%m-%d",time.localtime(u.get("created",0)))==today)
+    seen=lambda u: u.get("last_seen") or u.get("last_login") or 0
+    active_24h=sum(1 for u in db.values() if seen(u) and now-seen(u)<86400)
+    active_7d=sum(1 for u in db.values() if seen(u) and now-seen(u)<604800)
     body=f"""ChessForge Daily Report — {today}
 
 Total Users: {total}
-Pro Users: {pro}
+Pro Users: {pro}  ({paying} paying, {pro-paying} comped)
 Free Users: {total-pro}
 New Today: {new_today}
-Est. Monthly Revenue: ${pro*9}/mo
+Active (24h): {active_24h}
+Active (7d): {active_7d}
+Monthly Revenue: ${paying*PRO_PRICE}/mo  — paying subscribers only, comped Pro excluded
 
 Recent Users:
 """
@@ -1045,20 +1108,23 @@ def stripe_webhook():
         username=obj.get("metadata",{}).get("username","")
         db=load_db(); upgraded=False
         if username and username in db:
-            db[username]["plan"]="pro"; db[username]["plan_started"]=int(time.time()); upgraded=True
+            db[username]["plan"]="pro"; db[username]["plan_started"]=int(time.time())
+            mark_billing(db[username],"stripe"); upgraded=True
         elif email:
             for uname,user in db.items():
                 if user.get("email","").lower()==email.lower():
-                    user["plan"]="pro"; user["plan_started"]=int(time.time()); upgraded=True; break
+                    user["plan"]="pro"; user["plan_started"]=int(time.time())
+                    mark_billing(user,"stripe"); upgraded=True; break
         if upgraded:
             save_db(db)
-            send_admin_email("New ChessForge Pro subscriber! ",f"User: {username or email}\nPlan: Pro ($9/mo)\nTime: {time.strftime('%Y-%m-%d %H:%M')}\nEst revenue: ${(sum(1 for u in db.values() if u.get('plan')=='pro'))*9}/mo")
+            send_admin_email("New ChessForge Pro subscriber! ",f"User: {username or email}\nPlan: Pro ($9/mo)\nTime: {time.strftime('%Y-%m-%d %H:%M')}\nEst revenue: ${monthly_revenue(db)}/mo (paying subscribers only)")
     if etype=="customer.subscription.deleted":
         obj=event.get("data",{}).get("object",{}); email=obj.get("customer_email","")
         if email:
             db=load_db()
             for uname,user in db.items():
-                if user.get("email","").lower()==email.lower(): user["plan"]="free"; break
+                if user.get("email","").lower()==email.lower():
+                    user["plan"]="free"; user["billing"]=None; break
             save_db(db)
     return jsonify({"ok":True})
 

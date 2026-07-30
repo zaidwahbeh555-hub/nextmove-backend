@@ -69,9 +69,15 @@ tr:hover td{background:var(--bg3)}
 
   <div class="stats-row">
     <div class="stat"><div class="stat-n cyan" id="st-total">0</div><div class="stat-l">Total Users</div></div>
-    <div class="stat"><div class="stat-n gold" id="st-pro">0</div><div class="stat-l">Pro Users</div></div>
+    <div class="stat"><div class="stat-n gold" id="st-pro">0</div><div class="stat-l">Pro Users <span id="st-pro-split" style="opacity:.6"></span></div></div>
     <div class="stat"><div class="stat-n orange" id="st-free">0</div><div class="stat-l">Free Users</div></div>
-    <div class="stat"><div class="stat-n green" id="st-revenue">$0</div><div class="stat-l">Est. Monthly Revenue</div></div>
+    <div class="stat"><div class="stat-n green" id="st-revenue">$0</div><div class="stat-l">Monthly Revenue <span style="opacity:.6">(paying only)</span></div></div>
+  </div>
+  <div class="stats-row">
+    <div class="stat"><div class="stat-n cyan" id="st-a24">0</div><div class="stat-l">Active — last 24h</div></div>
+    <div class="stat"><div class="stat-n cyan" id="st-a7">0</div><div class="stat-l">Active — last 7 days</div></div>
+    <div class="stat"><div class="stat-n gold" id="st-paying">0</div><div class="stat-l">Paying Subscribers</div></div>
+    <div class="stat"><div class="stat-n orange" id="st-comped">0</div><div class="stat-l">Comped Pro <span style="opacity:.6">($0)</span></div></div>
   </div>
 
   <div class="card">
@@ -85,6 +91,8 @@ tr:hover td{background:var(--bg3)}
           <th>Username</th>
           <th>Email</th>
           <th>Plan</th>
+          <th>Last seen</th>
+          <th>Logins</th>
           <th>XP</th>
           <th>Games</th>
           <th>Joined</th>
@@ -103,6 +111,26 @@ tr:hover td{background:var(--bg3)}
 
 <script>
 let allUsers = [];
+let serverNow = Math.floor(Date.now()/1000);
+
+// "3h ago" reads faster than a timestamp when scanning a column of them.
+function ago(ts){
+  if(!ts) return 'never';
+  const s = Math.max(0, serverNow - ts);
+  if(s < 90)     return 'just now';
+  if(s < 3600)   return Math.floor(s/60)+'m ago';
+  if(s < 86400)  return Math.floor(s/3600)+'h ago';
+  if(s < 604800) return Math.floor(s/86400)+'d ago';
+  if(s < 2592000)return Math.floor(s/604800)+'w ago';
+  return Math.floor(s/2592000)+'mo ago';
+}
+function agoColor(ts){
+  if(!ts) return 'var(--muted)';
+  const s = serverNow - ts;
+  if(s < 86400)  return '#2ecc71';   // today
+  if(s < 604800) return '#f1c40f';   // this week
+  return 'var(--muted)';
+}
 
 async function adminLogin(){
   const pw = document.getElementById('admin-pw').value;
@@ -122,7 +150,16 @@ async function loadUsers(){
   document.getElementById('st-total').textContent = d.total;
   document.getElementById('st-pro').textContent = d.pro;
   document.getElementById('st-free').textContent = d.free;
-  document.getElementById('st-revenue').textContent = '$'+(d.pro*9)+'/mo';
+  // Revenue counts Stripe subscribers only. Pro handed out from this page is
+  // comped and worth $0, which is why this is not simply pro * price.
+  document.getElementById('st-revenue').textContent = '$'+d.revenue+'/mo';
+  document.getElementById('st-paying').textContent = d.paying;
+  document.getElementById('st-comped').textContent = d.comped;
+  document.getElementById('st-a24').textContent = d.active_24h;
+  document.getElementById('st-a7').textContent = d.active_7d;
+  document.getElementById('st-pro-split').textContent =
+    d.comped ? '('+d.paying+' paying, '+d.comped+' comped)' : '';
+  serverNow = d.now || Math.floor(Date.now()/1000);
   renderUsers(allUsers);
 }
 
@@ -140,7 +177,11 @@ function renderUsers(users){
     row.innerHTML = `
       <td><strong>${esc(u.username)}</strong></td>
       <td style="color:var(--muted)">${esc(u.email)}</td>
-      <td><span class="badge ${u.plan==='pro'?'badge-pro':'badge-free'}">${u.plan}</span></td>
+      <td><span class="badge ${u.plan==='pro'?'badge-pro':'badge-free'}">${u.plan}</span>${
+        u.plan==='pro' ? `<span class="badge ${u.paying?'badge-pro':'badge-free'}" style="margin-left:.3rem;opacity:.85">${u.paying?'paying':'comped'}</span>` : ''
+      }</td>
+      <td style="color:${agoColor(u.last_seen)}" title="${u.last_seen?new Date(u.last_seen*1000).toLocaleString():'never signed in'}">${ago(u.last_seen)}</td>
+      <td style="color:var(--muted)">${u.login_count||0}</td>
       <td>${u.xp}</td>
       <td>${u.games_count}</td>
       <td style="color:var(--muted)">${d}</td>
