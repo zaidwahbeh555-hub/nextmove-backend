@@ -5,7 +5,7 @@ import os, io, json, random, hashlib, hmac, time, secrets, urllib.request, urlli
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import chess, chess.pgn, chess.engine
-from flask import Flask, request, jsonify, render_template, session
+from flask import Flask, request, jsonify, render_template, session, make_response
 from collections import defaultdict
 from functools import wraps
 
@@ -332,15 +332,40 @@ PRO_PRICE = 9
 
 # Last activity. /auth/me fires once per page load, so this is a good enough
 # heartbeat without writing to the database on every request.
-SEEN_THROTTLE = 300   # seconds
+SEEN_THROTTLE = 300     # don't rewrite last_seen more than this often
+SESSION_GAP   = 1800    # 30 min of silence ends a visit
 
-def touch_seen(username, user):
+def roll_session(user, now):
+    """Close the previous visit if the player has been away, and open a new one.
+
+    A "session" is a run of activity with no gap longer than SESSION_GAP. When
+    one closes we bank the XP earned during it, which is what the admin page
+    reports as XP last session.
+    """
+    last = int(user.get("last_seen") or 0)
+    xp = int(user.get("xp") or 0)
+    if "session_start_xp" not in user:
+        user["session_start_xp"] = xp
+        user["session_started"] = now
+        return
+    if last and now - last > SESSION_GAP:
+        user["last_session_xp"] = max(0, xp - int(user.get("session_start_xp") or 0))
+        user["last_session_end"] = last
+        user["session_start_xp"] = xp
+        user["session_started"] = now
+
+def touch_seen(username, user, force=False):
     now = int(time.time())
-    if now - int(user.get("last_seen") or 0) < SEEN_THROTTLE:
+    if not force and now - int(user.get("last_seen") or 0) < SEEN_THROTTLE:
         return False
+    roll_session(user, now)
     user["last_seen"] = now
     save_user(username, user)
     return True
+
+def session_xp_now(user):
+    """XP earned during the visit currently in progress."""
+    return max(0, int(user.get("xp") or 0) - int(user.get("session_start_xp") or 0))
 
 # ══ XP ECONOMY ═══════════════════════════════════════════════════════════════
 # XP is currency now, so the client no longer says how much it earned -- it says
@@ -438,6 +463,8 @@ BOARD_THEMES = [
      "blurb": "Warm brown, the only warm board that stays dark."},
     {"id": "royal",    "name": "Royal",     "price": 1500, "light": "#3A3154", "dark": "#251E38",
      "blurb": "Violet. Matches the accent without shouting."},
+    {"id": "blackice", "name": "Black Ice", "price": 2200, "light": "#28323F", "dark": "#12171E",
+     "blurb": "Glossy near-black with a cold blue cast. The darkest board here."},
 ]
 
 PIECE_SETS = [
@@ -451,9 +478,42 @@ PIECE_SETS = [
      "blurb": "Soft green-tinted ivory. Pairs with Forest."},
     {"id": "ember",   "name": "Ember",   "price": 1400, "dir": "ember/",
      "blurb": "Warm copper detailing. Pairs with Ember board."},
+    {"id": "blackice","name": "Black Ice","price": 2200, "dir": "blackice/",
+     "blurb": "Near-black bodies with ice-blue edge light. Pairs with the Black Ice board."},
 ]
 
-COSMETIC_KINDS = {"board": BOARD_THEMES, "pieces": PIECE_SETS}
+# ── GM Forge cosmetics ───────────────────────────────────────────────────────
+# Three independent slots layered onto the coach's inline SVG. The art itself
+# lives in main.js (FORGE_ART) keyed by these ids; the server only records what
+# is owned and worn, so adding a new item never needs a migration.
+FORGE_TOPPERS = [
+    {"id": "none",     "name": "Nothing",       "price": 0,    "blurb": "Just the hair he was born with."},
+    {"id": "beanie",   "name": "Beanie",        "price": 400,  "blurb": "Bobble on top. Wildly unserious."},
+    {"id": "cap",      "name": "Backwards Cap", "price": 500,  "blurb": "He is down with the youth now."},
+    {"id": "party",    "name": "Party Hat",     "price": 600,  "blurb": "Worn at all times. Never explained."},
+    {"id": "cowboy",   "name": "Cowboy Hat",    "price": 900,  "blurb": "This town has room for one grandmaster."},
+    {"id": "tophat",   "name": "Top Hat",       "price": 1200, "blurb": "Absurdly formal for a knight fork."},
+    {"id": "crown",    "name": "Crown",         "price": 1800, "blurb": "He has awarded it to himself."},
+]
+
+FORGE_FACE = [
+    {"id": "none",       "name": "Clean Shaven", "price": 0,    "blurb": "The face as issued."},
+    {"id": "moustache",  "name": "Handlebar",    "price": 500,  "blurb": "Enormous. Waxed. Curls at both ends."},
+    {"id": "beard",      "name": "Full Beard",   "price": 800,  "blurb": "Instantly adds 400 rating points."},
+    {"id": "shades",     "name": "Shades",       "price": 900,  "blurb": "He saw the fork three moves ago."},
+    {"id": "monocle",    "name": "Monocle",      "price": 1300, "blurb": "For positions of unusual refinement."},
+]
+
+FORGE_OUTFITS = [
+    {"id": "none",      "name": "Coach Shirt",  "price": 0,    "blurb": "Navy shirt and tie. The classic."},
+    {"id": "hoodie",    "name": "Hoodie",       "price": 600,  "blurb": "Off-duty Forge. Still judging you."},
+    {"id": "muscle",    "name": "Muscle Shirt", "price": 1000, "blurb": "Sleeves removed. Arms deployed."},
+    {"id": "tuxedo",    "name": "Tuxedo",       "price": 1500, "blurb": "Dressed for the world championship."},
+    {"id": "ripped",    "name": "Shirtless",    "price": 2000, "blurb": "He is absolutely shredded. No one asked."},
+]
+
+COSMETIC_KINDS = {"board": BOARD_THEMES, "pieces": PIECE_SETS,
+                  "topper": FORGE_TOPPERS, "face": FORGE_FACE, "outfit": FORGE_OUTFITS}
 
 def cosmetic_payload(user):
     """What the equipped cosmetics actually resolve to.
@@ -466,6 +526,9 @@ def cosmetic_payload(user):
     pieces = cosmetic_item("pieces", cos["equipped"]["pieces"]) or PIECE_SETS[0]
     return {"board": board["id"], "pieces": pieces["id"],
             "light": board["light"], "dark": board["dark"], "dir": pieces["dir"],
+            "topper": cos["equipped"].get("topper") or "none",
+            "face":   cos["equipped"].get("face")   or "none",
+            "outfit": cos["equipped"].get("outfit") or "none",
             "owned": cos["owned"]}
 
 def cosmetic_item(kind, item_id):
@@ -475,8 +538,13 @@ def cosmetic_item(kind, item_id):
     return None
 
 def default_cosmetics():
-    return {"owned": {"board": ["midnight"], "pieces": ["classic"]},
-            "equipped": {"board": "midnight", "pieces": "classic"}}
+    """Whatever is free in each slot is owned and worn from the start."""
+    owned, equipped = {}, {}
+    for kind, catalog in COSMETIC_KINDS.items():
+        free = [i["id"] for i in catalog if i["price"] == 0]
+        owned[kind] = list(free)
+        equipped[kind] = free[0] if free else None
+    return {"owned": owned, "equipped": equipped}
 
 def get_cosmetics(user):
     """Cosmetics state, repaired against the live catalog.
@@ -721,6 +789,7 @@ def login():
     if not user or not verify_password(password,user["password"]): time.sleep(0.3); return jsonify({"error":"Incorrect username or password."}),401
     session["username"]=username; session.permanent=True
     now=int(time.time())
+    roll_session(user,now)
     user["last_login"]=now; user["last_seen"]=now
     user["login_count"]=int(user.get("login_count") or 0)+1
     save_user(username,user)
@@ -834,14 +903,17 @@ def shop_catalog():
                         "affordable": owned or bal >= it["price"]})
             if kind == "board":
                 row["light"], row["dark"] = it["light"], it["dark"]
-            else:
+            elif kind == "pieces":
                 row["dir"] = it["dir"]
             out.append(row)
         return out
     return jsonify({"ok": True, "balance": bal, "lifetime": user.get("xp", 0),
                     "is_pro": pro, "equipped": cos["equipped"],
-                    "board": pack("board", BOARD_THEMES),
+                    "board":  pack("board",  BOARD_THEMES),
                     "pieces": pack("pieces", PIECE_SETS),
+                    "topper": pack("topper", FORGE_TOPPERS),
+                    "face":   pack("face",   FORGE_FACE),
+                    "outfit": pack("outfit", FORGE_OUTFITS),
                     "rules": XP_RULES})
 
 @app.route("/shop/buy", methods=["POST"])
@@ -906,7 +978,12 @@ def upgrade():
 # ── Admin Routes ───────────────────────────────────────────────────────────────
 @app.route("/admin")
 def admin_page():
-    return render_template("admin.html")
+    # The app's own page is cache-busted with ?v=mNN, but this one has no such
+    # handle, so a browser will happily serve a stale dashboard after a deploy.
+    resp = make_response(render_template("admin.html"))
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    return resp
 
 @app.route("/admin/login", methods=["POST"])
 def admin_login():
@@ -930,6 +1007,9 @@ def admin_users():
                       "last_login":user.get("last_login") or 0,
                       "last_seen":user.get("last_seen") or user.get("last_login") or 0,
                       "login_count":int(user.get("login_count") or 0),
+                      "last_session_xp":int(user.get("last_session_xp") or 0),
+                      "session_xp":session_xp_now(user),
+                      "in_session":bool(user.get("last_seen") and now-int(user["last_seen"])<=SESSION_GAP),
                       "games_analysed":user.get("progress",{}).get("games_analysed",0)})
     users.sort(key=lambda x:x["last_seen"],reverse=True)
     total=len(users); pro=sum(1 for u in users if u["plan"]=="pro")

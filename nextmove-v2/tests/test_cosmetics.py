@@ -96,6 +96,46 @@ ok("midnight" in broken["owned"]["board"], "the free default is always owned")
 
 ok(cosmetic_item("board", "nope") is None, "unknown item must not resolve")
 
+# ── GM Forge art: every catalogued item must exist and be valid SVG ──────────
+# The art lives in main.js and the catalog in app.py, so they can drift. An item
+# whose art is missing would sell for XP and then visibly do nothing.
+import xml.etree.ElementTree as ET  # noqa: E402
+from app import FORGE_TOPPERS, FORGE_FACE, FORGE_OUTFITS  # noqa: E402
+
+js = open(os.path.join(ROOT, "static", "js", "main.js")).read()
+art_block = js[js.index("const FORGE_ART = {"):js.index("// Paint the equipped Forge cosmetics")]
+
+for kind, catalog in (("topper", FORGE_TOPPERS), ("face", FORGE_FACE), ("outfit", FORGE_OUTFITS)):
+    sect = art_block[art_block.index(kind + ": {"):]
+    for it in catalog:
+        key = it["id"] + ":"
+        present = key in sect[:sect.index("\n  },") + 5] if "\n  }," in sect else key in sect
+        ok(present, "FORGE_ART.%s is missing art for '%s'" % (kind, it["id"]))
+
+# Pull each art string out and check it parses as XML.
+for m in re.finditer(r"'(<(?:path|circle|ellipse|rect|g|svg)[^']*)'", art_block):
+    frag = m.group(1)
+    if not frag.rstrip().endswith(">"):
+        continue                      # a concatenated fragment, checked as a whole below
+for kind in ("topper", "face", "outfit"):
+    start = art_block.index(kind + ": {")
+    end = art_block.index("\n  }", start)
+    body = art_block[start:end]
+    # Reassemble each item's concatenated string literals into one fragment.
+    for im in re.finditer(r"\n\s{4}(\w+):\s*(.*?)(?=,\n\s{4}\w+:|\Z)", body, re.S):
+        item_id, expr = im.group(1), im.group(2)
+        parts = re.findall(r"'([^']*)'", expr)
+        frag = "".join(parts)
+        if not frag.strip():
+            continue                  # 'none' is legitimately empty
+        try:
+            ET.fromstring("<svg xmlns='http://www.w3.org/2000/svg'>" + frag + "</svg>")
+            valid = True
+        except ET.ParseError as e:
+            valid = False
+            print("      parse error in %s/%s: %s" % (kind, item_id, e))
+        ok(valid, "FORGE_ART.%s.%s is not well-formed SVG" % (kind, item_id))
+
 print("cosmetics: %d checks, %d failed" % (checks, len(fails)))
 for f in fails:
     print("  FAIL", f)

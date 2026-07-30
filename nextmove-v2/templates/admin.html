@@ -92,6 +92,7 @@ tr:hover td{background:var(--bg3)}
           <th>Email</th>
           <th>Plan</th>
           <th>Last seen</th>
+          <th>XP last session</th>
           <th>Logins</th>
           <th>XP</th>
           <th>Games</th>
@@ -180,7 +181,12 @@ function renderUsers(users){
       <td><span class="badge ${u.plan==='pro'?'badge-pro':'badge-free'}">${u.plan}</span>${
         u.plan==='pro' ? `<span class="badge ${u.paying?'badge-pro':'badge-free'}" style="margin-left:.3rem;opacity:.85">${u.paying?'paying':'comped'}</span>` : ''
       }</td>
-      <td style="color:${agoColor(u.last_seen)}" title="${u.last_seen?new Date(u.last_seen*1000).toLocaleString():'never signed in'}">${ago(u.last_seen)}</td>
+      <td style="color:${agoColor(u.last_seen)}" title="${u.last_seen?new Date(u.last_seen*1000).toLocaleString():'never signed in'}">${ago(u.last_seen)}${u.in_session?' <span style="opacity:.7">· online</span>':''}</td>
+      <td title="XP earned during their most recently finished visit">${
+        u.in_session && u.session_xp
+          ? `<span style="color:#2ecc71">+${u.session_xp}</span> <span style="color:var(--muted);font-size:.85em">now</span>`
+          : (u.last_session_xp ? '+'+u.last_session_xp : '<span style="color:var(--muted)">—</span>')
+      }</td>
       <td style="color:var(--muted)">${u.login_count||0}</td>
       <td>${u.xp}</td>
       <td>${u.games_count}</td>

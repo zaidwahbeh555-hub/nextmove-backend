@@ -2178,3 +2178,9 @@ body.blunder-open #page-coach #coach-panel{opacity:.12;pointer-events:none;trans
 /* It used to vanish entirely below 1280px — most laptop windows. Keep it. */
 @media(max-width:1280px){.cmdk-hint{display:block}}
 @media(max-width:820px){.cmdk-hint{display:none}}
+
+/* GM Forge cosmetic previews in the shop. Fixed aspect, never a flex child,
+   same rule as the mini boards. */
+.forge-mini{display:block;width:100%;aspect-ratio:200/220;max-height:200px;
+  background:var(--bg-panel-hi)}
+.shop-card-art .forge-mini{border-radius:0}

@@ -14,8 +14,15 @@ const PIECE_THEME = function(piece){
    Cosmetics.dir and declaration order has caused real bugs in this file. */
 const Cosmetics = {
   board:'midnight', pieces:'classic', dir:'', owned:null,
+  topper:'none', face:'none', outfit:'none',
   apply(c){
     if(!c) return;
+    // GM Forge's slots are plain ids; the art lives in FORGE_ART.
+    let forgeChanged = false;
+    ['topper','face','outfit'].forEach(k=>{
+      if(c[k] && c[k] !== this[k]){ this[k] = c[k]; forgeChanged = true; }
+    });
+    if(forgeChanged){ try{ applyForgeCosmetics(); }catch(e){} }
     if(c.light && c.dark){
       const root = document.documentElement.style;
       root.setProperty('--sq-light', c.light);
@@ -298,6 +305,158 @@ async function awardXP(amount,type,lessonId){
   if(fl){document.getElementById('xp-amount').textContent=amount;fl.classList.remove('hidden');setTimeout(()=>fl.classList.add('hidden'),2500);}
 }
 
+/* ── GM Forge cosmetics ─────────────────────────────────────────────────────
+   Art layered onto the coach's inline SVG (viewBox 0 0 200 220). Anchors that
+   matter: head is an ellipse at cx=100 cy=88 rx=44 ry=48, so its crown sits at
+   y=40 and the hair reaches y=30; the nose ends at y=106 and the mouth starts
+   at y=114, which is the only gap a moustache can occupy; the torso begins at
+   y=138. Everything here is drawn against those numbers rather than by eye.
+   Skin tones match the face: #eab387 lit, #e0a878 shadow, #dd9a68 deep. */
+const FORGE_SKIN = '#eab387', FORGE_SKIN_D = '#dd9a68', FORGE_SKIN_S = '#e0a878';
+
+const FORGE_ART = {
+  topper: {
+    none: '',
+    beanie:
+      '<path d="M58 44 C58 16 142 16 142 44 Z" fill="#C2483F"/>'+
+      '<path d="M56 42 H144 V52 A6 6 0 0 1 138 58 H62 A6 6 0 0 1 56 52 Z" fill="#E05A50"/>'+
+      '<circle cx="100" cy="14" r="9" fill="#F2EDE4"/>',
+    cap:
+      '<path d="M58 44 C58 18 142 18 142 44 Z" fill="#2F6BC4"/>'+
+      '<path d="M100 18 C118 18 134 26 140 40 L100 40 Z" fill="#3B7FD4"/>'+
+      '<path d="M56 42 H144 V50 H56 Z" fill="#24549B"/>'+
+      '<path d="M144 44 C160 44 168 50 168 56 L144 56 Z" fill="#24549B"/>'+
+      '<circle cx="100" cy="20" r="3.4" fill="#E8ECF5"/>',
+    party:
+      '<path d="M100 2 L124 48 H76 Z" fill="#5B6CFF"/>'+
+      '<path d="M100 2 L112 25 L88 25 Z" fill="#8A96FF"/>'+
+      '<circle cx="100" cy="4" r="7" fill="#FFD166"/>'+
+      '<circle cx="90" cy="36" r="3" fill="#FFD166"/><circle cx="110" cy="40" r="3" fill="#4ED6A1"/>'+
+      '<circle cx="100" cy="28" r="2.6" fill="#FF8FA3"/>',
+    cowboy:
+      '<path d="M40 46 C40 34 62 30 100 30 C138 30 160 34 160 46 C160 54 130 58 100 58 C70 58 40 54 40 46 Z" fill="#7A5334"/>'+
+      '<path d="M70 44 C70 14 130 14 130 44 Z" fill="#8C5F3C"/>'+
+      '<path d="M68 40 H132 V48 H68 Z" fill="#4A3320"/>'+
+      '<circle cx="118" cy="44" r="3.4" fill="#D8B26A"/>',
+    tophat:
+      '<ellipse cx="100" cy="40" rx="52" ry="8" fill="#14161F"/>'+
+      '<path d="M74 6 H126 V40 H74 Z" fill="#1B1E29"/>'+
+      '<ellipse cx="100" cy="6" rx="26" ry="5" fill="#232735"/>'+
+      '<path d="M74 28 H126 V37 H74 Z" fill="#5B6CFF"/>',
+    crown:
+      '<path d="M60 44 L60 20 L76 32 L88 12 L100 30 L112 12 L124 32 L140 20 L140 44 Z" fill="#E8B23C"/>'+
+      '<path d="M58 42 H142 V52 H58 Z" fill="#C9922A"/>'+
+      '<circle cx="88" cy="24" r="3.6" fill="#E5484D"/>'+
+      '<circle cx="112" cy="24" r="3.6" fill="#4ED6A1"/>'+
+      '<circle cx="100" cy="40" r="4" fill="#5B9DFF"/>'
+  },
+  face: {
+    none: '',
+    // Sits in the 106-114 gap between the nose and the mouth, curling upward
+    // past the cheeks so it reads at small sizes.
+    moustache:
+      '<path d="M100 108 C92 102 78 102 70 108 C64 112 64 120 70 121 C77 122 80 116 84 112 '+
+      'C89 108 95 108 100 111 C105 108 111 108 116 112 C120 116 123 122 130 121 '+
+      'C136 120 136 112 130 108 C122 102 108 102 100 108 Z" fill="#2a2018"/>',
+    beard:
+      '<path d="M60 92 C60 132 78 142 100 142 C122 142 140 132 140 92 '+
+      'C138 116 124 126 100 126 C76 126 62 116 60 92 Z" fill="#2a2018"/>'+
+      '<path d="M100 108 C93 103 80 103 73 108 C68 112 69 118 74 119 C80 120 83 115 87 112 '+
+      'C91 109 96 109 100 112 C104 109 109 109 113 112 C117 115 120 120 126 119 '+
+      'C131 118 132 112 127 108 C120 103 107 103 100 108 Z" fill="#3a2c20"/>',
+    shades:
+      '<path d="M62 86 H138 V90 H62 Z" fill="#14161F"/>'+
+      '<rect x="64" y="82" width="32" height="20" rx="7" fill="#14161F"/>'+
+      '<rect x="104" y="82" width="32" height="20" rx="7" fill="#14161F"/>'+
+      '<path d="M68 86 L78 86 L70 96 Z" fill="#3E4457" opacity=".8"/>'+
+      '<path d="M108 86 L118 86 L110 96 Z" fill="#3E4457" opacity=".8"/>',
+    monocle:
+      '<circle cx="116" cy="91" r="15" fill="#AFC8E8" opacity=".22"/>'+
+      '<circle cx="116" cy="91" r="15" fill="none" stroke="#D8B26A" stroke-width="3"/>'+
+      '<path d="M116 106 Q120 124 134 132" stroke="#D8B26A" stroke-width="2" fill="none"/>'
+  },
+  outfit: {
+    none: '',
+    hoodie:
+      '<path d="M8 220 C8 158 52 138 100 138 C148 138 192 158 192 220 Z" fill="#39415A"/>'+
+      '<path d="M64 142 C64 122 136 122 136 142 C120 150 80 150 64 142 Z" fill="#2C3348"/>'+
+      '<path d="M84 140 L100 156 L116 140 L112 172 L88 172 Z" fill="#2C3348"/>'+
+      '<path d="M92 152 L94 190" stroke="#E8ECF5" stroke-width="3.2" stroke-linecap="round"/>'+
+      '<path d="M108 152 L106 190" stroke="#E8ECF5" stroke-width="3.2" stroke-linecap="round"/>'+
+      '<circle cx="94" cy="192" r="2.6" fill="#E8ECF5"/><circle cx="106" cy="192" r="2.6" fill="#E8ECF5"/>',
+    // Sleeveless: bare shoulders and arms in skin tone, tank over the middle.
+    muscle:
+      '<path d="M8 220 C8 158 52 138 100 138 C148 138 192 158 192 220 Z" fill="'+FORGE_SKIN+'"/>'+
+      '<path d="M30 220 C30 176 44 152 62 144 L62 220 Z" fill="'+FORGE_SKIN_S+'"/>'+
+      '<path d="M170 220 C170 176 156 152 138 144 L138 220 Z" fill="'+FORGE_SKIN_S+'"/>'+
+      '<path d="M68 220 L68 154 C78 146 122 146 132 154 L132 220 Z" fill="#E8ECF5"/>'+
+      '<path d="M78 148 C84 168 116 168 122 148 L132 154 C124 178 76 178 68 154 Z" fill="'+FORGE_SKIN+'"/>'+
+      '<path d="M62 172 C56 182 56 196 62 206" stroke="'+FORGE_SKIN_D+'" stroke-width="2.4" fill="none"/>'+
+      '<path d="M138 172 C144 182 144 196 138 206" stroke="'+FORGE_SKIN_D+'" stroke-width="2.4" fill="none"/>',
+    tuxedo:
+      '<path d="M8 220 C8 158 52 138 100 138 C148 138 192 158 192 220 Z" fill="#14161F"/>'+
+      '<path d="M80 140 L100 150 L120 140 L118 220 L82 220 Z" fill="#F2F3F7"/>'+
+      '<path d="M82 140 L100 152 L84 186 L68 158 Z" fill="#1B1E29"/>'+
+      '<path d="M118 140 L100 152 L116 186 L132 158 Z" fill="#1B1E29"/>'+
+      '<path d="M100 148 L88 156 L94 164 L100 158 L106 164 L112 156 Z" fill="#1B1E29"/>'+
+      '<circle cx="100" cy="176" r="2.4" fill="#2A2E3C"/><circle cx="100" cy="194" r="2.4" fill="#2A2E3C"/>',
+    // Bare torso. Pecs and abs are drawn as shading strokes, not outlines, so
+    // he reads as built rather than diagrammed.
+    ripped:
+      '<path d="M8 220 C8 158 52 138 100 138 C148 138 192 158 192 220 Z" fill="'+FORGE_SKIN+'"/>'+
+      '<path d="M30 220 C30 176 44 152 62 144 L62 220 Z" fill="'+FORGE_SKIN_S+'"/>'+
+      '<path d="M170 220 C170 176 156 152 138 144 L138 220 Z" fill="'+FORGE_SKIN_S+'"/>'+
+      '<path d="M66 158 C76 176 96 178 100 168 C104 178 124 176 134 158" stroke="'+FORGE_SKIN_D+'" '+
+        'stroke-width="3" fill="none" stroke-linecap="round"/>'+
+      '<path d="M100 170 L100 214" stroke="'+FORGE_SKIN_D+'" stroke-width="2.6" stroke-linecap="round"/>'+
+      '<path d="M84 182 H116 M84 196 H116 M88 210 H112" stroke="'+FORGE_SKIN_D+'" '+
+        'stroke-width="2.2" stroke-linecap="round"/>'+
+      '<path d="M62 170 C55 182 55 198 62 208" stroke="'+FORGE_SKIN_D+'" stroke-width="2.4" fill="none"/>'+
+      '<path d="M138 170 C145 182 145 198 138 208" stroke="'+FORGE_SKIN_D+'" stroke-width="2.4" fill="none"/>'
+  }
+};
+
+// Paint the equipped Forge cosmetics into the placeholder groups.
+function applyForgeCosmetics(){
+  const set = (id, html)=>{ const g = document.getElementById(id); if(g) g.innerHTML = html || ''; };
+  set('forge-topper',   FORGE_ART.topper[Cosmetics.topper] || '');
+  set('forge-facewear', FORGE_ART.face[Cosmetics.face]     || '');
+  set('forge-outfit',   FORGE_ART.outfit[Cosmetics.outfit] || '');
+  // Any outfit draws its own torso, so the stock shirt must go or it shows
+  // through at the shoulders.
+  document.querySelectorAll('.forge-shirt').forEach(el=>{
+    el.style.display = (Cosmetics.outfit && Cosmetics.outfit !== 'none') ? 'none' : '';
+  });
+}
+
+// A standalone Forge portrait for shop previews: head, hair and the item.
+function forgePreview(kind, id){
+  const art = (FORGE_ART[kind] || {})[id] || '';
+  const showShirt = !(kind==='outfit' && id && id!=='none');
+  return '<svg class="forge-mini" viewBox="0 0 200 220" aria-hidden="true">'+
+    (showShirt
+      ? '<path d="M8 220 C8 158 52 138 100 138 C148 138 192 158 192 220 Z" fill="#243044"/>'+
+        '<path d="M82 140 L100 138 L118 140 L109 168 L91 168 Z" fill="#0f1520"/>'+
+        '<path d="M95 146 L105 146 L112 200 L100 212 L88 200 Z" fill="#3b7fd4"/>'
+      : '')+
+    (kind==='outfit' ? art : '')+
+    '<rect x="87" y="120" width="26" height="30" rx="11" fill="'+FORGE_SKIN_S+'"/>'+
+    '<ellipse cx="100" cy="88" rx="44" ry="48" fill="'+FORGE_SKIN+'"/>'+
+    '<circle cx="57" cy="90" r="8.5" fill="'+FORGE_SKIN_S+'"/>'+
+    '<circle cx="143" cy="90" r="8.5" fill="'+FORGE_SKIN_S+'"/>'+
+    '<path d="M56 84 C54 42 84 30 100 30 C116 30 146 42 144 84 C140 66 130 58 118 56 '+
+      'C122 62 122 70 120 74 C114 58 96 54 84 58 C82 66 82 72 84 76 C74 66 62 68 56 84 Z" fill="#2a2018"/>'+
+    '<g><ellipse cx="84" cy="91" rx="7.8" ry="8.8" fill="#F7F9FF"/><circle cx="85" cy="92" r="5.4" fill="#4A6FA5"/>'+
+    '<circle cx="85" cy="92" r="3.1" fill="#141821"/><circle cx="82.7" cy="89.3" r="1.3" fill="#FFFFFF" opacity=".95"/>'+
+    '<ellipse cx="116" cy="91" rx="7.8" ry="8.8" fill="#F7F9FF"/><circle cx="117" cy="92" r="5.4" fill="#4A6FA5"/>'+
+    '<circle cx="117" cy="92" r="3.1" fill="#141821"/><circle cx="114.7" cy="89.3" r="1.3" fill="#FFFFFF" opacity=".95"/></g>'+
+    '<path d="M100 95 L96 106 L104 106 Z" fill="'+FORGE_SKIN_D+'"/>'+
+    '<path d="M86 114 Q100 125 114 114" stroke="#b5673c" stroke-width="4.2" fill="none" stroke-linecap="round"/>'+
+    (kind==='face' ? art : '')+
+    (kind==='topper' ? art : '')+
+    '</svg>';
+}
+
 /* ── Shop ─────────────────────────────────────────────────────────────────── */
 const XP_RULE_LABELS = {
   puzzle_solved:'Solve a puzzle', drill_passed:'Pass a drill',
@@ -322,15 +481,18 @@ function shopMiniBoard(light, dark, dir){
   return '<div class="shop-mini">'+out.join('')+'</div>';
 }
 
+const SHOP_VERBS = {board:'Use these colours', pieces:'Use this set',
+                    topper:'Put it on', face:'Wear it', outfit:'Wear it'};
+
 function shopCard(kind, it, ctx){
-  const cur = kind==='board'
-    ? shopMiniBoard(it.light, it.dark, Cosmetics.dir)
-    : shopMiniBoard(ctx.light, ctx.dark, it.dir);
+  const cur = kind==='board'  ? shopMiniBoard(it.light, it.dark, Cosmetics.dir)
+            : kind==='pieces' ? shopMiniBoard(ctx.light, ctx.dark, it.dir)
+            :                   forgePreview(kind, it.id);
   // Free players get the action they wanted to take, worded plainly, and are
   // told why it did not happen only once they reach for it. A button that says
   // "Pro only" up front reads as a wall; one that says "Change colours" and
   // then explains reads as something they are one step away from.
-  const verb = kind==='board' ? 'Use these colours' : 'Use this set';
+  const verb = SHOP_VERBS[kind] || 'Equip';
   let action, locked = false;
   if(it.equipped)      action = '<button class="shop-btn is-on" disabled>Equipped</button>';
   else if(it.owned)    action = '<button class="shop-btn" onclick="shopEquip(\''+kind+'\',\''+it.id+'\')">'+verb+'</button>';
@@ -444,10 +606,10 @@ async function renderShop(){
     // The equipped board's colours are the backdrop for piece-set previews.
     const eqBoard = (d.board||[]).find(b=>b.equipped) || d.board[0];
     const ctx = {is_pro:d.is_pro, light:eqBoard.light, dark:eqBoard.dark, balance:d.balance};
-    const bEl = document.getElementById('shop-board');
-    const pEl = document.getElementById('shop-pieces');
-    if(bEl) bEl.innerHTML = (d.board||[]).map(it=>shopCard('board',it,ctx)).join('');
-    if(pEl) pEl.innerHTML = (d.pieces||[]).map(it=>shopCard('pieces',it,ctx)).join('');
+    ['board','pieces','topper','face','outfit'].forEach(kind=>{
+      const el = document.getElementById('shop-'+kind);
+      if(el) el.innerHTML = (d[kind]||[]).map(it=>shopCard(kind,it,ctx)).join('');
+    });
     const g = document.getElementById('shop-earn-grid');
     if(g) g.innerHTML = Object.keys(d.rules||{}).map(k=>
       '<div class="shop-earn-row"><span>'+(XP_RULE_LABELS[k]||k)+'</span><b>+'+d.rules[k]+'</b></div>').join('');
