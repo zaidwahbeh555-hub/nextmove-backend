@@ -2789,8 +2789,11 @@ function answerPremiumMCQ(chosen){
 /* ── Coach Page ───────────────────────────────────────────────────────────── */
 function setBotMode(mode){
   State.coachMode = mode;
-  document.getElementById('mode-coached').classList.toggle('active', mode==='coached');
-  document.getElementById('mode-free').classList.toggle('active', mode==='free');
+  // Null-guarded: this is reachable from the command palette now, not only from
+  // the two cards on the play screen.
+  const c=document.getElementById('mode-coached'), f=document.getElementById('mode-free');
+  if(c) c.classList.toggle('active', mode==='coached');
+  if(f) f.classList.toggle('active', mode==='free');
   Coach.speak(mode==='coached'
     ? 'Coached mode on — I\'ll talk you through every move.'
     : 'Free play — no hints. Just play.');
@@ -3044,8 +3047,17 @@ const CommandPalette = {
   items:[
     {icon:'ic-bolt',    label:'New Game',        key:'N', run:()=>window.startBotGame&&startBotGame()},
     {icon:'ic-coach',   label:'Play vs Computer', key:'',  run:()=>window.startBotGame&&startBotGame()},
+    // Mode was only switchable from the two cards on the play screen, which are
+    // out of sight once a game is under way. `on` marks the active one.
+    {icon:'ic-coach',   label:'Coached mode — GM Forge talks you through it', key:'',
+     on:()=>State.coachMode==='coached',
+     run:()=>{ showPage('coach'); setBotMode('coached'); }},
+    {icon:'ic-bolt',    label:'Free Play — silent, no coaching', key:'',
+     on:()=>State.coachMode!=='coached',
+     run:()=>{ showPage('coach'); setBotMode('free'); }},
     {icon:'ic-target',  label:'Training',         key:'T', run:()=>showPage('training')},
     {icon:'ic-puzzle',  label:'Puzzles',          key:'P', run:()=>showPage('puzzles')},
+    {icon:'ic-sliders', label:'Shop',             key:'',  run:()=>showPage('shop')},
     {icon:'ic-chart',   label:'Game Review',      key:'',  run:()=>{ const b=document.getElementById('analysis-btn'); if(b) b.click(); }},
     {icon:'ic-book',    label:'Lessons',          key:'',  run:()=>showPage('training')},
   ],
@@ -3088,10 +3100,14 @@ const CommandPalette = {
       return true;
     });
     const list=document.getElementById('cmdk-list'); if(!list) return;
-    list.innerHTML=this.filtered.map((it,i)=>
-      '<div class="cmdk-item'+(i===this.sel?' sel':'')+'" data-i="'+i+'">'+
+    list.innerHTML=this.filtered.map((it,i)=>{
+      let active=false;
+      if(it.on){ try{ active=!!it.on(); }catch(e){} }
+      return '<div class="cmdk-item'+(i===this.sel?' sel':'')+(active?' on':'')+'" data-i="'+i+'">'+
       '<svg class="ic"><use href="#'+it.icon+'"/></svg><span>'+esc(it.label)+'</span>'+
-      (it.key?'<span class="keycap">'+it.key+'</span>':'')+'</div>').join('');
+      (active?'<span class="cmdk-on">Active</span>':'')+
+      (it.key?'<span class="keycap">'+it.key+'</span>':'')+'</div>';
+    }).join('');
     list.querySelectorAll('.cmdk-item').forEach(r=>r.addEventListener('click',()=>{
       this.sel=+r.dataset.i; this.run();
     }));

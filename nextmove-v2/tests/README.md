@@ -11,6 +11,7 @@ node    tests/test_coach.js        # rebuilt coach render surfaces             (
 node    tests/test_gamesetup.js    # turn-indicator state machine              (7 checks)
 node    tests/test_cosmetics.js    # equipping repaints all boards; free vs Pro (27 checks)
 node    tests/test_cmdk.js         # the hint card can never be stranded       (15 checks)
+node    tests/test_palette.js      # command palette exposes the play modes    (17 checks)
 ```
 
 `test_cosmetics.py` re-checks every piece set against every board theme on both

@@ -2194,3 +2194,13 @@ body.blunder-open #page-coach #coach-panel{opacity:.12;pointer-events:none;trans
 /* Shop previews need the texture too, or a textured board looks flat on its
    own card. Set as an inline style by shopMiniBoard(). */
 .shop-mini i{background-repeat:repeat;background-size:auto}
+
+/* Command palette: mark which mode is currently on, so the two mode rows read
+   as a state you are switching rather than two identical actions. */
+/* .cmdk-item span sets flex:1 on every span, so the badge and the keycap have
+   to opt out or they split the row with the label. */
+.cmdk-item .cmdk-on,.cmdk-item .keycap{flex:0 0 auto}
+.cmdk-on{font-size:11px;font-weight:700;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--accent-text,var(--accent));
+  background:var(--accent-soft);border-radius:999px;padding:3px 9px}
+.cmdk-item.on .ic{color:var(--accent-text,var(--accent))}
