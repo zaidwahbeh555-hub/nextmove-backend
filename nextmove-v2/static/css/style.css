@@ -2204,3 +2204,51 @@ body.blunder-open #page-coach #coach-panel{opacity:.12;pointer-events:none;trans
   text-transform:uppercase;color:var(--accent-text,var(--accent));
   background:var(--accent-soft);border-radius:999px;padding:3px 9px}
 .cmdk-item.on .ic{color:var(--accent-text,var(--accent))}
+
+/* Dismiss button for the coach's pointing hand. The hand used to be waited out;
+   this lets it be waved away. Sits above the pointer layer, which is
+   pointer-events:none, so this is the only clickable thing in that space. */
+.forge-point-x{position:fixed;z-index:9100;width:26px;height:26px;border-radius:999px;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;
+  background:var(--bg-panel);border:1px solid var(--border-hi);color:var(--text-2);
+  padding:0;transition:all 120ms cubic-bezier(.32,.72,0,1)}
+.forge-point-x:hover{color:var(--text-1);border-color:var(--accent);background:var(--bg-panel-hi)}
+.forge-point-x .ic{width:13px;height:13px}
+.forge-point-x.hidden{display:none}
+
+/* ── Legal-move markers ─────────────────────────────────────────────────────
+   These were a dark dot at 32% opacity, which all but vanishes on the dark
+   boards and got worse once bright themes existed. The accent reads against
+   both ends of the range, and the thin contrasting outline guarantees the dot
+   separates from the square whatever colour it is sitting on. */
+.fb-dot{
+  width:26% !important;height:26% !important;
+  background:var(--accent) !important;
+  opacity:.92 !important;
+  box-shadow:0 0 0 2px rgba(255,255,255,.28), 0 1px 3px rgba(0,0,0,.45) !important;
+}
+.fb-light .fb-dot,.fb-dark .fb-dot{background:var(--accent) !important}
+/* Captures read as a ring around the piece rather than a dot on top of it. */
+.fb-ring{
+  border:5px solid var(--accent) !important;
+  opacity:.92 !important;
+  box-shadow:0 0 0 2px rgba(255,255,255,.22), inset 0 0 0 2px rgba(0,0,0,.25) !important;
+}
+@media(prefers-reduced-motion:reduce){.fb-dot,.fb-ring{animation:none !important}}
+
+/* Review rows carry the reason, not just the two move names. The row is no
+   longer a fixed-height line, so it has to align to the top. */
+.postgame-row{align-items:flex-start !important}
+.pg-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pg-arrow{color:var(--text-3)}
+.pg-why{margin:6px 0 0;font-size:13px;line-height:1.55;color:var(--text-2);max-width:70ch}
+.postgame-row .pg-detail{flex:1;min-width:0}
+
+/* Coach quiz shown beside the board instead of over it. */
+.cq-ask{font-size:14px;line-height:1.5;color:var(--text-1);margin-bottom:10px}
+.cq-opts{display:flex;flex-direction:column;gap:6px}
+.cq-fb{margin-top:10px;font-size:13px;line-height:1.55;color:var(--text-2)}
+.cq-fb.hidden{display:none}
+.coach-engage-btn.is-right{border-color:#2ecc71 !important;color:#2ecc71 !important}
+.coach-engage-btn.is-wrong{border-color:#e5484d !important;color:#e5484d !important}
+.coach-engage-btn:disabled{cursor:default;opacity:.85}

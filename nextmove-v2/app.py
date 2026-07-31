@@ -719,12 +719,28 @@ def analyse_game(pgn_text, engine, player_color=None):
         threat_desc = ""
         if sev == "blunder" and best_san:
             threat_desc = f"You played {san} but the position required {best_san}. Before moving, you should have asked: what is my opponent threatening? Is any of my pieces hanging?"
+        # Plain-English why, not just what. Computed from the position, so this
+        # needs no API key and cannot make anything up. Only worth the work on
+        # moves that actually cost something.
+        why = ""
+        if sev in ("blunder", "mistake", "inaccuracy") and best_san:
+            try:
+                # info_after's PV starts with the opponent's best reply -- the
+                # refutation. Naming it is most of what makes the explanation land.
+                reply_obj = (info_after.get("pv") or [None])[0]
+                reply_san = snap.copy()
+                reply_san.push(move)
+                reply_san = (reply_san.san(reply_obj)
+                             if reply_obj and reply_obj in reply_san.legal_moves else None)
+                why = explain_mistake(fen_before, san, best_san, reply_san, int(drop))
+            except Exception:
+                why = ""
         entry = dict(ply=ply,move_number=move_number,side=side,san=san,
                      fen_before=fen_before,fen_after=fen_after,
                      score_before=score_before,score_after=score_after,
                      eval_before=round(score_before/100,2) if score_before else None,
                      eval_after=round(score_after/100,2) if score_after else None,
-                     drop_cp=int(drop),severity=sev,pattern=pattern,
+                     drop_cp=int(drop),severity=sev,pattern=pattern,why=why,
                      phase=phase,best_move=best_san,threat_desc=threat_desc)
         moves_data.append(entry)
         is_analysed = (player_color is None) or (side == player_color)
@@ -4540,6 +4556,275 @@ def _fold_profile(user, dims):
     tp["updated"] = time.strftime("%Y-%m-%d")
     user["thinking_profile"] = tp
     return tp
+
+# ══ PLAIN-ENGLISH MISTAKE EXPLANATION ════════════════════════════════════════
+# The review used to print "Re1 engine: dxe5, -1.9" and stop. That is the what,
+# never the why, and nobody learns from it. Everything below is derived from the
+# position with python-chess -- no model, no API key -- so it works today and
+# cannot invent anything.
+
+def _what_hangs(board, color):
+    """{square: (piece, attackers, defenders)} for pieces attacked more than defended."""
+    out = {}
+    for sq in chess.SQUARES:
+        pc = board.piece_at(sq)
+        if not pc or pc.color != color or pc.piece_type == chess.KING:
+            continue
+        a = len(board.attackers(not color, sq)); d = len(board.attackers(color, sq))
+        if a > d:
+            out[chess.square_name(sq)] = (PIECE_NAMES.get(pc.piece_type, "piece"), a, d,
+                                          PIECE_VALS.get(pc.piece_type, 0))
+    return out
+
+def explain_mistake(fen, played_san, best_san, reply_san=None, loss_cp=0):
+    """Say, in words, what the played move actually cost.
+
+    Compares what was safe before the move with what is hanging after it, and
+    names the opponent's refutation when there is one.
+    """
+    try:
+        board = chess.Board(fen)
+    except Exception:
+        return ""
+    mover = board.turn
+    before = _what_hangs(board, mover)
+    try:
+        mv = board.parse_san(played_san)
+    except Exception:
+        return ""
+    board.push(mv)
+    after = _what_hangs(board, mover)
+
+    parts = []
+    # Something became loose that was fine a moment ago.
+    fresh = [(sq, v) for sq, v in after.items() if sq not in before]
+    if fresh:
+        fresh.sort(key=lambda kv: -kv[1][3])
+        sq, (name, a, d, _) = fresh[0]
+        parts.append("%s leaves your %s on %s attacked %d time%s and defended %d."
+                     % (played_san, name, sq, a, "" if a == 1 else "s", d))
+    elif played_san in before or any(mv.to_square == chess.parse_square(s) for s in after):
+        sq = chess.square_name(mv.to_square)
+        if sq in after:
+            name, a, d, _ = after[sq]
+            parts.append("%s puts your %s on a square where it is attacked %d time%s and "
+                         "defended %d." % (played_san, name, a, "" if a == 1 else "s", d))
+
+    # What they get to do about it.
+    if reply_san:
+        try:
+            rb = chess.Board(fen); rb.push(rb.parse_san(played_san))
+            rmv = rb.parse_san(reply_san)
+            cap = rb.piece_at(rmv.to_square)
+            rb.push(rmv)
+            if cap:
+                parts.append("They answer %s, winning your %s."
+                             % (reply_san, PIECE_NAMES.get(cap.piece_type, "piece")))
+            elif rb.attackers(not mover, mv.to_square):
+                # The piece just moved is now being chased: the classic "lost a
+                # tempo" mistake, which no material count would ever surface.
+                moved = board.piece_at(mv.to_square)
+                parts.append("They answer %s, hitting your %s on %s — you have to move it "
+                             "again and they develop for free."
+                             % (reply_san,
+                                PIECE_NAMES.get(moved.piece_type, "piece") if moved else "piece",
+                                chess.square_name(mv.to_square)))
+            elif rb.is_check():
+                parts.append("They answer %s with check, and you are moving your king "
+                             "instead of your plan." % reply_san)
+            else:
+                parts.append("They answer %s." % reply_san)
+        except Exception:
+            pass
+
+    if not parts:
+        # No material story -- describe it positionally rather than inventing one.
+        parts.append("%s is playable but it is not the most testing move here." % played_san)
+
+    if best_san:
+        parts.append("%s was the move." % best_san)
+    if loss_cp:
+        pawns = abs(float(loss_cp)) / 100.0
+        if pawns >= 0.8:
+            parts.append("The difference is about %.1f pawns." % pawns)
+    return " ".join(parts)
+
+# ══ GUIDED REASONING LADDER ══════════════════════════════════════════════════
+# "I don't know what to do here" is the state the coach was worst at. It used to
+# narrate an observation and move on. This walks the player through the actual
+# procedure instead -- count the attackers and defenders, decide whether anything
+# is actually loose, then choose a move -- and every rung is measured off the
+# real position, so it can never assert something that is not on the board.
+#
+# The board stays visible for all of it; nothing here dims or blocks it.
+
+def _ladder_material(board, color):
+    """Everything of `color` that is attacked, with its attacker/defender count."""
+    rows = []
+    for sq in chess.SQUARES:
+        pc = board.piece_at(sq)
+        if not pc or pc.color != color or pc.piece_type == chess.KING:
+            continue
+        att = board.attackers(not color, sq)
+        if not att:
+            continue
+        dfn = board.attackers(color, sq)
+        rows.append({
+            "square": chess.square_name(sq),
+            "piece": PIECE_NAMES.get(pc.piece_type, "piece"),
+            "value": PIECE_VALS.get(pc.piece_type, 0),
+            "attackers": len(att), "defenders": len(dfn),
+            "loose": len(att) > len(dfn),
+        })
+    rows.sort(key=lambda r: (not r["loose"], -r["value"]))
+    return rows
+
+def _ladder_options(engine, board, best_san, n=3):
+    """The right move plus plausible wrong ones, all legal, all real SAN."""
+    legal = list(board.legal_moves)
+    sans = []
+    for mv in legal:
+        try:
+            sans.append(board.san(mv))
+        except Exception:
+            pass
+    wrong = [s for s in sans if s != best_san]
+    # Prefer captures and checks as distractors: those are what a club player
+    # actually reaches for, so the answer cannot be found by elimination.
+    juicy = [s for s in wrong if "x" in s or "+" in s]
+    random.shuffle(juicy); random.shuffle(wrong)
+    picks = (juicy + wrong)[: max(0, n - 1)]
+    opts = [best_san] + picks
+    random.shuffle(opts)
+    return opts, opts.index(best_san)
+
+@app.route("/coach/ladder", methods=["POST"])
+@login_required
+def coach_ladder():
+    """A step-by-step think-it-through for the position on the board."""
+    d = request.get_json(silent=True) or {}
+    try:
+        board = chess.Board(d.get("fen") or chess.STARTING_FEN)
+    except Exception:
+        return jsonify({"error": "bad position"}), 400
+    if board.is_game_over():
+        return jsonify({"error": "game over"}), 400
+
+    me = board.turn
+    mine = _ladder_material(board, me)
+    theirs = _ladder_material(board, not me)
+    loose_mine = [r for r in mine if r["loose"]]
+    loose_theirs = [r for r in theirs if r["loose"]]
+
+    sf = find_stockfish()
+    if not sf:
+        return jsonify({"error": "engine unavailable"}), 503
+    engine = None
+    try:
+        engine = chess.engine.SimpleEngine.popen_uci(sf)
+        info = engine.analyse(board, chess.engine.Limit(depth=min(ANALYSIS_DEPTH, 14)))
+        pv = info.get("pv") or []
+        if not pv:
+            return jsonify({"error": "no line"}), 500
+        best_san = board.san(pv[0])
+        line = []
+        tmp = board.copy()
+        for mv in pv[:4]:
+            line.append(tmp.san(mv)); tmp.push(mv)
+        opts, answer = _ladder_options(engine, board, best_san)
+    except Exception as e:
+        print("ladder error:", e)
+        return jsonify({"error": "analysis failed"}), 500
+    finally:
+        if engine:
+            try: engine.quit()
+            except Exception: pass
+
+    steps = []
+
+    # 1 ─ Count. The numbers are shown, not claimed.
+    if mine or theirs:
+        counted = (mine + theirs)[:5]
+        steps.append({
+            "kind": "count",
+            "title": "Start by counting.",
+            "body": "Before anything else: what is attacked, and is it defended enough? "
+                    "Count the attackers, then the defenders.",
+            "rows": counted,
+            "point": [r["square"] for r in counted[:3]],
+        })
+    else:
+        steps.append({
+            "kind": "count",
+            "title": "Nothing is attacked yet.",
+            "body": "No piece on either side is under attack, so this is not a tactical "
+                    "position. That makes it a developing move: get a piece out, or take a "
+                    "square you want.",
+            "rows": [], "point": [],
+        })
+
+    # 2 ─ A yes/no the player answers themselves, with the truth known server-side.
+    if loose_mine:
+        r = loose_mine[0]
+        steps.append({
+            "kind": "yesno",
+            "title": "Is anything of yours actually loose?",
+            "body": "Loose means attacked more times than it is defended.",
+            "answer": True,
+            "why_yes": "Correct — your %s on %s is attacked %d time%s and defended %d. "
+                       "That is the thing to deal with first."
+                       % (r["piece"], r["square"], r["attackers"],
+                          "" if r["attackers"] == 1 else "s", r["defenders"]),
+            "why_no": "Look again — your %s on %s is attacked %d time%s and defended only %d."
+                      % (r["piece"], r["square"], r["attackers"],
+                         "" if r["attackers"] == 1 else "s", r["defenders"]),
+            "point": [r["square"]],
+        })
+        goal = ("Something of yours is hanging. You can defend it, move it, "
+                "or create a bigger threat somewhere else.")
+    elif loose_theirs:
+        r = loose_theirs[0]
+        steps.append({
+            "kind": "yesno",
+            "title": "Is anything of THEIRS loose?",
+            "body": "Same count, other side of the board.",
+            "answer": True,
+            "why_yes": "Yes — their %s on %s is attacked %d time%s and defended %d. "
+                       "That is yours to take."
+                       % (r["piece"], r["square"], r["attackers"],
+                          "" if r["attackers"] == 1 else "s", r["defenders"]),
+            "why_no": "Count again — their %s on %s is attacked %d and defended %d."
+                      % (r["piece"], r["square"], r["attackers"], r["defenders"]),
+            "point": [r["square"]],
+        })
+        goal = "They have left something hanging. Work out whether you can actually win it."
+    else:
+        steps.append({
+            "kind": "yesno",
+            "title": "Is anything loose for either side?",
+            "body": "Attacked more often than it is defended.",
+            "answer": False,
+            "why_yes": "Not quite — count again. Everything attacked is defended at least as often.",
+            "why_no": "Right. Nothing is hanging, so nothing is forced. That means you get to "
+                      "improve your position instead of reacting to theirs.",
+            "point": [],
+        })
+        goal = ("Nothing is forced, so the move is about improvement: develop a piece, "
+                "take a strong square, or make your king safer.")
+
+    # 3 ─ Now choose, with the board still in front of them.
+    steps.append({
+        "kind": "mcq",
+        "title": "So what do you play?",
+        "body": goal,
+        "options": opts,
+        "answer": answer,
+        "why_right": "Yes — %s. The line runs %s." % (best_san, " ".join(line)),
+        "why_wrong": "Not that one. Play through it in your head and see what they answer with.",
+        "point": [],
+    })
+
+    return jsonify({"ok": True, "steps": steps, "best": best_san, "line": line})
 
 @app.route("/candidates/review", methods=["POST"])
 @login_required

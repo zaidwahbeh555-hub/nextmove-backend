@@ -2308,7 +2308,11 @@ function pausePlayAnyway(){
   BotState.board.setPosition(BotState.game.fen(), {lastMove:BotState.lastPlayerMove, checkSquare:coachKingCheckSquare()});
   Coach.renderFeedback(d.commentary||'', d.severity||'');
   coachApplyMarks(d);
-  if(d.mcq && d.mcq.force){ setTimeout(()=>MCQ.open(d.mcq, null, true), 300); }
+  // The "what went wrong" quiz used to open forced, dimming the whole board the
+  // instant you chose to play on. You had already decided; interrogating you
+  // over a board you cannot see teaches nothing. It now goes in the coach panel
+  // beside the board, answerable or ignorable.
+  if(d.mcq){ try{ Coach.offerQuiz(d.mcq); }catch(e){} }
   checkBotGameOver();
   if(!BotState.game.game_over()) setTimeout(makeBotMove, 600);
 }
@@ -2931,6 +2935,13 @@ const ForgePointer = {
     document.querySelectorAll('.fb-sq--pointed').forEach(function(s){ s.classList.remove('fb-sq--pointed'); });
     sqEl.classList.add('fb-sq--pointed');
     this.active=true; this.lastSquare=square;
+    // A dismiss button parked on the pointed square, so the hand can always be
+    // waved away instead of waited out.
+    const xb=document.getElementById('forge-point-x');
+    if(xb){
+      xb.classList.remove('hidden');
+      xb.style.left=(g.cx+26)+'px'; xb.style.top=(g.cy-26)+'px';
+    }
     return true;
   },
   /* hold on A, then sweep to B without retracting: "this piece attacks this AND this" */
@@ -2951,6 +2962,7 @@ const ForgePointer = {
     clearTimeout(this.holdTimer);
     const arm=document.getElementById('forge-arm'), out=document.getElementById('forge-arm-out'), hand=document.getElementById('forge-hand');
     document.querySelectorAll('.fb-sq--pointed').forEach(function(s){ s.classList.remove('fb-sq--pointed'); });
+    const x=document.getElementById('forge-point-x'); if(x) x.classList.add('hidden');
     if(hand){ hand.style.transition='opacity .2s ease-in'; hand.style.opacity=0; }
     [out,arm].forEach(function(p){
       if(!p) return;
@@ -2962,6 +2974,10 @@ const ForgePointer = {
   }
 };
 window.ForgePointer = ForgePointer;
+document.addEventListener('click', function(e){
+  const x = e.target.closest && e.target.closest('#forge-point-x');
+  if(x){ e.preventDefault(); ForgePointer.retract(); }
+});
 window.addEventListener('resize', function(){
   ForgePointer.sync();
   if(ForgePointer.active && ForgePointer.lastSquare) ForgePointer.pointAt(ForgePointer.lastSquare, {sweep:true});
@@ -3536,6 +3552,39 @@ const Coach = (function(){
     fb.className = 'gm-feedback ' + (severity||'');
     fb.classList.remove('hidden');
   }
+  // A quiz offered beside the board rather than over it. The board stays fully
+  // visible and interactive, and the question can simply be ignored -- unlike
+  // the forced modal this replaces, which dimmed the position you needed to
+  // look at in order to answer.
+  function offerQuiz(q){
+    const el = document.getElementById('coach-engage');
+    if(!el || !q || !(q.options||[]).length) return;
+    const opts = (q.options||[]).map((o,i)=>
+      '<button class="coach-engage-btn" data-qi="'+i+'">'+esc(typeof o==='string'?o:(o.text||o.label||''))+'</button>'
+    ).join('');
+    el.innerHTML = '<div class="cq-ask">'+esc(q.question||q.prompt||'What went wrong there?')+'</div>'+
+                   '<div class="cq-opts">'+opts+'</div>'+
+                   '<div class="cq-fb hidden"></div>';
+    el.classList.remove('hidden');
+    const correct = (q.correct!=null) ? q.correct : q.answer;
+    el.querySelectorAll('.coach-engage-btn').forEach(b=>b.addEventListener('click',()=>{
+      const i = +b.dataset.qi;
+      const right = (i === correct);
+      el.querySelectorAll('.coach-engage-btn').forEach(x=>x.disabled = true);
+      b.classList.add(right ? 'is-right' : 'is-wrong');
+      if(!right && typeof correct === 'number'){
+        const c = el.querySelector('.coach-engage-btn[data-qi="'+correct+'"]');
+        if(c) c.classList.add('is-right');
+      }
+      const fb = el.querySelector('.cq-fb');
+      if(fb){
+        const why = right ? (q.why_right || q.explain || 'That is it.')
+                          : (q.why_wrong || q.explain || '');
+        if(why){ fb.textContent = why; fb.classList.remove('hidden'); }
+      }
+      try{ right ? ChessSFX.playSelect() : ChessSFX.playWrong(); }catch(e){}
+    }));
+  }
   function renderPositionBadge(type){
     const el = document.getElementById('coach-position-badge');
     if(!el) return;
@@ -3689,7 +3738,7 @@ const Coach = (function(){
     else CoachDialogue.start(d);   // hint/explain = single reveal; quiz = full ask -> reveal
     }catch(e){ setThinking(false); }
   }
-  return {afterBotMove, reviewPlayerMove, ask, reset, speak, renderQuestions, renderFeedback, setStatus, setThinking, renderPositionBadge, renderTheory};
+  return {afterBotMove, reviewPlayerMove, ask, reset, speak, renderQuestions, renderFeedback, setStatus, setThinking, renderPositionBadge, renderTheory, offerQuiz};
 })();
 
 /* Board lock — force engagement when an MCQ is open */
@@ -3849,7 +3898,12 @@ function renderPostgameResults(d){
   list.innerHTML = (d.mistakes||[]).slice(0,8).map(m=>`
     <div class="postgame-row ${esc(m.severity)}">
       <div class="pg-move">${m.move_number}.${m.side==='black'?'..':''}</div>
-      <div class="pg-detail"><span class="played">${esc(m.san)}</span>  engine: <span class="best">${esc(m.best_move||'?')}</span></div>
+      <div class="pg-detail">
+        <div class="pg-line"><span class="played">${esc(m.san)}</span>
+          <span class="pg-arrow">&rarr;</span>
+          <span class="best">${esc(m.best_move||'?')}</span></div>
+        ${m.why ? `<p class="pg-why">${esc(m.why)}</p>` : ''}
+      </div>
       <div class="pg-drop">−${(m.drop_cp/100).toFixed(1)}</div>
     </div>`).join('') || '<div style="color:var(--muted2);font-size:.88rem">No mistakes detected — well played!</div>';
   _postgamePuzzles = d.puzzles || [];
