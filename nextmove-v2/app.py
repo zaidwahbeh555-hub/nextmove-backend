@@ -34,6 +34,58 @@ MISTAKE_CP     = 100
 INACCURACY_CP  = 50
 MAX_GAMES      = 5
 FREE_DAILY_LIMIT = 1
+
+# ── Plans ────────────────────────────────────────────────────────────────────
+# The paid tier is called Grandmaster everywhere a human can see it. The stored
+# value stays "pro": it is what the Stripe webhook writes, what is already in
+# every existing account, and what is_pro() reads. Renaming the stored value
+# would silently revoke access for every current subscriber, so only the label
+# moves.
+PLAN_NAME      = "Grandmaster"
+FREE_PLAN_NAME = "Free"
+
+# What the free plan gets per day. Everything else is Grandmaster.
+FREE_COACHED_GAMES   = 1    # coached games per day
+FREE_PUZZLES         = 5    # puzzles per day
+FREE_LESSON_DRILLS   = 1    # exercises per lesson theme
+FREE_ANALYSIS        = 1    # deep analyses per day
+
+def _today(): return time.strftime("%Y-%m-%d")
+
+def usage(user, key):
+    """How many times `key` has been used today."""
+    u = user.get("usage") or {}
+    if u.get("day") != _today():
+        return 0
+    return int(u.get(key, 0))
+
+def bump_usage(user, key, n=1):
+    u = user.get("usage") or {}
+    if u.get("day") != _today():
+        u = {"day": _today()}
+    u[key] = int(u.get(key, 0)) + n
+    user["usage"] = u
+    return u[key]
+
+def quota_left(user, key, cap):
+    if is_pro(user):
+        return None                      # None means unlimited
+    return max(0, cap - usage(user, key))
+
+def quota_blocked(user, key, cap, what):
+    """Return an error payload if the free plan is out of `key` for today."""
+    if is_pro(user):
+        return None
+    used = usage(user, key)
+    if used < cap:
+        return None
+    return {
+        "error": "free_limit_reached",
+        "locked": key,
+        "message": "Free gives you %d %s a day, and you have used %s. %s is unlimited."
+                   % (cap, what, used, PLAN_NAME),
+        "upgrade": True, "limit": cap, "used": used, "plan": PLAN_NAME,
+    }
 STRIPE_SECRET  = os.environ.get("STRIPE_SECRET_KEY", "")
 STRIPE_WEBHOOK = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
 STRIPE_PRO_PRICE = os.environ.get("STRIPE_PRICE_ID", "")
@@ -998,7 +1050,7 @@ def shop_buy():
     user = get_user(current_user())
     if not user: return jsonify({"error": "User not found"}), 404
     if not is_pro(user):
-        return jsonify({"error": "The cosmetics shop is a Pro feature.", "need_pro": True}), 403
+        return jsonify({"error": "The cosmetics shop is a Grandmaster feature.", "need_pro": True}), 403
     d = request.get_json(silent=True) or {}
     kind, item_id = d.get("kind", ""), d.get("id", "")
     it = cosmetic_item(kind, item_id)
@@ -1034,7 +1086,7 @@ def shop_equip():
     # Free defaults stay equippable without Pro, so a lapsed subscriber is never
     # stuck looking at a board they can no longer change.
     if it["price"] > 0 and not is_pro(user):
-        return jsonify({"error": "Equipping paid cosmetics is a Pro feature.", "need_pro": True}), 403
+        return jsonify({"error": "Equipping paid cosmetics is a Grandmaster feature.", "need_pro": True}), 403
     cos["equipped"][kind] = item_id
     user["cosmetics"] = cos
     save_user(current_user(), user)
@@ -1193,7 +1245,7 @@ def analyse():
         if not is_pro(user):
             count=games_today(user)
             if count>=FREE_DAILY_LIMIT:
-                return jsonify({"error":"free_limit_reached","message":f"Free plan allows {FREE_DAILY_LIMIT} game analysis per day. Upgrade to Pro for unlimited analysis.","upgrade":True,"limit":FREE_DAILY_LIMIT,"used":count}),403
+                return jsonify({"error":"free_limit_reached","message":f"Free plan allows {FREE_DAILY_LIMIT} game analysis per day. Upgrade to Grandmaster for unlimited analysis.","upgrade":True,"limit":FREE_DAILY_LIMIT,"used":count}),403
     sf=find_stockfish()
     if not sf: return jsonify({"error":"Stockfish not found."}),500
     games_raw,buf=[],[]
@@ -1231,7 +1283,7 @@ def analyse():
 def create_checkout_session():
     u=current_user(); user=get_user(u)
     if not user: return jsonify({"error":"User not found"}),404
-    if is_pro(user): return jsonify({"error":"Already Pro!"}),400
+    if is_pro(user): return jsonify({"error":"Already on Grandmaster!"}),400
     email=user.get("email",""); price_id=STRIPE_PRO_PRICE; secret_key=STRIPE_SECRET
     app_url=os.environ.get("APP_URL","https://app.chessforge.org")
     if not price_id or not secret_key: return jsonify({"error":"Stripe not configured."}),500
@@ -1273,7 +1325,7 @@ def stripe_webhook():
                     mark_billing(user,"stripe"); upgraded=True; break
         if upgraded:
             save_db(db)
-            send_admin_email("New ChessForge Pro subscriber! ",f"User: {username or email}\nPlan: Pro ($%.2f %s/mo)" % (PRO_PRICE, PRO_CURRENCY) + f"\nTime: {time.strftime('%Y-%m-%d %H:%M')}\nEst revenue: ${monthly_revenue(db):.2f} {PRO_CURRENCY}/mo (paying subscribers only)")
+            send_admin_email("New ChessForge Grandmaster subscriber! ",f"User: {username or email}\nPlan: Pro ($%.2f %s/mo)" % (PRO_PRICE, PRO_CURRENCY) + f"\nTime: {time.strftime('%Y-%m-%d %H:%M')}\nEst revenue: ${monthly_revenue(db):.2f} {PRO_CURRENCY}/mo (paying subscribers only)")
     if etype=="customer.subscription.deleted":
         obj=event.get("data",{}).get("object",{}); email=obj.get("customer_email","")
         if email:
@@ -1473,7 +1525,7 @@ def cancel_subscription():
     u    = current_user()
     user = get_user(u)
     if not user: return jsonify({"error": "User not found"}), 404
-    if not is_pro(user): return jsonify({"error": "You are not on a Pro plan"}), 400
+    if not is_pro(user): return jsonify({"error": "You are not on a Grandmaster plan"}), 400
 
     secret_key = STRIPE_SECRET
     app_url    = os.environ.get("APP_URL", "https://app.chessforge.org")
@@ -3784,6 +3836,20 @@ def training_next():
     data = request.get_json(silent=True) or {}
     forced = data.get("pattern")
     now = int(time.time())
+    # Free gets one exercise per theme per day; Grandmaster drills a theme as
+    # many times as it takes.
+    if not is_pro(user):
+        theme = forced or "any"
+        key = "drill:" + str(theme)
+        if usage(user, key) >= FREE_LESSON_DRILLS:
+            return jsonify({"error": "free_limit_reached", "locked": "lesson",
+                            "plan": PLAN_NAME, "limit": FREE_LESSON_DRILLS,
+                            "message": "Free allows %d exercise per theme per day. %s repeats a "
+                                       "theme until it is automatic — which is the whole point of "
+                                       "spaced practice."
+                                       % (FREE_LESSON_DRILLS, PLAN_NAME)}), 403
+        bump_usage(user, key)
+        save_user(u, user)
     if forced and forced in tr["patterns"]:
         name = forced
     else:
@@ -4098,7 +4164,15 @@ def my_puzzles():
     try:
         db = load_db()
         rec = db.get(uname) or {}
-        return jsonify({"puzzles": rec.get("puzzles") or []})
+        all_p = rec.get("puzzles") or []
+        if is_pro(rec):
+            return jsonify({"puzzles": all_p, "locked": 0, "limit": None, "plan": PLAN_NAME})
+        # Free sees the first few and is told plainly how many are being held back.
+        shown = all_p[:FREE_PUZZLES]
+        return jsonify({"puzzles": shown, "locked": max(0, len(all_p) - len(shown)),
+                        "limit": FREE_PUZZLES, "plan": PLAN_NAME,
+                        "message": "Free gives you %d puzzles a day. %s unlocks every puzzle your "
+                                   "own games produce." % (FREE_PUZZLES, PLAN_NAME)})
     except Exception:
         return jsonify({"puzzles": []})
 
@@ -4332,7 +4406,7 @@ def ask_forge():
         return jsonify({"error": "Not logged in"}), 401
     if not is_pro(user):
         return jsonify({"error": "pro_required",
-                        "message": "Ask GM Forge is part of Pro. Upgrade to ask about any position "
+                        "message": "Ask GM Forge is part of Grandmaster. Upgrade to ask about any position "
                                    "in your games."}), 402
 
     d = request.get_json(force=True, silent=True) or {}
@@ -4762,6 +4836,67 @@ def _ladder_options(engine, board, best_san, n=3):
     opts = [best_san] + picks
     random.shuffle(opts)
     return opts, opts.index(best_san)
+
+@app.route("/coach/begin", methods=["POST"])
+@login_required
+def coach_begin():
+    """Claim one coached game. Free gets one a day; Grandmaster is unlimited.
+
+    Enforced here rather than in the browser so the limit is real.
+    """
+    u = current_user(); user = get_user(u)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+    if is_pro(user):
+        return jsonify({"ok": True, "unlimited": True, "plan": PLAN_NAME})
+    blocked = quota_blocked(user, "coached", FREE_COACHED_GAMES, "coached game")
+    if blocked:
+        blocked["message"] = ("You have used your free coached game for today. %s plays with GM "
+                              "Forge beside you every single game — that is where the improvement "
+                              "actually happens." % PLAN_NAME)
+        return jsonify(blocked), 403
+    left = FREE_COACHED_GAMES - bump_usage(user, "coached")
+    save_user(u, user)
+    return jsonify({"ok": True, "unlimited": False, "left": left,
+                    "limit": FREE_COACHED_GAMES, "plan": PLAN_NAME})
+
+@app.route("/plan/features")
+def plan_features():
+    """What each plan includes. One source of truth for every upgrade surface."""
+    user = get_user(current_user()) or {}
+    return jsonify({
+        "plan_name": PLAN_NAME, "free_name": FREE_PLAN_NAME,
+        "is_pro": is_pro(user), "price": PRO_PRICE, "currency": PRO_CURRENCY,
+        "rows": [
+            {"label": "Coached games with GM Forge",
+             "free": "1 per day", "pro": "Unlimited", "key": "coached"},
+            {"label": "Puzzles from your own games",
+             "free": "5 per day",  "pro": "Unlimited", "key": "puzzles"},
+            {"label": "Training exercises per theme",
+             "free": "1 per day",  "pro": "Unlimited", "key": "lesson"},
+            {"label": "Deep game analysis",
+             "free": None,         "pro": "Every game", "key": "analysis"},
+            {"label": "Ask GM Forge about any position",
+             "free": None,         "pro": "Included",   "key": "ask"},
+            {"label": "XP shop — board themes and piece sets",
+             "free": None,         "pro": "Included",   "key": "shop"},
+            {"label": "Dress GM Forge",
+             "free": None,         "pro": "Included",   "key": "cosmetics"},
+            {"label": "Trap Trainer — bot steers into your weaknesses",
+             "free": None,         "pro": "Included",   "key": "trap"},
+            {"label": "Thinking Profile — 13 cognitive dimensions",
+             "free": None,         "pro": "Included",   "key": "profile"},
+            {"label": "Candidate move review",
+             "free": None,         "pro": "Included",   "key": "candidates"},
+            {"label": "Progress tracking and rating estimate",
+             "free": "Basic",      "pro": "Full history", "key": "progress"},
+        ],
+        "usage": {
+            "coached": usage(user, "coached"),
+            "coached_limit": FREE_COACHED_GAMES,
+            "puzzles_limit": FREE_PUZZLES,
+        },
+    })
 
 @app.route("/coach/ladder", methods=["POST"])
 @login_required

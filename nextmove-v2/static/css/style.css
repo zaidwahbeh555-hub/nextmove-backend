@@ -2347,3 +2347,27 @@ body.rail-left-off.rail-right-off #page-coach .gm-gamebar{
   cursor:pointer}
 .ladder-next:hover{filter:brightness(1.08)}
 .ladder-next.hidden{display:none}
+
+/* ── Plan comparison ────────────────────────────────────────────────────────
+   Every row is a real, enforced limit read from /plan/features, so what the
+   wall claims and what the server does cannot drift apart. */
+.plan-compare{margin:20px 0 4px;border-top:1px solid var(--border);padding-top:16px}
+.pc-head,.pc-row{display:grid;grid-template-columns:1fr 92px 108px;gap:10px;align-items:center}
+.pc-head{padding:0 0 8px;font-size:11px;font-weight:700;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--text-3)}
+.pc-head span:nth-child(2),.pc-head span:nth-child(3){text-align:center}
+.pc-gm{color:var(--accent-text,var(--accent))}
+.pc-row{padding:7px 0;border-top:1px solid rgba(255,255,255,.04);font-size:13px}
+.pc-label{color:var(--text-2);line-height:1.4}
+.pc-row.is-locked .pc-label{color:var(--text-1)}
+.pc-yes{text-align:center;font-size:12px;color:var(--text-3);font-variant-numeric:tabular-nums}
+.pc-no{display:flex;align-items:center;justify-content:center;gap:4px;
+  font-size:11px;color:#e5484d;opacity:.85}
+.pc-no .ic{width:11px;height:11px}
+.pc-pro{text-align:center;font-size:12px;font-weight:700;
+  color:var(--accent-text,var(--accent));font-variant-numeric:tabular-nums}
+.pc-foot{margin:14px 0 0;font-size:12px;color:var(--text-2);text-align:center}
+@media(max-width:520px){
+  .pc-head,.pc-row{grid-template-columns:1fr 74px 84px;gap:6px}
+  .pc-label{font-size:12px}
+}

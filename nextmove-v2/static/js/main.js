@@ -287,7 +287,7 @@ function hideEl(id){const e=document.getElementById(id);if(e)e.classList.add('hi
 function setXP(val){
   State.xp=val;
   document.getElementById('xp-count').textContent=val;
-  document.getElementById('user-xp-label').textContent=(State.plan==='pro'?'Pro · ':'')+val+'XP';
+  document.getElementById('user-xp-label').textContent=(State.plan==='pro'?'GM · ':'')+val+'XP';
   document.getElementById('xp-fill').style.width=Math.min((val%500)/500*100,100)+'%';
 }
 async function awardXP(amount,type,lessonId){
@@ -738,7 +738,38 @@ async function showProGate(kind){
           .map(i=>({label:i.name, art:shopMiniBoard(i.light, i.dark, Cosmetics.dir)}));
     strip.innerHTML = picks.map(p=>
       '<figure class="pg-tile">'+p.art+'<figcaption>'+p.label+'</figcaption></figure>').join('');
+    renderPlanCompare();
   }catch(e){ console.error('showProGate failed:', e); }
+}
+
+// The side-by-side. Reads /plan/features so the wall and the product can never
+// drift apart -- the limits shown here are the ones actually enforced.
+let _planRows = null;
+async function renderPlanCompare(){
+  const box = document.getElementById('plan-compare');
+  if(!box) return;
+  try{
+    if(!_planRows){
+      const r = await fetch('/plan/features', {credentials:'include'});
+      if(!r.ok) return;
+      _planRows = await r.json();
+    }
+    const d = _planRows;
+    const cell = (v)=> v
+      ? '<span class="pc-yes">'+esc(v)+'</span>'
+      : '<span class="pc-no"><svg class="ic" aria-hidden="true"><use href="#ic-close"/></svg>Not included</span>';
+    box.innerHTML =
+      '<div class="pc-head"><span></span><span>Free</span><span class="pc-gm">'+esc(d.plan_name)+'</span></div>'+
+      d.rows.map(row=>
+        '<div class="pc-row'+(row.free?'':' is-locked')+'">'+
+          '<span class="pc-label">'+esc(row.label)+'</span>'+
+          cell(row.free)+
+          '<span class="pc-pro">'+esc(row.pro)+'</span>'+
+        '</div>').join('')+
+      '<p class="pc-foot">'+
+        d.rows.filter(r=>!r.free).length +
+        ' of these are switched off on Free right now.</p>';
+  }catch(e){ console.error('renderPlanCompare failed:', e); }
 }
 
 function closeProGate(){
@@ -925,7 +956,7 @@ function applySession(d){
       cancelBtn.id='cancel-sub-btn';
       cancelBtn.className='logout-btn';
       cancelBtn.style.marginBottom='.4rem';
-      cancelBtn.textContent='Cancel Pro';
+      cancelBtn.textContent='Cancel Grandmaster';
       cancelBtn.onclick=cancelSubscription;
       const homeBtn=document.querySelector('.home-btn');
       if(homeBtn)homeBtn.parentNode.insertBefore(cancelBtn,homeBtn);
@@ -2184,6 +2215,21 @@ function getEloFromAnalysis(){
 }
 
 function startBotGame(){
+  // Coached games are limited on Free. Claim one first — the server decides, so
+  // the limit is real rather than a thing the browser politely observes.
+  if(State.coachMode === 'coached' && State.loggedIn && State.plan !== 'pro'){
+    fetch('/coach/begin', {method:'POST', credentials:'include'})
+      .then(r=>r.json().then(d=>({ok:r.ok, d})))
+      .then(({ok, d})=>{
+        if(!ok && d && d.upgrade){
+          Coach.speak(d.message || 'That is your free coached game for today.');
+          try{ showProGate('coached'); }catch(e){}
+        } else if(d && d.left === 0){
+          Coach.speak('That is your last free coached game today. Make it count.');
+        }
+      })
+      .catch(e=>console.error('coach/begin failed:', e));
+  }
   BotState.playerColor = document.getElementById('bot-color').value;
   // Games start from the setup panel AND the command palette; hide from here
   // so both entry points leave the same UI state.
@@ -2809,8 +2855,8 @@ function renderPremiumLesson(){
       <div class="locked-lesson">
         <div class="locked-lesson-icon"></div>
         <h3>Personal Game Lessons</h3>
-        <p>Upgrade to Pro to unlock interactive lessons built directly from YOUR games — with multiple choice questions, personalised theory, and coaching from your actual mistakes.</p>
-        <button class="btn-cyan" onclick="goToPro()" style="width:auto;margin:0 auto">Upgrade to Pro </button>
+        <p>Grandmaster unlocks interactive lessons built from YOUR games — multiple choice questions, personalised theory, and coaching drawn from the mistakes you actually make.</p>
+        <button class="btn-cyan" onclick="goToPro()" style="width:auto;margin:0 auto">Upgrade to Grandmaster</button>
       </div>`;
     container.insertBefore(premDiv, container.firstChild);
     return;
