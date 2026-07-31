@@ -368,6 +368,18 @@ const Ladder = (function(){
   let steps = [], i = 0, answered = false;
 
   function el(){ return $('ladder'); }
+
+  // The position one move ago. Replayed rather than undone, because a board
+  // rebuilt from a FEN has no history to step back through.
+  function prevFen(){
+    try{
+      const h = BotState.game.history();
+      if(!h.length) return '';
+      const tmp = new Chess();
+      for(let n=0; n<h.length-1; n++) tmp.move(h[n]);
+      return tmp.fen();
+    }catch(e){ return ''; }
+  }
   function show(on){
     const l = el(), b = $('ladder-open');
     if(l) l.classList.toggle('hidden', !on);
@@ -375,14 +387,20 @@ const Ladder = (function(){
     if(!on && window.ForgePointer) ForgePointer.retract();
   }
 
-  async function open(){
+  // `about` lets the ladder open in response to something -- the opponent's
+  // last move, or a mistake -- so it starts from what just changed rather than
+  // from a cold count.
+  async function open(about){
     if(!BotState || !BotState.game){ return; }
     const btn = $('ladder-open');
     if(btn){ btn.disabled = true; btn.textContent = 'Reading the position…'; }
     try{
       const r = await fetch('/coach/ladder', {method:'POST', credentials:'include',
         headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({fen: BotState.game.fen()})});
+        body: JSON.stringify({fen: BotState.game.fen(),
+                              last_san: (about && about.last) || '',
+                              prev_fen: prevFen(),
+                              reason:   (about && about.reason) || ''})});
       const d = await r.json();
       if(!r.ok || !d.steps || !d.steps.length){
         if(btn) btn.textContent = "I don't know what to do here";
@@ -442,10 +460,24 @@ const Ladder = (function(){
         say(right ? s.why_right : s.why_wrong, right);
       });
     } else {
+      // 'count' and 'note' rungs are read-then-continue.
       opts.innerHTML = '';
-      next.textContent = 'Next';
+      next.textContent = (i < steps.length - 1) ? 'Next' : 'Got it';
       next.classList.remove('hidden');
     }
+  }
+
+  // Draw attention to the button without opening anything, for moments that are
+  // worth a look but not worth interrupting for.
+  function nudge(label){
+    const b = $('ladder-open');
+    if(!b || !el() || !el().classList.contains('hidden')) return;
+    if(label) b.dataset.label = label;
+    b.innerHTML = '<svg class="ic" aria-hidden="true"><use href="#ic-bulb"/></svg> ' +
+                  esc(label || "I don't know what to do here");
+    b.classList.add('is-calling');
+    clearTimeout(nudge._t);
+    nudge._t = setTimeout(()=>b.classList.remove('is-calling'), 6000);
   }
 
   function wire(box, cb){
@@ -481,12 +513,19 @@ const Ladder = (function(){
   }
 
   function init(){
-    const o = $('ladder-open'); if(o) o.addEventListener('click', open);
+    const o = $('ladder-open'); if(o) o.addEventListener('click', ()=>open());
     const x = $('ladder-close'); if(x) x.addEventListener('click', ()=>show(false));
     const n = $('ladder-next'); if(n) n.addEventListener('click', advance);
   }
-  function reset(){ steps=[]; i=0; show(false); }
-  return {init, open, reset};
+  function isOpen(){ const l = el(); return !!l && !l.classList.contains('hidden'); }
+  function reset(){
+    steps=[]; i=0; show(false);
+    const b = $('ladder-open');
+    if(b){ b.classList.remove('is-calling');
+           b.innerHTML = '<svg class="ic" aria-hidden="true"><use href="#ic-bulb"/></svg> '+
+                         "I don't know what to do here"; }
+  }
+  return {init, open, reset, nudge, isOpen};
 })();
 window.Ladder = Ladder;
 
@@ -2592,8 +2631,19 @@ function pausePlayAnyway(){
   checkBotGameOver();
   if(!BotState.game.game_over()) setTimeout(makeBotMove, 600);
 }
+// Take the move back and reason it out properly, rather than being told what
+// was wrong with it. Same walk-through the coach uses everywhere else.
+function pauseWalkThrough(){
+  if(BotState.game){ try{ BotState.game.undo(); }catch(e){} }
+  BotState.lastPlayerMove = null;
+  BotState.board.setPosition(BotState.game.fen(), {checkSquare:coachKingCheckSquare()});
+  rebuildBotHistory();
+  hidePause();
+  try{ Ladder.open({reason:'blunder'}); }catch(e){}
+}
 window.pauseTakeBack = pauseTakeBack;
 window.pausePlayAnyway = pausePlayAnyway;
+window.pauseWalkThrough = pauseWalkThrough;
 
 async function makeBotMove(){
   if(!BotState.gameActive || BotState.game.game_over()) return;
@@ -3948,6 +3998,18 @@ const Coach = (function(){
     setStatus('Coach is asking…');
     if(d && d.intensity){ GameLog.record(d, (BotState.game && BotState.game.history().length)||0); CoachMoment.start(d); }
     else CoachDialogue.start(d);
+    // Being walked through the reasoning beats being told a fact, so a real
+    // moment offers the walk-through rather than only a line. Critical moments
+    // open it; lesser ones light the button and leave the choice alone.
+    try{
+      if(!Ladder.isOpen()){
+        if(d.intensity === 'critical'){
+          Ladder.open({last:lastBotSan||'', reason:'moment'});
+        } else if(d.intensity === 'notable'){
+          Ladder.nudge('Something changed — walk me through it');
+        }
+      }
+    }catch(e){}
   }
   // Review the move the player just made. On a blunder/mistake, PAUSE (red overlay)
   // and hold the bot's reply until the player decides. Otherwise, play on.

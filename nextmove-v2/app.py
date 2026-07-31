@@ -4942,6 +4942,45 @@ def coach_ladder():
 
     steps = []
 
+    # 0 ─ When it opens in response to something -- the opponent's move, or a
+    # mistake just made -- start from that rather than from a cold count. Being
+    # walked through why the position changed is the whole point.
+    last_san = (d.get("last_san") or "").strip()
+    reason = (d.get("reason") or "").strip()
+    if last_san:
+        # The position before their move has to be supplied: this board was
+        # rebuilt from a FEN, so its move stack is empty and pop() would throw.
+        gained = ""
+        prev_fen = (d.get("prev_fen") or "").strip()
+        try:
+            if prev_fen:
+                was = _what_hangs(chess.Board(prev_fen), me)
+                now_loose = {k: v for k, v in _what_hangs(board, me).items() if k not in was}
+                if now_loose:
+                    sq, (nm, a, dd, _) = sorted(now_loose.items(), key=lambda kv: -kv[1][3])[0]
+                    gained = ("It attacked your %s on %s, which is now hit %d time%s and defended "
+                              "%d." % (nm, sq, a, "" if a == 1 else "s", dd))
+                else:
+                    gained = ("Nothing of yours became loose, so this is a positioning move rather "
+                              "than a direct threat. Work out which square or line it is going after.")
+        except Exception:
+            gained = ""
+        steps.append({
+            "kind": "note",
+            "title": "They played %s. What changed?" % last_san,
+            "body": (gained or "Work out what that move is actually going after before you reply.")
+                    + " Go through it properly.",
+            "rows": [], "point": [],
+        })
+    elif reason == "blunder":
+        steps.append({
+            "kind": "note",
+            "title": "Hold on. Let us go through this one.",
+            "body": "That move costs something. Rather than being told what, work it out in the "
+                    "same order every strong player does.",
+            "rows": [], "point": [],
+        })
+
     # 1 ─ Count. The numbers are shown, not claimed.
     if mine or theirs:
         counted = (mine + theirs)[:5]

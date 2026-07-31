@@ -153,6 +153,38 @@ check('right rail folds independently',
   check('closing retracts the pointer', pointed.includes('retract'));
   check('the open button returns', !els['ladder-open']._c.has('hidden'));
 
+  // ── opening about something sends the context along ───────────────────────
+  global.Chess = function(){ return {history:()=>['e4','e5','Qf3'], move(){}, fen:()=>'prevfen'}; };
+  BotState.game.history = ()=>['e4','e5','Qf3'];
+  await Ladder.open({last:'Qf3', reason:'moment'});
+  const body = JSON.parse(fetched.opts.body);
+  check('the opponent move is sent', body.last_san === 'Qf3', body.last_san);
+  check('the reason is sent', body.reason === 'moment', body.reason);
+  check('the previous position is sent, not derived by popping a FEN board',
+        typeof body.prev_fen === 'string', JSON.stringify(body.prev_fen));
+
+  // ── nudge lights the button without opening anything ──────────────────────
+  els['ladder-close'].click();                       // close it first
+  Ladder.nudge('Something changed — walk me through it');
+  check('nudge lights the button', els['ladder-open']._c.has('is-calling'));
+  check('nudge relabels it', /walk me through/i.test(els['ladder-open'].innerHTML),
+        els['ladder-open'].innerHTML);
+  check('nudge does not open the ladder', els['ladder']._c.has('hidden'));
+  check('isOpen reports closed', Ladder.isOpen() === false);
+
+  // a nudge must not fight an already-open ladder
+  await Ladder.open();
+  els['ladder-open']._c.delete('is-calling');
+  Ladder.nudge('should be ignored');
+  check('nudge is ignored while the ladder is open', !els['ladder-open']._c.has('is-calling'));
+  check('isOpen reports open', Ladder.isOpen() === true);
+
+  // reset puts the label back
+  Ladder.reset();
+  check('reset restores the default label',
+        /don't know what to do/i.test(els['ladder-open'].innerHTML), els['ladder-open'].innerHTML);
+  check('reset clears the call-out', !els['ladder-open']._c.has('is-calling'));
+
   console.log(`\n  ${pass}/${total} passed`);
   process.exit(pass===total ? 0 : 1);
 })();
