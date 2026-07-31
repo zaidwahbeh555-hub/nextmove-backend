@@ -908,6 +908,7 @@ document.getElementById('login-btn').addEventListener('click',async()=>{
     const r=await fetch('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p}),credentials:'include'});
     const d=await r.json();if(d.error){err.textContent=d.error;return;}
     applySession(d);hideAuthModal();
+    try{ UpgradeIntent.run(); }catch(e){}
   }catch(e){err.textContent='Connection error. Please try again.';}
 });
 
@@ -923,6 +924,7 @@ document.getElementById('register-btn').addEventListener('click',async()=>{
     const r=await fetch('/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,email:em,password:p}),credentials:'include'});
     const d=await r.json();if(d.error){err.textContent=d.error;return;}
     applySession(d);hideAuthModal();
+    try{ UpgradeIntent.run(); }catch(e){}
   }catch(e){err.textContent='Connection error. Please try again.';}
 });
 
@@ -980,9 +982,56 @@ async function checkSession(){
     const r=await fetch('/auth/me',{credentials:'include'});
     const d=await r.json();
     if(d.loggedIn)applySession(d);else showAuthModal();
+    try{ UpgradeIntent.run(); }catch(e){}
   }catch(e){showAuthModal();}
   return true;
 }
+
+/* ── Arriving from the landing page's "Become a Grandmaster" ─────────────────
+   The link lands here with ?upgrade=1. If they are already signed in, open the
+   account menu and draw the eye to the upgrade button. If they are not, the
+   intent is parked in sessionStorage and honoured once they finish signing up —
+   otherwise the login detour would quietly swallow what they came to do. */
+const UpgradeIntent = {
+  KEY: 'cf_upgrade_intent',
+  wanted(){
+    try{
+      const q = new URLSearchParams(location.search);
+      if(q.get('upgrade') === '1' || location.hash === '#upgrade') return true;
+      return sessionStorage.getItem(this.KEY) === '1';
+    }catch(e){ return false; }
+  },
+  park(){ try{ sessionStorage.setItem(this.KEY, '1'); }catch(e){} },
+  clear(){ try{ sessionStorage.removeItem(this.KEY); }catch(e){} },
+  // Tidy the URL so a refresh does not reopen the menu forever.
+  scrub(){
+    try{
+      if(location.search.indexOf('upgrade=') === -1 && location.hash !== '#upgrade') return;
+      const u = new URL(location.href);
+      u.searchParams.delete('upgrade');
+      if(u.hash === '#upgrade') u.hash = '';
+      history.replaceState(null, '', u.pathname + u.search);
+    }catch(e){}
+  },
+  run(){
+    if(!this.wanted()) return;
+    if(!State.loggedIn){ this.park(); showAuthModal(); return; }
+    this.clear(); this.scrub();
+    // Already a member: nothing to sell them.
+    if(State.plan === 'pro'){ return; }
+    setTimeout(()=>{
+      const menu = document.getElementById('tb-menu');
+      const btn  = document.getElementById('upgrade-btn');
+      if(menu) menu.classList.remove('hidden');
+      if(btn){
+        btn.classList.add('is-calling');
+        btn.scrollIntoView({block:'nearest'});
+        setTimeout(()=>btn.classList.remove('is-calling'), 4200);
+      }
+    }, 700);   // let the board and session settle first
+  }
+};
+window.UpgradeIntent = UpgradeIntent;
 
 /* ── Plan / Upgrade ───────────────────────────────────────────────────────── */
 async function goToPro(){
