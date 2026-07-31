@@ -2252,3 +2252,98 @@ body.blunder-open #page-coach #coach-panel{opacity:.12;pointer-events:none;trans
 .coach-engage-btn.is-right{border-color:#2ecc71 !important;color:#2ecc71 !important}
 .coach-engage-btn.is-wrong{border-color:#e5484d !important;color:#e5484d !important}
 .coach-engage-btn:disabled{cursor:default;opacity:.85}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RETRACTABLE RAILS + THINK-IT-THROUGH
+   The play screen spread coaching across a left rail, a strip above the board
+   and a right panel, so the eye had to travel and nothing had room. Either side
+   folds away now and the board takes the space back.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* #page-coach hides every layout child that is not the board or the side panel,
+   so these have to be re-shown explicitly or they never appear at all. */
+#page-coach .gm-layout > .rail-toggle{display:flex!important}
+.rail-toggle{position:fixed;top:50%;transform:translateY(-50%);z-index:60;
+  width:22px;height:52px;align-items:center;justify-content:center;cursor:pointer;
+  background:var(--bg-panel);border:1px solid var(--border);color:var(--text-3);
+  padding:0;transition:all 120ms cubic-bezier(.32,.72,0,1)}
+.rail-toggle:hover{color:var(--text-1);border-color:var(--accent);background:var(--bg-panel-hi)}
+.rail-toggle .ic{width:14px;height:14px;transition:transform 240ms cubic-bezier(.32,.72,0,1)}
+.rail-toggle--left{left:0;border-left:none;border-radius:0 8px 8px 0}
+.rail-toggle--right{right:0;border-right:none;border-radius:8px 0 0 8px}
+/* The chevron always points the way the panel will go. */
+body.rail-left-off  .rail-toggle--left  .ic{transform:rotate(180deg)}
+body.rail-right-off .rail-toggle--right .ic{transform:rotate(180deg)}
+
+body.rail-left-off  #page-coach .crail{display:none!important}
+body.rail-right-off #page-coach .gm-side,
+body.rail-right-off #page-coach #coach-panel{display:none!important}
+
+/* With both folded away the board can take real space. Width only, on an
+   element that is already a fixed-ratio square — no flex, no new container. */
+body.rail-left-off.rail-right-off #page-coach .gm-board-wrap,
+body.rail-left-off.rail-right-off #page-coach .eval-strip,
+body.rail-left-off.rail-right-off #page-coach .gm-gamebar{
+  width:min(76vh,840px,92vw)}
+
+/* Give the open panels more breathing room than 300/320. */
+#page-coach .gm-side,#page-coach #coach-panel{width:352px}
+#page-coach .crail{width:320px}
+@media(max-width:1400px){
+  #page-coach .gm-side,#page-coach #coach-panel{width:312px;margin-left:28px}
+  #page-coach .crail{width:280px;margin-right:24px}
+}
+
+/* ── Think it through ──────────────────────────────────────────────────── */
+.ladder-open{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;
+  padding:12px 16px;border-radius:12px;border:1px dashed var(--border-hi);background:transparent;
+  color:var(--text-2);font-family:inherit;font-size:13px;font-weight:500;cursor:pointer;
+  margin-bottom:14px;transition:all 120ms cubic-bezier(.32,.72,0,1)}
+.ladder-open:hover{color:var(--text-1);border-color:var(--accent);
+  background:var(--accent-soft);border-style:solid}
+.ladder-open .ic{width:16px;height:16px}
+.ladder-open:disabled{opacity:.6;cursor:default}
+.ladder-open.hidden{display:none}
+
+.ladder{background:var(--bg-panel);border:1px solid var(--accent);border-radius:12px;
+  padding:16px;margin-bottom:14px}
+.ladder.hidden{display:none}
+.ladder-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.ladder-step{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--accent-text,var(--accent))}
+.ladder-x{background:none;border:none;color:var(--text-3);cursor:pointer;padding:2px;
+  display:flex;align-items:center}
+.ladder-x:hover{color:var(--text-1)}
+.ladder-x .ic{width:14px;height:14px}
+.ladder-title{font-size:15px;font-weight:700;color:var(--text-1);margin:0 0 6px;line-height:1.35}
+.ladder-body{font-size:13px;line-height:1.6;color:var(--text-2);margin:0 0 12px}
+
+.ladder-rows{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+.ladder-rows.hidden{display:none}
+.lrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 10px;border-radius:8px;
+  background:rgba(255,255,255,.03);font-size:12px;color:var(--text-2)}
+.lrow.is-loose{background:rgba(229,72,77,.12);border:1px solid rgba(229,72,77,.32)}
+.lrow-pc{font-weight:600;color:var(--text-1);text-transform:capitalize}
+.lrow-n{font-variant-numeric:tabular-nums}
+.lrow-tag{margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.06em;
+  text-transform:uppercase;color:#e5484d}
+
+.ladder-opts{display:flex;flex-direction:column;gap:6px}
+.ladder-opts:empty{display:none}
+.lopt{width:100%;padding:10px 14px;border-radius:8px;border:1px solid var(--border-hi);
+  background:transparent;color:var(--text-1);font-family:inherit;font-size:13px;
+  text-align:left;cursor:pointer;transition:all 120ms cubic-bezier(.32,.72,0,1)}
+.lopt:hover:not(:disabled){border-color:var(--accent);background:var(--accent-soft)}
+.lopt:disabled{cursor:default}
+.lopt.is-right{border-color:#2ecc71;color:#2ecc71}
+.lopt.is-wrong{border-color:#e5484d;color:#e5484d}
+
+.ladder-fb{font-size:13px;line-height:1.6;margin:12px 0 0;color:var(--text-2)}
+.ladder-fb.hidden{display:none}
+.ladder-fb.ok{color:#7fe0a8}
+.ladder-fb.no{color:var(--text-2)}
+.ladder-next{margin-top:12px;width:100%;padding:10px;border-radius:999px;border:none;
+  background:var(--accent);color:#0D0D14;font-family:inherit;font-size:13px;font-weight:700;
+  cursor:pointer}
+.ladder-next:hover{filter:brightness(1.08)}
+.ladder-next.hidden{display:none}

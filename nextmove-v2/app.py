@@ -328,7 +328,8 @@ def mark_billing(user, source):
 def monthly_revenue(db):
     return sum(1 for u in db.values() if is_paying(u)) * PRO_PRICE
 
-PRO_PRICE = 9
+PRO_PRICE = 19.99          # CAD. The amount Stripe actually charges is set by
+PRO_CURRENCY = "CAD"       # STRIPE_PRICE_ID, not here -- keep the two in step.
 
 # Last activity. /auth/me fires once per page load, so this is a good enough
 # heartbeat without writing to the database on every request.
@@ -1093,7 +1094,7 @@ def admin_users():
     week=sum(1 for u in users if u["last_seen"] and now-u["last_seen"]<604800)
     return jsonify({"users":users,"total":total,"pro":pro,"free":total-pro,
                     "paying":paying,"comped":pro-paying,
-                    "revenue":paying*PRO_PRICE,"price":PRO_PRICE,
+                    "revenue":round(paying*PRO_PRICE,2),"price":PRO_PRICE,"currency":PRO_CURRENCY,
                     "active_24h":day,"active_7d":week,"now":now})
 
 @app.route("/admin/set-plan", methods=["POST"])
@@ -1150,7 +1151,7 @@ Free Users: {total-pro}
 New Today: {new_today}
 Active (24h): {active_24h}
 Active (7d): {active_7d}
-Monthly Revenue: ${paying*PRO_PRICE}/mo  — paying subscribers only, comped Pro excluded
+Monthly Revenue: ${paying*PRO_PRICE:.2f} {PRO_CURRENCY}/mo  — paying subscribers only, comped Pro excluded
 
 Recent Users:
 """
@@ -1272,7 +1273,7 @@ def stripe_webhook():
                     mark_billing(user,"stripe"); upgraded=True; break
         if upgraded:
             save_db(db)
-            send_admin_email("New ChessForge Pro subscriber! ",f"User: {username or email}\nPlan: Pro ($9/mo)\nTime: {time.strftime('%Y-%m-%d %H:%M')}\nEst revenue: ${monthly_revenue(db)}/mo (paying subscribers only)")
+            send_admin_email("New ChessForge Pro subscriber! ",f"User: {username or email}\nPlan: Pro ($%.2f %s/mo)" % (PRO_PRICE, PRO_CURRENCY) + f"\nTime: {time.strftime('%Y-%m-%d %H:%M')}\nEst revenue: ${monthly_revenue(db):.2f} {PRO_CURRENCY}/mo (paying subscribers only)")
     if etype=="customer.subscription.deleted":
         obj=event.get("data",{}).get("object",{}); email=obj.get("customer_email","")
         if email:
@@ -1608,7 +1609,13 @@ def coach_position():
                 pass
         light = dict(ctx)
         light.update({"opp_san": last_san or "that move", "opp_to": opp_to or "that square",
-                      "opp_piece": opp_piece, "best": best_san or "the engine move"})
+                      "opp_piece": opp_piece, "best": best_san or "the engine move",
+                      # How far into the game we are, so the triviality gate in
+                      # socratic_guard can tell an opening truism from a real
+                      # positional point later on. Derived from the move counter
+                      # rather than move_stack, which is empty on a board rebuilt
+                      # from a FEN -- as this one always is.
+                      "ply": ply_from_board(board)})
 
         # QUIET — a coach watches most of the time. He speaks here only when
         # something he has been tracking is worth raising; otherwise he says
@@ -2407,6 +2414,49 @@ def line_is_clean(text):
     t = (text or "").lower()
     return not any(b in t for b in BANNED_PHRASES)
 
+# Observations that are true but worthless. "Your rook is the worst piece on the
+# board" on move 2 is correct and tells the player nothing -- of course it is,
+# they have not developed yet. line_is_concrete() waves these through because
+# they name a piece and use real vocabulary, so triviality needs its own gate.
+TRIVIAL_OPENING = re.compile(
+    r"\b(?:worst|least active|inactive|passive|undeveloped|not developed|"
+    r"has not moved|hasn't moved|still on its starting|doing nothing|"
+    r"needs developing|needs to develop|out of play|asleep|"
+    # counting up how many pieces are still on the back rank early is the same
+    # non-observation in a different costume
+    r"at home|still at home|on (?:its|their) starting square|back rank still)\b", re.I)
+
+# A line is allowed to say these things once there is a real position to say
+# them about -- roughly once both sides are out of the book.
+TRIVIAL_UNTIL_PLY = 16          # first eight moves each
+
+def ply_from_board(board):
+    """Half-moves played, read off the move counter so it survives a FEN."""
+    try:
+        n = (board.fullmove_number - 1) * 2
+        return n if board.turn == chess.WHITE else n + 1
+    except Exception:
+        return None
+
+def line_is_worth_saying(text, ply=None):
+    """Reject observations that are trivially true for where the game is.
+
+    Only applies in the opening. The same sentence on move 25 is a genuine
+    positional point and is left alone.
+    """
+    if not text:
+        return False
+    if ply is None or ply > TRIVIAL_UNTIL_PLY:
+        return True
+    if TRIVIAL_OPENING.search(text):
+        return False
+    # "Develop a piece" during the opening is the definition of unhelpful: it is
+    # what every opening move already is.
+    if re.search(r"\b(?:develop(?:ing|ment)?|get (?:your )?pieces? out|"
+                 r"bring (?:a|your) piece)\b", text, re.I) and ply <= 8:
+        return False
+    return True
+
 def pick_line(pool, ctx=None, recent=None):
     """Randomised, non-repeating (last 20) selection with placeholder fill."""
     if not pool: return ""
@@ -2546,9 +2596,13 @@ def factual_line(board, level, ctx, played_moves):
     mat = total_non_king_material(board)
     if mat <= 14:
         facts.append(f"Only {mat} points of material left. Endgame rules now — where does your king belong?")
-    if n <= 8 and undeveloped_count(board, me) >= 2:
-        facts.append(f"You still have {undeveloped_count(board, me)} minor pieces at home on move {n}. "
-                     f"Which one develops with tempo?")
+    # This used to fire on move 2 with "you still have 4 minor pieces at home",
+    # which is true of literally every game at move 2 and teaches nothing. It is
+    # only information once development is genuinely behind.
+    if n >= 9 and undeveloped_count(board, me) >= 3:
+        facts.append(f"It is move {n} and {undeveloped_count(board, me)} of your minor pieces have "
+                     f"still not moved. That is the thing costing you, not the move you are "
+                     f"looking at. Which one gets out with tempo?")
 
     if facts:
         random.shuffle(facts)
@@ -2899,10 +2953,21 @@ def _names_move(text, best_san):
 def socratic_guard(text, best_san, ctx=None, topic="threat"):
     """Rewrite anything that gives the answer away into a question or a nudge.
 
+    Also the single chokepoint for triviality: every line the server emits comes
+    through here, so an opening-phase truism is caught once rather than in each
+    of the places that can generate one.
+
     Returns coaching text that raises awareness without ever naming the move."""
+    ctx = ctx or {}
+    ply = ctx.get("ply")
+    if not line_is_worth_saying(text, ply):
+        # Say something about the actual position instead, or say nothing.
+        sq = ctx.get("sq") or ctx.get("tsq")
+        if sq:
+            return _fmt(gm_phrase(ATTENTION_LINES["square"]), {"sq": sq, "piece": "piece"})
+        return ""
     if not _names_move(text, best_san):
         return text
-    ctx = ctx or {}
     sq = ctx.get("sq") or ctx.get("tsq") or ctx.get("fsq")
     piece = ctx.get("piece") or ctx.get("tpiece")
     # Prefer pointing at the board when we know where to point.

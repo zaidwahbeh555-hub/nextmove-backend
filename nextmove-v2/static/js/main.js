@@ -309,6 +309,187 @@ async function awardXP(amount,type,lessonId){
   if(fl){document.getElementById('xp-amount').textContent=amount;fl.classList.remove('hidden');setTimeout(()=>fl.classList.add('hidden'),2500);}
 }
 
+/* ── Retractable side rails ──────────────────────────────────────────────────
+   The play screen puts coaching in three places at once — a rail on the left, a
+   strip above the board and a panel on the right — so the eye has to travel and
+   the board gets squeezed. Either side can now be folded away, the board takes
+   the space back, and the choice is remembered. Nothing is destroyed by
+   collapsing; the panel is still in the DOM and still updating. */
+const Rails = (function(){
+  const KEY = 'cf_rails';
+  let state = {left:true, right:true};
+
+  function load(){
+    try{ const s = JSON.parse(localStorage.getItem(KEY)||'null');
+      if(s && typeof s.left === 'boolean') state = s;
+    }catch(e){}
+  }
+  function save(){ try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
+
+  function apply(){
+    document.body.classList.toggle('rail-left-off',  !state.left);
+    document.body.classList.toggle('rail-right-off', !state.right);
+    const l = document.getElementById('crail-toggle');
+    const r = document.getElementById('side-toggle');
+    if(l){ l.setAttribute('aria-label', state.left ? 'Hide the thinking rail' : 'Show the thinking rail');
+           l.title = l.getAttribute('aria-label'); }
+    if(r){ r.setAttribute('aria-label', state.right ? 'Hide the coach panel' : 'Show the coach panel');
+           r.title = r.getAttribute('aria-label'); }
+    // The pointer arm is drawn against live geometry, so it has to be redrawn
+    // once the board has moved.
+    setTimeout(()=>{ try{
+      if(window.ForgePointer && ForgePointer.active && ForgePointer.lastSquare)
+        ForgePointer.pointAt(ForgePointer.lastSquare, {sweep:true});
+    }catch(e){} }, 300);
+  }
+  function toggle(side){ state[side] = !state[side]; save(); apply(); }
+
+  function init(){
+    load(); apply();
+    const l = document.getElementById('crail-toggle');
+    const r = document.getElementById('side-toggle');
+    if(l) l.addEventListener('click', ()=>toggle('left'));
+    if(r) r.addEventListener('click', ()=>toggle('right'));
+  }
+  return {init, toggle};
+})();
+window.Rails = Rails;
+
+/* ── Think it through ────────────────────────────────────────────────────────
+   The answer to "I have no idea what to do here". Rather than narrating an
+   observation, it walks the actual procedure: count the attackers and
+   defenders, decide whether anything is genuinely loose, then choose. Every
+   number comes from the server, measured off the real position.
+
+   The board is never dimmed, covered or moved during any of it — the whole
+   point is to look at the position while thinking about it. */
+const Ladder = (function(){
+  const $ = (id)=>document.getElementById(id);
+  let steps = [], i = 0, answered = false;
+
+  function el(){ return $('ladder'); }
+  function show(on){
+    const l = el(), b = $('ladder-open');
+    if(l) l.classList.toggle('hidden', !on);
+    if(b) b.classList.toggle('hidden', on);
+    if(!on && window.ForgePointer) ForgePointer.retract();
+  }
+
+  async function open(){
+    if(!BotState || !BotState.game){ return; }
+    const btn = $('ladder-open');
+    if(btn){ btn.disabled = true; btn.textContent = 'Reading the position…'; }
+    try{
+      const r = await fetch('/coach/ladder', {method:'POST', credentials:'include',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({fen: BotState.game.fen()})});
+      const d = await r.json();
+      if(!r.ok || !d.steps || !d.steps.length){
+        if(btn) btn.textContent = "I don't know what to do here";
+        return;
+      }
+      steps = d.steps; i = 0; show(true); render();
+    }catch(e){ console.error('ladder failed:', e); }
+    finally{
+      if(btn){ btn.disabled = false; btn.innerHTML =
+        '<svg class="ic" aria-hidden="true"><use href="#ic-bulb"/></svg> I don\'t know what to do here'; }
+    }
+  }
+
+  function render(){
+    const s = steps[i]; if(!s) return;
+    answered = false;
+    $('ladder-step').textContent = (i+1) + ' of ' + steps.length;
+    $('ladder-title').textContent = s.title || '';
+    $('ladder-body').textContent = s.body || '';
+    const fb = $('ladder-fb'); fb.classList.add('hidden'); fb.textContent = '';
+    const next = $('ladder-next'); next.classList.add('hidden');
+
+    // Counting table — the numbers, shown rather than asserted.
+    const rows = $('ladder-rows');
+    if(s.kind === 'count' && (s.rows||[]).length){
+      rows.innerHTML = s.rows.map(r=>
+        '<div class="lrow'+(r.loose?' is-loose':'')+'">'+
+          '<span class="lrow-pc">'+esc(r.piece)+' '+esc(r.square)+'</span>'+
+          '<span class="lrow-n">'+r.attackers+' attacking</span>'+
+          '<span class="lrow-n">'+r.defenders+' defending</span>'+
+          (r.loose?'<span class="lrow-tag">loose</span>':'')+
+        '</div>').join('');
+      rows.classList.remove('hidden');
+    } else { rows.innerHTML=''; rows.classList.add('hidden'); }
+
+    // Point at what is being discussed.
+    if((s.point||[]).length && window.ForgePointer){
+      if(s.point.length > 1) ForgePointer.sequence(s.point, 850);
+      else ForgePointer.pointAt(s.point[0]);
+    } else if(window.ForgePointer){ ForgePointer.retract(); }
+
+    const opts = $('ladder-opts');
+    if(s.kind === 'yesno'){
+      opts.innerHTML = '<button class="lopt" data-v="1">Yes</button>'+
+                       '<button class="lopt" data-v="0">No</button>';
+      wire(opts, (v)=>{
+        const right = (!!+v) === !!s.answer;
+        mark(opts, v, s.answer ? '1' : '0');
+        say(right ? (s.answer ? s.why_yes : s.why_no) : (s.answer ? s.why_yes : s.why_no), right);
+      });
+    } else if(s.kind === 'mcq'){
+      opts.innerHTML = (s.options||[]).map((o,n)=>
+        '<button class="lopt" data-v="'+n+'">'+esc(o)+'</button>').join('');
+      wire(opts, (v)=>{
+        const right = (+v === s.answer);
+        mark(opts, v, String(s.answer));
+        say(right ? s.why_right : s.why_wrong, right);
+      });
+    } else {
+      opts.innerHTML = '';
+      next.textContent = 'Next';
+      next.classList.remove('hidden');
+    }
+  }
+
+  function wire(box, cb){
+    box.querySelectorAll('.lopt').forEach(b=>b.addEventListener('click',()=>{
+      if(answered) return;
+      answered = true;
+      cb(b.dataset.v);
+    }));
+  }
+  function mark(box, chosen, correct){
+    box.querySelectorAll('.lopt').forEach(b=>{
+      b.disabled = true;
+      if(b.dataset.v === correct) b.classList.add('is-right');
+      else if(b.dataset.v === chosen) b.classList.add('is-wrong');
+    });
+  }
+  function say(text, right){
+    const fb = $('ladder-fb');
+    fb.textContent = text || '';
+    // Explicit rather than relying on a className reassignment to drop .hidden
+    // as a side effect.
+    fb.classList.remove('hidden', 'ok', 'no');
+    fb.classList.add(right ? 'ok' : 'no');
+    const next = $('ladder-next');
+    if(i < steps.length - 1){ next.textContent = 'Next'; next.classList.remove('hidden'); }
+    else { next.textContent = 'Got it'; next.classList.remove('hidden'); }
+    try{ right ? ChessSFX.playSelect() : ChessSFX.playWrong(); }catch(e){}
+  }
+
+  function advance(){
+    if(i < steps.length - 1){ i++; render(); }
+    else show(false);
+  }
+
+  function init(){
+    const o = $('ladder-open'); if(o) o.addEventListener('click', open);
+    const x = $('ladder-close'); if(x) x.addEventListener('click', ()=>show(false));
+    const n = $('ladder-next'); if(n) n.addEventListener('click', advance);
+  }
+  function reset(){ steps=[]; i=0; show(false); }
+  return {init, open, reset};
+})();
+window.Ladder = Ladder;
+
 /* ── GM Forge cosmetics ─────────────────────────────────────────────────────
    Art layered onto the coach's inline SVG (viewBox 0 0 200 220). Anchors that
    matter: head is an ellipse at cx=100 cy=88 rx=44 ry=48, so its crown sits at
@@ -792,10 +973,10 @@ function showUpgradePrompt(msg){
     <h2 style="font-size:1.4rem;font-weight:700;margin-bottom:.5rem;color:#22E5FF">Upgrade to Grandmaster</h2>
     <p style="color:#666680;font-size:.9rem;margin-bottom:1.5rem">${msg||'You have reached your free plan limit. Upgrade for unlimited analysis.'}</p>
     <div style="background:#18181f;border:1px solid #2a2a3a;border-radius:10px;padding:1.2rem;margin-bottom:1.5rem;text-align:left">
-      <div style="color:#22E5FF;font-weight:700;font-size:1.1rem;margin-bottom:.8rem">Grandmaster — $9/mo</div>
+      <div style="color:#22E5FF;font-weight:700;font-size:1.1rem;margin-bottom:.8rem">Grandmaster — $19.99 CAD/mo</div>
       ${['Unlimited game analysis','Full psychological profiling','Custom drill generation','Blunder pattern tracking','Opening repertoire fixes'].map(f=>`<div style="color:#e8e8f0;font-size:.85rem;padding:.2rem 0"> ${f}</div>`).join('')}
     </div>
-    <button onclick="document.getElementById('upgrade-prompt').remove();goToPro()" style="width:100%;background:#22E5FF;color:#0D0D14;border:none;border-radius:10px;padding:.85rem;font-weight:700;font-size:.95rem;cursor:pointer;margin-bottom:.8rem">Get Pro Access — $9/mo </button>
+    <button onclick="document.getElementById('upgrade-prompt').remove();goToPro()" style="width:100%;background:#22E5FF;color:#0D0D14;border:none;border-radius:10px;padding:.85rem;font-weight:700;font-size:.95rem;cursor:pointer;margin-bottom:.8rem">Get Pro Access — $19.99 CAD/mo </button>
     <button onclick="document.getElementById('upgrade-prompt').remove()" style="background:transparent;border:none;color:#666680;font-size:.82rem;cursor:pointer;text-decoration:underline">Maybe later</button>
   </div>`;
   document.body.appendChild(div);
@@ -3162,6 +3343,7 @@ window.CoachQueue = CoachQueue;
 
 document.addEventListener('DOMContentLoaded',function(){
   try{ MoveRail.init(); CommandPalette.init(); EvalBar.draw(); }catch(e){}
+  try{ Ladder.init(); Rails.init(); }catch(e){}
 });
 
 /* ══════════ CoachMoment — sequenced dialogue, tile-tap, MCQ, help, stop sign ══════════ */
@@ -5184,6 +5366,7 @@ const CoachRail = (function(){
       if(stepIdx > 0){ stepIdx--; showStep(); }
     } else if(act === 'stop'){ stopWalk(false); }
     else if(act === 'pick'){ judge(val); }
+    else if(act === 'unsure'){ notSure(); }
   }
   function stopWalk(finished){
     if(BotState.board) BotState.board.setPosition(BotState.game.fen(), {animate:false});
@@ -5192,26 +5375,67 @@ const CoachRail = (function(){
     else if(finished) say('Now try the other one, so you can compare them.');
   }
 
+  // How many times they have said "not sure". The answer is only ever revealed
+  // on the second one, and only after a fuller explanation has been offered.
+  let unsure = 0;
+
   function askWhichBest(){
     if(Object.keys(seen).length < previews.length) return;   // walk them all first
-    say('You have seen both play out. Which do you think was better?',
+    unsure = 0;
+    say('You have watched both play out. Which one do you think was better?',
         previews.map(c=>'<button class="cs-b" data-act="pick" data-val="'
-                        + esc(c.move) + '">' + esc(c.move) + '</button>').join(''));
+                        + esc(c.move) + '">' + esc(c.move) + '</button>').join('')
+        + '<button class="cs-b ghost" data-act="unsure">I am not sure</button>');
   }
+
+  function options(extra){
+    return previews.map(c=>'<button class="cs-b" data-act="pick" data-val="'
+                    + esc(c.move) + '">' + esc(c.move) + '</button>').join('') + (extra||'');
+  }
+
+  // Said "not sure": explain harder, then reveal — never straight to the answer.
+  function notSure(){
+    unsure++;
+    const best = previews.reduce((a,b)=> b.eval > a.eval ? b : a);
+    if(unsure === 1){
+      const other = previews.find(c=>c.move !== best.move);
+      let t = 'Then compare them on one thing only: after each move, what does he get to do? ';
+      if(other && other.reply) t += 'Against ' + other.move + ' he plays ' + other.reply + '. ';
+      if(best.reply)          t += 'Against ' + best.move + ' he plays ' + best.reply + '. ';
+      t += 'Which of those two positions would you rather be in?';
+      say(t, options('<button class="cs-b ghost" data-act="unsure">Still not sure</button>'));
+      return;
+    }
+    // Second time: give it, and say why, once more and concretely.
+    const diff = Math.abs((best.eval||0) - Math.min(...previews.map(c=>c.eval||0)));
+    let t = best.move + ' was the better move.';
+    if(best.reply) t += ' He has to answer ' + best.reply + ', and that leaves you comfortable.';
+    if(diff >= 0.5) t += ' The gap between the two is about ' + diff.toFixed(1) + ' pawns.';
+    t += ' The habit worth keeping: pick the move whose worst reply you are happiest to face.';
+    say(t, '<button class="cs-b ghost" data-act="stop">Back to the game</button>');
+  }
+
   function judge(move){
     const best = previews.reduce((a,b)=> b.eval > a.eval ? b : a);
     const chosen = previews.find(c=>c.move === move);
     if(!chosen) return;
     if(chosen.move === best.move){
-      say('Good choice — ' + chosen.move + ' holds up best. You worked that out yourself.');
-    } else {
-      say('Close. Look again at what he answered ' + chosen.move + ' with — ' +
-          (chosen.reply || 'his reply') + '. Does that change your mind?',
-          '<button class="cs-b" data-act="pick" data-val="' + esc(best.move) + '">Rethink</button>');
+      say('Right — ' + chosen.move + ' holds up best, and you worked that out by watching it '
+        + 'rather than being told.',
+        '<button class="cs-b ghost" data-act="stop">Back to the game</button>');
+      return;
     }
+    // Wrong: send them back to the evidence. The old version put the correct
+    // move inside the "Rethink" button, so clicking it handed over the answer.
+    unsure++;
+    if(unsure >= 2){ notSure(); return; }
+    say('Not quite. Look again at what he answered ' + chosen.move + ' with — '
+      + (chosen.reply || 'his reply') + '. Play it forward one more move in your head: '
+      + 'what has he gained by then?',
+      options('<button class="cs-b ghost" data-act="unsure">I am still not sure</button>'));
   }
 
-  function reset(){ previews = []; lastFen = null; walkIdx = -1; stepIdx = 0; seen = {};
+  function reset(){ previews = []; lastFen = null; walkIdx = -1; stepIdx = 0; seen = {}; unsure = 0;
     const l=$('crail-cand-list'); if(l) l.innerHTML='';
     const c=$('crail-cands'); if(c) c.classList.add('hidden');
     const it=$('crail-items'); if(it) it.innerHTML='';
