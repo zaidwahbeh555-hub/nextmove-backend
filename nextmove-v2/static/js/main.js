@@ -696,6 +696,133 @@ function forgePreview(kind, id){
   else init();
 })();
 
+/* ── Rating trajectory ───────────────────────────────────────────────────────
+   One series, so no legend — the caption names it. A 2px line over a gradient
+   area, a recessive grid, and a crosshair with a tooltip, which a line chart
+   gets by default. The draw-in is a one-off on render, not a loop: the point is
+   to make improvement feel like something, not to fidget.
+
+   Colours were checked against the panel rather than picked: the line at 4.4:1,
+   the up/down chips at 8.9:1 and 4.7:1, the grid deliberately recessive. */
+const Traj = (function(){
+  const W = 1000, H = 380, PAD = {t:26, r:18, b:34, l:52};
+
+  function esc2(t){ return String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+  function render(history){
+    const svg = document.getElementById('traj-svg');
+    const empty = document.getElementById('traj-empty');
+    const fig = document.querySelector('.traj-figure');
+    if(!svg) return;
+    // Solo games are the honest measurement, and only those carry a rating.
+    const pts = (history||[]).filter(h=>h && h.mode === 'solo' && +h.elo > 0)
+                             .map(h=>({elo:+h.elo, d:h.d||'', acpl:+h.acpl||0,
+                                       blunders:+h.blunders||0, result:h.result||''}));
+    const enough = pts.length >= 2;
+    if(empty) empty.classList.toggle('hidden', enough);
+    if(fig)   fig.classList.toggle('hidden', !enough);
+    if(!enough){ svg.innerHTML = ''; return; }
+
+    const lo0 = Math.min(...pts.map(p=>p.elo)), hi0 = Math.max(...pts.map(p=>p.elo));
+    const span = Math.max(hi0 - lo0, 60);                 // never a flat, misleading line
+    const lo = lo0 - span * 0.25, hi = hi0 + span * 0.25;
+    const x = i => PAD.l + (W - PAD.l - PAD.r) * (pts.length === 1 ? 0.5 : i / (pts.length - 1));
+    const y = v => PAD.t + (H - PAD.t - PAD.b) * (1 - (v - lo) / (hi - lo));
+
+    // Grid: four recessive lines with their values, so the scale is readable
+    // without a number on every point.
+    let grid = '', ticks = '';
+    for(let g = 0; g <= 3; g++){
+      const v = lo + (hi - lo) * (g / 3), yy = y(v);
+      grid  += '<line class="tj-grid" x1="'+PAD.l+'" y1="'+yy+'" x2="'+(W-PAD.r)+'" y2="'+yy+'"/>';
+      ticks += '<text class="tj-tick" x="'+(PAD.l-10)+'" y="'+(yy+4)+'" text-anchor="end">'
+             + Math.round(v) + '</text>';
+    }
+
+    const line = pts.map((p,i)=>(i?'L':'M') + x(i).toFixed(1) + ' ' + y(p.elo).toFixed(1)).join(' ');
+    const area = line + ' L ' + x(pts.length-1).toFixed(1) + ' ' + (H-PAD.b)
+               + ' L ' + x(0).toFixed(1) + ' ' + (H-PAD.b) + ' Z';
+    const dots = pts.map((p,i)=>
+      '<circle class="tj-dot" data-i="'+i+'" cx="'+x(i).toFixed(1)+'" cy="'+y(p.elo).toFixed(1)+'" r="4"/>'
+    ).join('');
+    // Generous invisible hit targets — bigger than the mark, as they should be.
+    const hits = pts.map((p,i)=>
+      '<rect class="tj-hit" data-i="'+i+'" x="'+(x(i)-14)+'" y="'+PAD.t+'" width="28" height="'+(H-PAD.t-PAD.b)+'"/>'
+    ).join('');
+
+    const up = pts[pts.length-1].elo >= pts[0].elo;
+    svg.innerHTML =
+      '<defs>'
+      + '<linearGradient id="tjFill" x1="0" y1="0" x2="0" y2="1">'
+      +   '<stop offset="0" stop-color="var(--accent)" stop-opacity=".34"/>'
+      +   '<stop offset="1" stop-color="var(--accent)" stop-opacity="0"/>'
+      + '</linearGradient>'
+      + '<filter id="tjGlow" x="-20%" y="-40%" width="140%" height="180%">'
+      +   '<feGaussianBlur stdDeviation="5" result="b"/><feMerge>'
+      +   '<feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>'
+      + '</filter>'
+      + '</defs>'
+      + grid + ticks
+      // Inline rather than via CSS so the fill does not depend on the
+      // stylesheet resolving a same-document gradient reference.
+      + '<path class="tj-area" fill="url(#tjFill)" d="'+area+'"/>'
+      + '<line class="tj-cross hidden" id="tj-cross" y1="'+PAD.t+'" y2="'+(H-PAD.b)+'"/>'
+      + '<path class="tj-line'+(up?' is-up':'')+'" id="tj-line" d="'+line+'" filter="url(#tjGlow)"/>'
+      + dots + hits;
+
+    // Draw it on once. stroke-dasharray on the real length so it traces out.
+    const path = document.getElementById('tj-line');
+    try{
+      const len = path.getTotalLength();
+      path.style.strokeDasharray = len; path.style.strokeDashoffset = len;
+      if(!window.matchMedia || !matchMedia('(prefers-reduced-motion: reduce)').matches){
+        requestAnimationFrame(()=>{
+          path.style.transition = 'stroke-dashoffset 1100ms cubic-bezier(.32,.72,0,1)';
+          path.style.strokeDashoffset = 0;
+        });
+      } else { path.style.strokeDashoffset = 0; }
+    }catch(e){}
+
+    wireHover(svg, pts, x, y);
+    return {first:pts[0].elo, last:pts[pts.length-1].elo, n:pts.length};
+  }
+
+  function wireHover(svg, pts, x, y){
+    const tip = document.getElementById('traj-tip');
+    const cross = document.getElementById('tj-cross');
+    svg.querySelectorAll('.tj-hit').forEach(function(r){
+      r.addEventListener('mouseenter', function(){
+        const i = +r.dataset.i, p = pts[i];
+        svg.querySelectorAll('.tj-dot').forEach(d=>d.classList.toggle('on', +d.dataset.i === i));
+        if(cross){ cross.setAttribute('x1', x(i)); cross.setAttribute('x2', x(i)); cross.classList.remove('hidden'); }
+        if(!tip) return;
+        const prev = i > 0 ? pts[i-1].elo : null;
+        const dv = prev == null ? null : p.elo - prev;
+        tip.innerHTML = '<b>' + p.elo + '</b>'
+          + (dv == null ? '' : '<i class="' + (dv >= 0 ? 'up' : 'down') + '">'
+              + (dv >= 0 ? '+' : '') + dv + '</i>')
+          + '<span>' + esc2(p.d) + '</span>'
+          + '<span>' + p.blunders + ' blunder' + (p.blunders === 1 ? '' : 's')
+          + ' · ' + Math.round(p.acpl) + ' avg loss</span>';
+        tip.classList.remove('hidden');
+        const box = svg.getBoundingClientRect();
+        const px = box.left + box.width * (x(i) / W);
+        const py = box.top  + box.height * (y(p.elo) / H);
+        const wrap = tip.offsetParent ? tip.offsetParent.getBoundingClientRect() : box;
+        tip.style.left = Math.min(Math.max(px - wrap.left - 70, 4), wrap.width - 148) + 'px';
+        tip.style.top  = Math.max(py - wrap.top - 92, 4) + 'px';
+      });
+    });
+    svg.addEventListener('mouseleave', function(){
+      if(tip) tip.classList.add('hidden');
+      if(cross) cross.classList.add('hidden');
+      svg.querySelectorAll('.tj-dot').forEach(d=>d.classList.remove('on'));
+    });
+  }
+  return {render};
+})();
+window.Traj = Traj;
+
 /* ── Shop ─────────────────────────────────────────────────────────────────── */
 const XP_RULE_LABELS = {
   puzzle_solved:'Solve a puzzle', drill_passed:'Pass a drill',
@@ -5995,6 +6122,19 @@ async function renderProgressReport(){
     const rn = el('pg-ringnum'); if(rn) rn.textContent = (d.confidence||0) + '%';
 
     const nu = el('pg-nudge'); if(nu) nu.textContent = d.nudge || '';
+
+    // The trajectory, and the change it represents stated in words next to it.
+    let traj = null;
+    try{ traj = Traj.render(d.history || []); }catch(e){ console.error('Traj failed:', e); }
+    const dl = el('pg-delta');
+    if(dl){
+      if(traj && traj.n >= 2){
+        const dv = traj.last - traj.first;
+        dl.textContent = (dv > 0 ? '+' : '') + dv + ' over ' + traj.n + ' games';
+        dl.className = 'traj-delta ' + (dv > 0 ? 'up' : dv < 0 ? 'down' : 'flat');
+        dl.classList.remove('hidden');
+      } else { dl.textContent = ''; dl.className = 'traj-delta hidden'; }
+    }
 
     const br = el('pg-blunder');
     if(br){ br.textContent = d.solo_games ? d.blunder_rate + '%' : '—';

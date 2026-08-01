@@ -2781,3 +2781,74 @@ body.play-locked .app-foot{display:none}
 .think-stats{font-size:12px;color:var(--text-3);margin:0 0 16px}
 .think-stats.hidden{display:none}
 #page-training .think-empty{font-size:13px;line-height:1.65;color:var(--text-3);max-width:64ch}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RATING TRAJECTORY
+   One series, so no legend — the caption names it. Grid and axes recessive,
+   the line and its glow carrying the eye. Every colour here was measured
+   against the panel rather than chosen: line 4.4:1, up 8.9:1, down 4.7:1.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.traj{position:relative;background:var(--bg-panel);border:1px solid var(--border);
+  border-radius:16px;padding:22px 22px 16px;margin-bottom:22px;overflow:hidden}
+/* A faint instrument grid behind everything, for the look and nothing else. */
+.traj::before{content:'';position:absolute;inset:0;pointer-events:none;opacity:.5;
+  background-image:linear-gradient(rgba(91,108,255,.05) 1px,transparent 1px),
+                   linear-gradient(90deg,rgba(91,108,255,.05) 1px,transparent 1px);
+  background-size:34px 34px}
+.traj-top{position:relative;display:flex;align-items:flex-start;justify-content:space-between;
+  gap:20px;margin-bottom:6px}
+.traj-k{display:block;font-size:11px;font-weight:600;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--text-3);margin-bottom:6px}
+.traj-vrow{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.traj-v{font-size:56px;font-weight:700;line-height:1;color:#FFFFFF;letter-spacing:-.03em;
+  font-variant-numeric:tabular-nums}
+.traj-delta{font-size:13px;font-weight:700;padding:5px 11px;border-radius:999px;
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+.traj-delta.up{background:rgba(59,201,168,.14);color:#3BC9A8}
+.traj-delta.down{background:rgba(229,72,77,.13);color:#E5484D}
+.traj-delta.flat{background:rgba(255,255,255,.05);color:var(--text-3)}
+.traj-delta.hidden{display:none}
+.traj-conf{display:block;font-size:12px;color:var(--text-3);margin-top:8px}
+
+.traj-figure{position:relative;margin:0}
+.traj-figure.hidden{display:none}
+.traj-svg{display:block;width:100%;height:clamp(220px,32vh,340px)}
+.traj-cap{font-size:11px;color:var(--text-3);margin-top:4px}
+
+/* Marks. 2px line, recessive grid, dots that grow on hover. */
+.tj-grid{stroke:rgba(255,255,255,.055);stroke-width:1}
+.tj-tick{fill:var(--text-3);font-size:11px;font-variant-numeric:tabular-nums}
+.tj-area{/* fill is set inline on the path */}
+.tj-line{fill:none;stroke:var(--accent);stroke-width:2.5;
+  stroke-linecap:round;stroke-linejoin:round}
+.tj-line.is-up{stroke:#7C8BFF}
+.tj-dot{fill:var(--bg-panel);stroke:var(--accent);stroke-width:2;
+  transition:r 120ms cubic-bezier(.32,.72,0,1)}
+.tj-dot.on{r:7;fill:var(--accent)}
+.tj-hit{fill:transparent;cursor:crosshair}
+.tj-cross{stroke:rgba(124,139,255,.42);stroke-width:1;stroke-dasharray:3 4}
+.tj-cross.hidden{display:none}
+
+/* Tooltip. */
+.traj-tip{position:absolute;z-index:5;pointer-events:none;width:144px;
+  background:var(--bg-panel-hi);border:1px solid var(--border-hi);border-radius:10px;
+  padding:9px 11px;box-shadow:0 14px 32px -12px rgba(0,0,0,.8)}
+.traj-tip.hidden{display:none}
+.traj-tip b{display:inline-block;font-size:19px;font-weight:700;color:#FFFFFF;
+  font-variant-numeric:tabular-nums;line-height:1}
+.traj-tip i{font-style:normal;font-size:12px;font-weight:700;margin-left:7px}
+.traj-tip i.up{color:#3BC9A8}
+.traj-tip i.down{color:#E5484D}
+.traj-tip span{display:block;font-size:11px;color:var(--text-3);margin-top:4px;line-height:1.45}
+
+.traj-empty{font-size:13px;line-height:1.65;color:var(--text-3);max-width:60ch;
+  padding:26px 0 10px}
+.traj-empty.hidden{display:none}
+
+/* The confidence ring keeps its corner. */
+.traj-top .prog-ring{flex:none}
+@media(max-width:720px){
+  .traj-v{font-size:42px}
+  .traj-top{flex-direction:column-reverse;align-items:flex-start}
+}
+@media(prefers-reduced-motion:reduce){.tj-dot{transition:none}}

@@ -5682,7 +5682,7 @@ def progress_report():
                    "inaccuracies": solo.get("inaccuracies", 0) + coached.get("inaccuracies", 0)},
         "patterns": [{"name": k, "count": v} for k, v in pats],
         "thinking": dims[:5],
-        "history": (st.get("history") or [])[-14:],
+        "history": (st.get("history") or [])[-30:],   # the chart wants a trajectory, not a snapshot
         "xp": user.get("xp", 0), "plan": user.get("plan", "free"),
         "nudge": nudge,
     })
