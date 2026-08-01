@@ -5474,7 +5474,12 @@ const CoachRail = (function(){
       list.querySelectorAll('.crail-cand').forEach(el=>{
         el.addEventListener('click', ()=>walk(+el.dataset.i));
       });
-      if(previews.length > 1) askWhichBest();
+      // Start walking immediately. This used to jump straight to "which was
+      // better?", which then bailed out because nothing had been watched yet --
+      // so pressing "Play them out" produced a list and nothing else, and the
+      // walk-through only ran if you happened to click a row.
+      seen = {};
+      if(previews.length) walk(0);
     }catch(e){}finally{
       if(btn){ btn.disabled = false; btn.textContent = 'Play them out'; }
     }
@@ -5484,19 +5489,30 @@ const CoachRail = (function(){
      time, with a line of coaching for each — then let the player judge. ── */
   let walkIdx = -1, stepIdx = 0, seen = {};
 
-  function strip(){ return $('coachstrip'); }
-  function say(text, controls){
-    const st = strip(), q = $('cs-q'); if(!st || !q) return;
-    st.classList.remove('hidden');
-    q.textContent = text;
-    let bar = st.querySelector('.cs-walk');
-    if(controls){
-      if(!bar){ bar = document.createElement('span'); bar.className = 'cs-walk'; st.appendChild(bar); }
-      bar.innerHTML = controls;
-      bar.querySelectorAll('[data-act]').forEach(b=>{
+  // The narration lives in the coach panel, not the thin strip above the board.
+  // It is the same card shape as the think-it-through ladder, because it is the
+  // same idea: watch the thing happen, then decide for yourself.
+  function say(text, controls, title, step){
+    const card = $('cwalk');
+    if(!card){                                   // fall back to the strip
+      const st = $('coachstrip'), q = $('cs-q');
+      if(st && q){ st.classList.remove('hidden'); q.textContent = text; }
+      return;
+    }
+    card.classList.remove('hidden');
+    const t = $('cwalk-title'), s = $('cwalk-say'), n = $('cwalk-step'), o = $('cwalk-opts');
+    if(n) n.textContent = step || '';
+    if(t) t.textContent = title || 'Playing it out';
+    if(s) s.textContent = text || '';
+    if(o){
+      o.innerHTML = controls || '';
+      o.querySelectorAll('[data-act]').forEach(b=>{
         b.addEventListener('click', (e)=>{ e.stopPropagation(); onAct(b.dataset.act, b.dataset.val); });
       });
-    } else if(bar){ bar.remove(); }
+    }
+  }
+  function hideSay(){
+    const card = $('cwalk'); if(card) card.classList.add('hidden');
   }
 
   function walk(i){
@@ -5507,12 +5523,17 @@ const CoachRail = (function(){
   function showStep(){
     const c = previews[walkIdx]; if(!c) return;
     const st = c.steps[stepIdx]; if(!st) return;
+    // This is the point of the whole feature: the line is played out on the
+    // real board, one move at a time, with a sentence for each.
     if(BotState.board) BotState.board.setPosition(st.fen, {animate:true});
     const last = stepIdx >= c.steps.length - 1;
+    const which = (walkIdx + 1) + ' of ' + previews.length;
     say(st.say,
-        '<button class="cs-b" data-act="prev">Back</button>'
-      + '<button class="cs-b" data-act="next">' + (last ? 'Done' : 'Next') + '</button>'
-      + '<button class="cs-b ghost" data-act="stop">Back to the game</button>');
+        (stepIdx > 0 ? '<button class="lopt half" data-act="prev">Back</button>' : '')
+      + '<button class="lopt half" data-act="next">' + (last ? 'Done' : 'Next move') + '</button>'
+      + '<button class="lopt ghost" data-act="stop">Back to the game</button>',
+        'If you play ' + c.move,
+        'Candidate ' + which + ' · move ' + (stepIdx + 1) + ' of ' + c.steps.length);
   }
   function onAct(act, val){
     if(act === 'next'){
@@ -5522,14 +5543,29 @@ const CoachRail = (function(){
     } else if(act === 'prev'){
       if(stepIdx > 0){ stepIdx--; showStep(); }
     } else if(act === 'stop'){ stopWalk(false); }
+    else if(act === 'go'){ walk(+val); }
     else if(act === 'pick'){ judge(val); }
     else if(act === 'unsure'){ notSure(); }
   }
   function stopWalk(finished){
+    // Always put the real position back before doing anything else.
     if(BotState.board) BotState.board.setPosition(BotState.game.fen(), {animate:false});
     walkIdx = -1;
-    if(finished && previews.length > 1 && Object.keys(seen).length >= previews.length) askWhichBest();
-    else if(finished) say('Now try the other one, so you can compare them.');
+    if(!finished){ hideSay(); return; }          // they chose to leave
+    // Roll straight into the next candidate they have not watched, so the
+    // comparison happens without them having to drive it.
+    const next = previews.findIndex(c=>!seen[c.move]);
+    if(next >= 0){
+      say('That is what ' + previews[next===0?0:next].move + ' would have to deal with. '
+        + 'Now watch the other one, then you can compare them properly.',
+        '<button class="lopt" data-act="go" data-val="' + next + '">Play out '
+        + esc(previews[next].move) + '</button>'
+        + '<button class="lopt ghost" data-act="stop">Back to the game</button>',
+        'One down', 'Candidate ' + (next+1) + ' of ' + previews.length + ' left');
+      return;
+    }
+    if(previews.length > 1) askWhichBest();
+    else hideSay();
   }
 
   // How many times they have said "not sure". The answer is only ever revealed
@@ -5539,14 +5575,13 @@ const CoachRail = (function(){
   function askWhichBest(){
     if(Object.keys(seen).length < previews.length) return;   // walk them all first
     unsure = 0;
-    say('You have watched both play out. Which one do you think was better?',
-        previews.map(c=>'<button class="cs-b" data-act="pick" data-val="'
-                        + esc(c.move) + '">' + esc(c.move) + '</button>').join('')
-        + '<button class="cs-b ghost" data-act="unsure">I am not sure</button>');
+    say('You have watched both lines play out on the board. Which one would you rather have?',
+        options('<button class="lopt ghost" data-act="unsure">I am not sure</button>'),
+        'So which was better?', 'Your call');
   }
 
   function options(extra){
-    return previews.map(c=>'<button class="cs-b" data-act="pick" data-val="'
+    return previews.map(c=>'<button class="lopt" data-act="pick" data-val="'
                     + esc(c.move) + '">' + esc(c.move) + '</button>').join('') + (extra||'');
   }
 
@@ -5560,7 +5595,8 @@ const CoachRail = (function(){
       if(other && other.reply) t += 'Against ' + other.move + ' he plays ' + other.reply + '. ';
       if(best.reply)          t += 'Against ' + best.move + ' he plays ' + best.reply + '. ';
       t += 'Which of those two positions would you rather be in?';
-      say(t, options('<button class="cs-b ghost" data-act="unsure">Still not sure</button>'));
+      say(t, options('<button class="lopt ghost" data-act="unsure">Still not sure</button>'),
+          'Compare them on one thing', 'Narrowing it down');
       return;
     }
     // Second time: give it, and say why, once more and concretely.
@@ -5569,7 +5605,8 @@ const CoachRail = (function(){
     if(best.reply) t += ' He has to answer ' + best.reply + ', and that leaves you comfortable.';
     if(diff >= 0.5) t += ' The gap between the two is about ' + diff.toFixed(1) + ' pawns.';
     t += ' The habit worth keeping: pick the move whose worst reply you are happiest to face.';
-    say(t, '<button class="cs-b ghost" data-act="stop">Back to the game</button>');
+    say(t, '<button class="lopt ghost" data-act="stop">Back to the game</button>',
+        best.move + ' was the move', 'Here is why');
   }
 
   function judge(move){
@@ -5577,9 +5614,10 @@ const CoachRail = (function(){
     const chosen = previews.find(c=>c.move === move);
     if(!chosen) return;
     if(chosen.move === best.move){
-      say('Right — ' + chosen.move + ' holds up best, and you worked that out by watching it '
-        + 'rather than being told.',
-        '<button class="cs-b ghost" data-act="stop">Back to the game</button>');
+      say('You watched both lines and picked the one that holds up. That is exactly the habit '
+        + 'worth building — judge a move by the position it leaves you in.',
+        '<button class="lopt ghost" data-act="stop">Back to the game</button>',
+        'Right — ' + chosen.move, 'Well judged');
       return;
     }
     // Wrong: send them back to the evidence. The old version put the correct
@@ -5589,10 +5627,12 @@ const CoachRail = (function(){
     say('Not quite. Look again at what he answered ' + chosen.move + ' with — '
       + (chosen.reply || 'his reply') + '. Play it forward one more move in your head: '
       + 'what has he gained by then?',
-      options('<button class="cs-b ghost" data-act="unsure">I am still not sure</button>'));
+      options('<button class="lopt ghost" data-act="unsure">I am still not sure</button>'),
+      'Not quite — look again', 'Try once more');
   }
 
   function reset(){ previews = []; lastFen = null; walkIdx = -1; stepIdx = 0; seen = {}; unsure = 0;
+    try{ hideSay(); }catch(e){}
     const l=$('crail-cand-list'); if(l) l.innerHTML='';
     const c=$('crail-cands'); if(c) c.classList.add('hidden');
     const it=$('crail-items'); if(it) it.innerHTML='';

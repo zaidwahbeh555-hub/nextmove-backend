@@ -14,6 +14,7 @@ node    tests/test_cmdk.js         # the hint card can never be stranded       (
 node    tests/test_palette.js      # command palette exposes the play modes    (17 checks)
 node    tests/test_ladder.js       # think-it-through rungs + retractable rails (37 checks)
 node    tests/test_upgrade_intent.js # landing-page upgrade intent survives signup (14 checks)
+node    tests/test_candidates.js   # "Play them out" really plays them out    (21 checks)
 ```
 
 `test_cosmetics.py` re-checks every piece set against every board theme on both

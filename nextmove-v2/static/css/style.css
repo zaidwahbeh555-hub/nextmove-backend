@@ -2421,3 +2421,13 @@ body.rail-left-off.rail-right-off #page-coach .gm-gamebar{
 /* Walk-me-through sits alongside take-back on the blunder card. */
 .pause-btn.walk{border-color:var(--accent) !important;color:var(--accent-text,var(--accent)) !important}
 .pause-btn.walk:hover{background:var(--accent-soft) !important}
+
+/* Candidate walk-through shares the ladder's card so the two coaching flows
+   look like one thing. Its accent is softer -- this is a demonstration you are
+   watching, not a question waiting on you. */
+.ladder.cwalk{border-color:var(--border-hi)}
+.ladder.cwalk .ladder-step{color:var(--text-3)}
+.lopt.half{display:inline-block;width:calc(50% - 3px)}
+.lopt.ghost{border-color:var(--border);color:var(--text-3);text-align:center}
+.lopt.ghost:hover{border-color:var(--border-hi);color:var(--text-2);background:transparent}
+.ladder-opts .lopt.half + .lopt.half{margin-left:6px}
