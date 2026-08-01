@@ -2713,3 +2713,13 @@ body.play-locked .app-foot{display:none}
 #page-coach .gm-question-list:empty,
 #page-coach .coach-stepmeta:empty{display:none !important}
 #page-coach .eval-num{padding:10px 16px;width:128px}
+
+/* The "?" beside Your candidate moves. */
+.cp-help{width:16px;height:16px;margin-left:6px;padding:0;border-radius:999px;
+  border:1px solid var(--border-hi);background:transparent;color:var(--text-3);
+  font-family:inherit;font-size:10px;font-weight:700;line-height:1;cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;
+  transition:all 120ms cubic-bezier(.32,.72,0,1)}
+.cp-help:hover,.cp-help.is-open{border-color:var(--accent);color:var(--accent-text,var(--accent));
+  background:var(--accent-soft)}
+.cp-h{display:flex;align-items:center}

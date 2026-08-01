@@ -675,6 +675,24 @@ function forgePreview(kind, id){
     '</svg>';
 }
 
+/* The "?" beside Your candidate moves. The explanation used to sit on screen
+   permanently; it is one press away instead, and stays open once opened. */
+(function(){
+  function init(){
+    const btn = document.getElementById('cands-help');
+    const tip = document.getElementById('crail-tip');
+    if(!btn || !tip) return;
+    btn.addEventListener('click', function(e){
+      e.preventDefault(); e.stopPropagation();
+      const open = tip.classList.toggle('hidden') === false;
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      btn.classList.toggle('is-open', open);
+    });
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();
+
 /* ── Shop ─────────────────────────────────────────────────────────────────── */
 const XP_RULE_LABELS = {
   puzzle_solved:'Solve a puzzle', drill_passed:'Pass a drill',
@@ -5665,14 +5683,11 @@ const CoachRail = (function(){
     const wrap = $('crail-cands'), list = $('crail-cand-list');
     if(!wrap || !list) return;
     const arr = (window.Candidates ? Candidates.marked() : []);
-    const tip = $('crail-tip');
     if(arr.length < 1 || !(window.BotState && BotState.gameActive)){
       wrap.classList.add('hidden');
-      if(tip) tip.classList.toggle('hidden', !(window.BotState && BotState.gameActive));
       return;
     }
     wrap.classList.remove('hidden');
-    if(tip) tip.classList.add('hidden');      // they have found it; stop nagging
     if(previews.length) return;                            // already played out
     list.innerHTML = arr.map(a=>{
       let label = a.from + '→' + a.to;
