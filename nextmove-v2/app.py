@@ -1241,15 +1241,22 @@ def analyse():
     # Plan check
     # Deep analysis is a Grandmaster feature. Free still gets the summary at the
     # end of its coached game; this is the full engine pass over a whole PGN.
+    #
+    # The plan check used to sit inside `if u:`, so signing out skipped it
+    # entirely and anyone could run a full engine pass anonymously. Not being
+    # logged in is now a refusal, not a bypass.
     u=current_user()
-    if u:
-        user=get_user(u) or {}
-        if not is_pro(user):
-            return jsonify({"error":"pro_required","locked":"analysis","upgrade":True,
-                            "plan":PLAN_NAME,
-                            "message":"Deep analysis is part of %s. It runs the engine over every "
-                                      "move of the game and explains what each mistake cost."
-                                      % PLAN_NAME}),403
+    if not u:
+        return jsonify({"error":"login_required","upgrade":True,"plan":PLAN_NAME,
+                        "message":"Sign in to analyse a game. Deep analysis is part of %s."
+                                  % PLAN_NAME}),401
+    user=get_user(u) or {}
+    if not is_pro(user):
+        return jsonify({"error":"pro_required","locked":"analysis","upgrade":True,
+                        "plan":PLAN_NAME,
+                        "message":"Deep analysis is part of %s. It runs the engine over every "
+                                  "move of the game and explains what each mistake cost."
+                                  % PLAN_NAME}),403
     sf=find_stockfish()
     if not sf: return jsonify({"error":"Stockfish not found."}),500
     games_raw,buf=[],[]
