@@ -2388,6 +2388,9 @@ function getEloFromAnalysis(){
 function startBotGame(){
   const _pgnBtn = document.getElementById('setup-pgn');
   if(_pgnBtn) _pgnBtn.classList.add('hidden');
+  const _svBtn = document.getElementById('setup-save');
+  if(_svBtn) _svBtn.classList.add('hidden');
+  BotState.saveRequested = false;
   // Coached games are limited on Free. Claim one first — the server decides, so
   // the limit is real rather than a thing the browser politely observes.
   if(State.coachMode === 'coached' && State.loggedIn && State.plan !== 'pro'){
@@ -2858,6 +2861,8 @@ function checkBotGameOver(){
       })}).catch(()=>{});
   }catch(e){}
   Coach.setStatus('Game over');
+  // They pressed Save during the game; the finished game is what gets stored.
+  if(BotState.saveRequested){ try{ doSaveGame(); }catch(e){} }
   // Surface the next game immediately instead of leaving a dead board.
   if(window.GameSetup){
     setTimeout(()=>{
@@ -2868,6 +2873,8 @@ function checkBotGameOver(){
       // finished as a PGN.
       const pgn = document.getElementById('setup-pgn');
       if(pgn) pgn.classList.remove('hidden');
+      const sv = document.getElementById('setup-save');
+      if(sv) sv.classList.remove('hidden');
       const sub = document.querySelector('.gm-setup-sub');
       if(sub) sub.textContent = 'Another one? Choose how you want to play it.';
     }, 1600);
@@ -2927,6 +2934,49 @@ function getBotPGN(){
   pgn += line.trim();
   return pgn;
 }
+
+/* Save the game to the account. Pressed mid-game it does not save a half game
+   — it marks the game, and the complete one is saved the moment it ends, which
+   is what you actually want from a button you hit on move 12. Pressed after the
+   game it saves immediately. */
+function saveBotGame(){
+  if(!BotState.game || !BotState.game.history().length){ flashSave('Nothing to save yet'); return; }
+  const over = !BotState.gameActive || BotState.game.game_over();
+  if(!over){
+    BotState.saveRequested = true;
+    flashSave('Saving when the game ends', true);
+    return;
+  }
+  doSaveGame();
+}
+
+function doSaveGame(){
+  const pgn = getBotPGN();
+  if(!pgn) return;
+  if(!State.loggedIn){ flashSave('Sign in to save'); return; }
+  const label = 'vs GM Forge · ' + new Date().toLocaleDateString();
+  fetch('/auth/save-game', {method:'POST', credentials:'include',
+    headers:{'Content-Type':'application/json'}, body: JSON.stringify({pgn, label})})
+    .then(r=>r.json())
+    .then(d=>{
+      if(d && d.ok){ BotState.saveRequested = false; flashSave('Game saved', true); }
+      else flashSave((d && d.error) || 'Could not save');
+    })
+    .catch(e=>{ console.error('saveBotGame failed:', e); flashSave('Could not save'); });
+}
+
+function flashSave(msg, good){
+  ['save-game-btn','setup-save'].forEach(id=>{
+    const b = document.getElementById(id);
+    if(!b || b.classList.contains('hidden')) return;
+    if(!b.dataset.label) b.dataset.label = b.textContent.trim();
+    b.textContent = msg;
+    b.classList.toggle('is-done', !!good);
+    clearTimeout(b._t);
+    b._t = setTimeout(()=>{ b.textContent = b.dataset.label; b.classList.remove('is-done'); }, 2600);
+  });
+}
+window.saveBotGame = saveBotGame;
 
 function copyBotPGN(){
   const pgn = getBotPGN();

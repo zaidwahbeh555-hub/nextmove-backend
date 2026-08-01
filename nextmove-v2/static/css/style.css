@@ -2723,3 +2723,16 @@ body.play-locked .app-foot{display:none}
 .cp-help:hover,.cp-help.is-open{border-color:var(--accent);color:var(--accent-text,var(--accent));
   background:var(--accent-soft)}
 .cp-h{display:flex;align-items:center}
+
+/* Save game sits beside Copy PGN, in its own colour so the two reading as one
+   pair is obvious but they are still told apart. */
+.gm-act-save{border-color:#7C8BFF !important;color:#9AA6FF !important}
+.gm-act-save:hover{background:rgba(124,139,255,.12) !important;color:#B4BDFF !important}
+.gm-act-save.is-done{border-color:#3BC9A8 !important;color:#3BC9A8 !important}
+.gm-setup-save{width:100%;margin-top:10px;padding:11px 16px;border-radius:999px;
+  border:1px solid #7C8BFF;background:transparent;color:#9AA6FF;
+  font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;
+  transition:all 120ms cubic-bezier(.32,.72,0,1)}
+.gm-setup-save:hover{background:rgba(124,139,255,.12);color:#B4BDFF}
+.gm-setup-save.is-done{border-color:#3BC9A8;color:#3BC9A8}
+.gm-setup-save.hidden{display:none}

@@ -3438,6 +3438,22 @@ def coach_move_feedback():
 
         drop = max((score_before - score_after) if player_color == chess.WHITE else (score_after - score_before), 0)
         severity = classify_move_severity(drop)
+        # Every coached move is evidence for the thinking profile, not only the
+        # ones the player happened to draw arrows for.
+        try:
+            _u = current_user()
+            _usr = get_user(_u) if _u else None
+            if _usr:
+                # get_phase takes a move number, not a board.
+                _pat = detect_pattern(board, move, drop,
+                                      get_phase(board.fullmove_number)) \
+                       if severity in ("blunder", "mistake") else None
+                _d = _mistake_dims(_pat, drop, san_played, coached=True)
+                if _d:
+                    _fold_profile(_usr, _d, "coached_moves")
+                    save_user(_u, _usr)
+        except Exception as _e:
+            print("profile fold (coached move) failed:", _e)
 
         # Opening teaching: if we just entered the book or transitioned
         opening_name, opening_theme = detect_opening(played_moves + [san_played])
@@ -4469,6 +4485,16 @@ def ask_forge():
             try: engine.quit()
             except Exception: pass
 
+    # Asking is itself a signal: what you have to ask about is what you could
+    # not work out from the board.
+    try:
+        _ad = _ask_dims(question)
+        if _ad:
+            _fold_profile(user, _ad, "ask_forge")
+            save_user(current_user(), user)
+    except Exception as _e:
+        print("profile fold (ask) failed:", _e)
+
     level = _ask_level_from(question, d.get("level"))
     confused = bool(d.get("still_confused"))
     prompt = _ask_prompt(ctx, question, level, confused)
@@ -4716,7 +4742,13 @@ def _thinking_verdict(cmp_):
 
     return {"headline": head, "detail": detail, "dims": dims, "tags": tags}
 
-def _fold_profile(user, dims):
+def _fold_profile(user, dims, source="candidates"):
+    """Fold one observation into the long-term profile.
+
+    `source` records where the evidence came from, so the profile can say what
+    it is actually built on. It used to be candidate reviews alone, which meant
+    it only knew about the moves you happened to draw arrows for.
+    """
     tp = get_thinking_profile(user)
     for k, v in (dims or {}).items():
         if k not in tp["dims"]:
@@ -4724,9 +4756,80 @@ def _fold_profile(user, dims):
         tp["dims"][k]["obs"] += v.get("obs", 0)
         tp["dims"][k]["hits"] += v.get("hits", 0)
     tp["samples"] = tp.get("samples", 0) + 1
+    src = tp.setdefault("sources", {})
+    src[source] = int(src.get(source, 0)) + 1
     tp["updated"] = time.strftime("%Y-%m-%d")
     user["thinking_profile"] = tp
     return tp
+
+# Which cognitive dimension a mistake is evidence about. A hanging piece is a
+# board-vision failure; a queen sortie on move four is a premature attack. One
+# mistake can speak to more than one.
+MISTAKE_DIMS = {
+    "Hanging piece":            ["board_vision", "opponent_blindness"],
+    "Missed tactic":            ["candidate_quality", "calculation_depth"],
+    "King safety issue":        ["king_safety"],
+    "Early queen development":  ["premature_attacks", "strategic_planning"],
+    "Opening mistake":          ["strategic_planning"],
+    "Middlegame mistake":       ["strategic_planning", "piece_coordination"],
+    "Endgame mistake":          ["calculation_depth"],
+    "Positional mistake":       ["quiet_moves", "strategic_planning"],
+    "Trapped piece":            ["board_vision"],
+    "Overloaded defender":      ["threat_recognition"],
+    "Back rank":                ["king_safety", "board_vision"],
+}
+
+def _mistake_dims(pattern, drop_cp=0, san="", coached=False):
+    """Turn one played move into dimension observations.
+
+    Every relevant dimension is observed; the ones the move actually failed are
+    hits. Observing without a hit is what stops a single bad game from reading
+    as a permanent weakness.
+    """
+    keys = list(MISTAKE_DIMS.get(pattern or "", []))
+    if not keys:
+        keys = ["evaluation_accuracy"]
+    bad = int(drop_cp or 0) >= 150
+    # A capture that loses material is the signature of grabbing without looking.
+    if "x" in (san or "") and bad:
+        keys.append("impulsive_captures")
+    # Going wrong while the coach was actively asking questions says something
+    # sharper than going wrong alone.
+    if coached and bad:
+        keys.append("opponent_blindness")
+    dims = {}
+    for k in keys:
+        if k not in THINKING_DIMENSIONS:
+            continue
+        d = dims.setdefault(k, {"obs": 0, "hits": 0})
+        d["obs"] += 1
+        if bad:
+            d["hits"] += 1
+    return dims
+
+# What someone asks about is evidence of what they cannot see for themselves.
+ASK_DIMS = [
+    (r"threat|threaten|attacking me|what is he doing|his plan", ["threat_recognition", "opponent_blindness"]),
+    (r"why (is|was) (this|that|it) (bad|wrong|a mistake)",      ["evaluation_accuracy"]),
+    (r"hang|loose|undefended|en prise|lose a piece",            ["board_vision"]),
+    (r"what if|calculat|line|deeper|further ahead",             ["calculation_depth"]),
+    (r"king|castl|mate|check",                                  ["king_safety"]),
+    (r"plan|strateg|what should i be doing|long term",          ["strategic_planning"]),
+    (r"better move|other move|alternative|instead",             ["candidate_quality"]),
+    (r"quiet|slow move|nothing to do|no tactics",               ["quiet_moves"]),
+]
+
+def _ask_dims(question):
+    """Dimensions implied by a question to GM Forge."""
+    q = (question or "").lower()
+    dims = {}
+    for pat, keys in ASK_DIMS:
+        if re.search(pat, q):
+            for k in keys:
+                d = dims.setdefault(k, {"obs": 0, "hits": 0})
+                d["obs"] += 1
+                d["hits"] += 1     # needing to ask is itself the observation
+    return dims
 
 # ══ PLAIN-ENGLISH MISTAKE EXPLANATION ════════════════════════════════════════
 # The review used to print "Re1 engine: dxe5, -1.9" and stop. That is the what,
@@ -5168,7 +5271,7 @@ def candidates_review():
     verdict = _thinking_verdict(cmp_)
     user = get_user(current_user())
     if user:
-        _fold_profile(user, verdict["dims"])
+        _fold_profile(user, verdict["dims"], "candidates")
         # Reward the habit itself: weighing more than one move, and more again
         # when the engine's choice was actually among what they weighed.
         granted = 0
@@ -5206,8 +5309,22 @@ def thinking_profile():
                      "rate": round(rate * 100), "band": band})
     rows.sort(key=lambda r: (-r["rate"], -r["observations"]))
     confidence = min(100, int(tp.get("samples", 0) / 60.0 * 100))
+    # Say what the profile is actually built on. It used to be candidate reviews
+    # alone, so it could be confidently wrong about someone who never drew an
+    # arrow; naming the sources makes that visible instead of implied.
+    src = tp.get("sources") or {}
+    SOURCE_LABELS = {
+        "coached_moves":  "Moves played with the coach watching",
+        "coached_games":  "Coached games finished",
+        "solo_games":     "Solo games finished",
+        "candidates":     "Candidate-move reviews",
+        "ask_forge":      "Questions asked of GM Forge",
+    }
+    sources = [{"key": k, "label": SOURCE_LABELS.get(k, k), "count": int(v)}
+               for k, v in sorted(src.items(), key=lambda kv: -int(kv[1])) if v]
     return jsonify({"samples": tp.get("samples", 0), "confidence": confidence,
                     "updated": tp.get("updated", ""), "dimensions": rows,
+                    "sources": sources,
                     "headline": (rows[0]["label"] if rows and rows[0]["rate"] >= 50 else None)})
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -5468,6 +5585,24 @@ def progress_record():
     }]
     st["daily"][time.strftime("%Y-%m-%d")] = st["daily"].get(time.strftime("%Y-%m-%d"), 0) + 1
     user["stats"] = st
+    # The thinking profile used to be built from candidate reviews alone, so it
+    # only knew about moves you happened to draw arrows for. A finished game is
+    # evidence too -- and a coached game and a solo one say different things,
+    # since one had someone asking questions and the other did not.
+    gdims = {}
+    for pat in (d.get("patterns") or [])[:8]:
+        if not isinstance(pat, str):
+            continue
+        for k, v in _mistake_dims(pat, 200, "", coached=(mode == "coached")).items():
+            g = gdims.setdefault(k, {"obs": 0, "hits": 0})
+            g["obs"] += v["obs"]; g["hits"] += v["hits"]
+    # A clean game is evidence in the other direction: observed, not hit.
+    if int(d.get("blunders") or 0) == 0 and int(d.get("moves") or 0) >= 20:
+        for k in ("board_vision", "threat_recognition", "evaluation_accuracy"):
+            g = gdims.setdefault(k, {"obs": 0, "hits": 0})
+            g["obs"] += 1
+    if gdims:
+        _fold_profile(user, gdims, "coached_games" if mode == "coached" else "solo_games")
     # XP for finishing a game. Solo pays more than coached because solo is the
     # honest test -- it is also the only mode the rating estimate trusts.
     granted = grant_xp(user, "game_solo" if mode == "solo" else "game_coached")
