@@ -5669,10 +5669,12 @@ const CoachRail = (function(){
     if(arr.length < 1 || !(window.BotState && BotState.gameActive)){
       wrap.classList.add('hidden');
       if(tip) tip.classList.toggle('hidden', !(window.BotState && BotState.gameActive));
+      const card0 = $('cands-card'); if(card0) card0.classList.remove('has-cands');
       return;
     }
     wrap.classList.remove('hidden');
     if(tip) tip.classList.add('hidden');      // they have found it; stop nagging
+    const card = $('cands-card'); if(card) card.classList.add('has-cands');
     if(previews.length) return;                            // already played out
     list.innerHTML = arr.map(a=>{
       let label = a.from + '→' + a.to;

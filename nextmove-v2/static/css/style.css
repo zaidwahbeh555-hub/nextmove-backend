@@ -1469,7 +1469,7 @@ body{display:block!important;min-height:100vh;overflow-x:hidden}
 #page-coach .gm-side,#page-coach #coach-panel{grid-column:3;grid-row:1;width:320px;margin-left:48px;
   align-self:center;justify-self:start}
 /* anything else that lands in the grid must not claim a column */
-#page-coach .gm-layout > *:not(.gm-main):not(.gm-side):not(#coach-panel):not(#forge-dock){display:none}
+#page-coach .gm-layout > *:not(.gm-main):not(.gm-side):not(#coach-panel):not(#gm-left){display:none}
 /* board sizing wins over every earlier layer */
 /* min-width was a hard 520px. Zooming in shrinks the CSS viewport, so 64vh fell
    below 520px, the board was forced wider than its column, and .main-wrap's
@@ -2713,3 +2713,43 @@ body.play-locked .app-foot{display:none}
 #page-coach .gm-question-list:empty,
 #page-coach .coach-stepmeta:empty{display:none !important}
 #page-coach .eval-num{padding:10px 16px;width:128px}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LEFT COLUMN — candidates at the top, GM Forge at the bottom
+   That side held nothing but him, so the candidate panel moves over and takes
+   the room it never had in the coach column.
+   ═══════════════════════════════════════════════════════════════════════════ */
+#page-coach .gm-left{
+  grid-column:1;grid-row:1;justify-self:end;align-self:stretch;
+  width:min(300px,100%);margin-right:28px;
+  display:flex;flex-direction:column;justify-content:space-between;
+  height:100%;padding:8px 0 0;min-height:0}
+@media(max-width:1400px){#page-coach .gm-left{width:min(250px,100%);margin-right:18px}}
+@media(max-width:1200px){#page-coach .gm-left{width:min(210px,100%);margin-right:12px}}
+
+/* GM Forge keeps the bottom of it. */
+#page-coach .gm-left .forge-dock{
+  position:static;width:auto;margin:0;padding:0;
+  justify-self:auto;align-self:flex-start;flex:none}
+
+/* ── The candidates card ──────────────────────────────────────────────────── */
+.cands-card{background:var(--bg-panel);border:1px solid var(--border);border-radius:14px;
+  padding:16px;min-height:0;overflow-y:auto;scrollbar-width:thin}
+.cands-head{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.cands-dot{width:6px;height:6px;border-radius:999px;background:var(--accent);flex:none}
+.cands-title{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--text-2)}
+/* The brief explanation of what this is for. */
+.cands-what{font-size:12px;line-height:1.6;color:var(--text-3);margin:0 0 12px}
+.cands-card .cp-tip{display:none}          /* the card explains itself now */
+
+/* Rows, unchanged in behaviour — just given the space to breathe. */
+.cands-card .crail-cands{margin:0}
+.cands-card .crail-cands.hidden{display:none}
+.cands-card #crail-cand-list{margin-bottom:10px}
+.cands-card .crail-cand{padding:11px 4px}
+.cands-card .crail-btn{width:100%;margin-top:2px}
+
+/* Once you have drawn arrows the explanation has done its job. */
+.cands-card.has-cands .cands-what{display:none}
+.cands-card.has-cands .cands-head{margin-bottom:12px}
