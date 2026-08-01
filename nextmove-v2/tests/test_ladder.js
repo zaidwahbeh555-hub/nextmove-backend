@@ -91,16 +91,15 @@ function check(label, cond, detail){ total++; if(cond) pass++;
   console.log(`  [${cond?'PASS':'FAIL'}] ${label}${detail?'  -> '+detail:''}`); }
 
 // ── rails fold away and remember it ─────────────────────────────────────────
+// There is one rail now: coaching was consolidated into a single column, so a
+// left rail no longer exists to fold.
 Rails.init();
-check('rails start open', !bodyCls.has('rail-left-off') && !bodyCls.has('rail-right-off'));
-Rails.toggle('left');
-check('left rail folds', bodyCls.has('rail-left-off'));
-check('folding is remembered', JSON.parse(store['cf_rails']).left === false, store['cf_rails']);
-Rails.toggle('left');
-check('left rail comes back', !bodyCls.has('rail-left-off'));
+check('the coach panel starts open', !bodyCls.has('rail-right-off'));
 Rails.toggle('right');
-check('right rail folds independently',
-      bodyCls.has('rail-right-off') && !bodyCls.has('rail-left-off'));
+check('the coach panel folds away', bodyCls.has('rail-right-off'));
+check('folding is remembered', JSON.parse(store['cf_rails']).right === false, store['cf_rails']);
+Rails.toggle('right');
+check('and comes back', !bodyCls.has('rail-right-off'));
 
 // ── the ladder walks its three rungs ────────────────────────────────────────
 (async ()=>{

@@ -317,22 +317,18 @@ async function awardXP(amount,type,lessonId){
    collapsing; the panel is still in the DOM and still updating. */
 const Rails = (function(){
   const KEY = 'cf_rails';
-  let state = {left:true, right:true};
+  let state = {right:true};
 
   function load(){
     try{ const s = JSON.parse(localStorage.getItem(KEY)||'null');
-      if(s && typeof s.left === 'boolean') state = s;
+      if(s && typeof s.right === 'boolean') state = {right: s.right};
     }catch(e){}
   }
   function save(){ try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
 
   function apply(){
-    document.body.classList.toggle('rail-left-off',  !state.left);
     document.body.classList.toggle('rail-right-off', !state.right);
-    const l = document.getElementById('crail-toggle');
     const r = document.getElementById('side-toggle');
-    if(l){ l.setAttribute('aria-label', state.left ? 'Hide the thinking rail' : 'Show the thinking rail');
-           l.title = l.getAttribute('aria-label'); }
     if(r){ r.setAttribute('aria-label', state.right ? 'Hide the coach panel' : 'Show the coach panel');
            r.title = r.getAttribute('aria-label'); }
     // The pointer arm is drawn against live geometry, so it has to be redrawn
@@ -346,9 +342,7 @@ const Rails = (function(){
 
   function init(){
     load(); apply();
-    const l = document.getElementById('crail-toggle');
     const r = document.getElementById('side-toggle');
-    if(l) l.addEventListener('click', ()=>toggle('left'));
     if(r) r.addEventListener('click', ()=>toggle('right'));
   }
   return {init, toggle};
@@ -740,20 +734,59 @@ function shopCard(kind, it, ctx){
 /* ── Pro gate ─────────────────────────────────────────────────────────────── */
 let _gateCatalog = null;
 
+// Any endpoint that refuses on plan grounds sends back a `locked` key naming
+// what was blocked. Routing it through here keeps the gate's wording matched to
+// what the player was actually doing.
+function handleLocked(d){
+  if(!d || !(d.locked || d.upgrade || d.error === 'free_limit_reached' ||
+             d.error === 'pro_required')) return false;
+  const kind = d.locked || (d.error === 'pro_required' ? 'ask' : 'shop');
+  try{ showProGate(kind); }catch(e){}
+  return true;
+}
+window.handleLocked = handleLocked;
+
 // Entry point for every cosmetic affordance outside the shop.
 function openCosmetics(kind){
   if(State.plan==='pro'){ showPage('shop'); return; }
   showProGate(kind||'board');
 }
 
+// What the gate says has to match what was actually blocked. It used to say
+// "only Pro members can change the board" whatever you had run into --
+// including running out of coached games, which has nothing to do with boards.
+const GATE_COPY = {
+  board:    ['Only Grandmasters can change the board',
+             'Board themes are bought with XP you are already earning on the free plan.'],
+  pieces:   ['Only Grandmasters can change the pieces',
+             'Piece sets are bought with XP you are already earning on the free plan.'],
+  coached:  ['That was your free coached game for today',
+             'Free includes one coached game a day. Grandmaster puts GM Forge beside you every '
+             + 'game, which is where the improvement actually comes from.'],
+  analysis: ['That was your free analysis for today',
+             'Free analyses one game a day. Grandmaster analyses every game you play, in full depth.'],
+  ask:      ['Ask GM Forge is a Grandmaster feature',
+             'Ask him about any position in any of your games and get a real answer, grounded in '
+             + 'the engine rather than generic advice.'],
+  puzzles:  ['That is your five puzzles for today',
+             'Your games keep producing puzzles from your own mistakes. Grandmaster serves all of '
+             + 'them instead of the first five.'],
+  lesson:   ['One exercise per theme on the free plan',
+             'Grandmaster repeats a theme until it is automatic, which is the entire point of '
+             + 'spaced practice.'],
+  shop:     ['The shop is a Grandmaster feature',
+             'You keep earning XP on the free plan and none of it expires. Grandmaster is what '
+             + 'lets you spend it.']
+};
+
 async function showProGate(kind){
   const el = document.getElementById('pro-gate');
   if(!el) return;
   const title = document.getElementById('pg-title');
   const sub   = document.getElementById('pg-sub');
-  if(title) title.textContent = kind==='pieces'
-    ? 'Only Pro members can change the pieces'
-    : 'Only Pro members can change the board';
+  const copy  = GATE_COPY[kind] || GATE_COPY.shop;
+  if(title) title.textContent = copy[0];
+  if(sub)   sub.textContent   = copy[1];
   el.hidden = false;
   document.addEventListener('keydown', _gateKey);
   // Show the real thing, not a description of it.
@@ -765,10 +798,17 @@ async function showProGate(kind){
       if(r.ok) _gateCatalog = await r.json();
     }
     const d = _gateCatalog;
-    if(!d){ strip.innerHTML = ''; return; }
+    if(!d){ strip.innerHTML = ''; renderPlanCompare(); return; }
+    const cosmetic = (kind === 'board' || kind === 'pieces');
+    if(!cosmetic){
+      // Nothing to preview for a quota you have run out of.
+      strip.innerHTML = '';
+      renderPlanCompare();
+      return;
+    }
     if(sub && d.balance>0){
-      sub.textContent = 'You have already earned ' + d.balance + ' XP on the free plan and none of it '
-        + 'expires. Pro is what lets you spend it.';
+      sub.textContent = 'You have already earned ' + d.balance + ' XP on the free plan and none of '
+        + 'it expires. Grandmaster is what lets you spend it.';
     }
     const picks = kind==='pieces'
       ? (d.pieces||[]).filter(i=>i.price>0).slice(0,4)
@@ -1379,6 +1419,8 @@ const TrainingDrill = {
       const r=await fetch('/training/next',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pattern,count:this.rewrite?3:8}),credentials:'include'});
       d=await r.json();
     }catch(e){ return; }
+    // Out of free exercises for this theme: say so in the gate, named correctly.
+    if(handleLocked(d)) return;
     if(!d || !d.positions || !d.positions.length) return;
     this.positions=d.positions; this.idx=0; this.correct=0; this.pattern=d.pattern; this.streak=0;
     document.getElementById('drill-overlay').classList.toggle('rewrite', this.rewrite);
@@ -2472,6 +2514,42 @@ BotState.jumpToPly = function(ply){
   }catch(e){}
 };
 
+/* Arrow keys step back through the game and return to the present.
+   Left/Right walk a move at a time, Up/Home jump to the start, Down/End back to
+   the live position. Playing a move also returns you to live, which
+   handleCoachMove already did. */
+document.addEventListener('keydown', function(e){
+  if(e.metaKey || e.ctrlKey || e.altKey) return;
+  // Never steal keys from a text field, and never from the command palette,
+  // which navigates its own list with the same arrows.
+  const t = e.target;
+  if(t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' ||
+           t.isContentEditable)) return;
+  if(window.CommandPalette && CommandPalette.isOpen && CommandPalette.isOpen()) return;
+  const gate = document.getElementById('pro-gate');
+  if(gate && !gate.hidden) return;
+  if(!BotState.game || !BotState.gameActive) return;
+  const hist = BotState.game.history();
+  if(!hist.length) return;
+
+  // How many moves are on the board right now.
+  const cur = (BotState.previewPly == null) ? hist.length : BotState.previewPly;
+  let target = null;
+  switch(e.key){
+    case 'ArrowLeft':  target = cur - 2; break;            // show one fewer
+    case 'ArrowRight': target = cur;     break;            // show one more
+    case 'ArrowUp':
+    case 'Home':       target = -1;             break;     // the starting position
+    case 'ArrowDown':
+    case 'End':        target = hist.length - 1; break;    // back to the present
+    default: return;
+  }
+  if(target < -1) target = -1;
+  if(target > hist.length - 1) target = hist.length - 1;
+  e.preventDefault();
+  BotState.jumpToPly(target);
+});
+
 // Player made a legal move on the ForgeBoard.
 function handleCoachMove(from, to){
   if(!BotState.gameActive || BotState.boardLocked) return false;
@@ -3400,7 +3478,7 @@ const CommandPalette = {
     {icon:'ic-target',  label:'Training',         key:'T', run:()=>showPage('training')},
     {icon:'ic-puzzle',  label:'Puzzles',          key:'P', run:()=>showPage('puzzles')},
     {icon:'ic-sliders', label:'Shop',             key:'',  run:()=>showPage('shop')},
-    {icon:'ic-chart',   label:'Game Review',      key:'',  run:()=>{ const b=document.getElementById('analysis-btn'); if(b) b.click(); }},
+    {icon:'ic-chart',   label:'Game Review',      key:'',  run:()=>{ if(window.runPostgameReview) runPostgameReview(); }},
     {icon:'ic-book',    label:'Lessons',          key:'',  run:()=>showPage('training')},
   ],
   sel:0, filtered:[], lastFocus:null,
@@ -5040,98 +5118,16 @@ const SolveHelp = (function(){
 })();
 window.SolveHelp = SolveHelp;
 
-/* Draggable ⌘K hint card. It sat in a fixed spot over the left gutter where it
-   could overlap the board; it now starts beside the content and can be moved
-   anywhere, remembering where it was put. */
+/* The ⌘K control lives in the top bar now. It used to be a floating card that
+   could be dragged anywhere, which was one more thing on screen to look at and
+   one more thing that could end up somewhere awkward. Clicking it opens the
+   palette; the shortcut itself is handled by CommandPalette.init(). */
 (function(){
   function init(){
-    const card = document.getElementById('cmdk-hint');
-    if(!card) return;
-    let dragging = false, ox = 0, oy = 0, moved = false;
-
-    // Keep the card inside the window. Called while dragging and again on
-    // resize -- a position saved on a wide window would otherwise strand the
-    // card off-screen on a narrower one, with no way to reach it again.
-    function place(x, y){
-      const w = card.offsetWidth, h = card.offsetHeight;
-      const cx = Math.min(Math.max(0, x), Math.max(0, window.innerWidth  - w));
-      const cy = Math.min(Math.max(0, y), Math.max(0, window.innerHeight - h));
-      card.style.left = cx + 'px'; card.style.top = cy + 'px';
-      card.style.right = 'auto';  card.style.bottom = 'auto';
-      return {x:cx, y:cy};
-    }
-
-    function save(){
-      try{
-        localStorage.setItem('cf_cmdk_pos', JSON.stringify({
-          x: parseInt(card.style.left,10) || 0,
-          y: parseInt(card.style.top,10)  || 0
-        }));
-      }catch(e){}
-    }
-
-    function start(px, py){
-      const r = card.getBoundingClientRect();
-      ox = px - r.left; oy = py - r.top;
-      dragging = true; moved = false;
-      card.classList.add('dragging');
-    }
-    function move(px, py){
-      if(!dragging) return;
-      moved = true;
-      place(px - ox, py - oy);
-    }
-    function end(){
-      if(!dragging) return;
-      dragging = false;
-      card.classList.remove('dragging');
-      if(moved) save();
-      else if(window.CommandPalette && CommandPalette.open) CommandPalette.open();
-    }
-
-    card.addEventListener('mousedown', (e)=>{
-      if(e.button !== 0) return;
-      start(e.clientX, e.clientY);
-      e.preventDefault();
-    });
-    window.addEventListener('mousemove', (e)=> move(e.clientX, e.clientY));
-    window.addEventListener('mouseup', end);
-
-    // Touch: same gesture on tablets, and a tap still opens the palette.
-    card.addEventListener('touchstart', (e)=>{
-      const t = e.touches[0]; if(!t) return;
-      start(t.clientX, t.clientY);
-    }, {passive:true});
-    card.addEventListener('touchmove', (e)=>{
-      const t = e.touches[0]; if(!t || !dragging) return;
-      move(t.clientX, t.clientY);
-      e.preventDefault();          // stop the page scrolling under the drag
-    }, {passive:false});
-    card.addEventListener('touchend', end);
-    card.addEventListener('touchcancel', end);
-
-    // Keyboard parity with the click.
-    card.addEventListener('keydown', (e)=>{
-      if(e.key==='Enter' || e.key===' '){
-        e.preventDefault();
-        if(window.CommandPalette && CommandPalette.open) CommandPalette.open();
-      }
-    });
-
-    // Restore where it was left, clamped -- a position saved on a wide window
-    // must not place the card outside a narrower one.
-    try{
-      const saved = JSON.parse(localStorage.getItem('cf_cmdk_pos') || 'null');
-      if(saved && typeof saved.x === 'number' && typeof saved.y === 'number'){
-        place(saved.x, saved.y);
-      }
-    }catch(e){}
-
-    // Pull it back into view if the window gets smaller.
-    window.addEventListener('resize', ()=>{
-      if(!card.style.left) return;          // still on its default anchor
-      place(parseInt(card.style.left,10) || 0, parseInt(card.style.top,10) || 0);
-      save();
+    const btn = document.getElementById('cmdk-hint');
+    if(!btn) return;
+    btn.addEventListener('click', ()=>{
+      if(window.CommandPalette && CommandPalette.toggle) CommandPalette.toggle();
     });
   }
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

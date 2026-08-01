@@ -10,7 +10,7 @@ node    tests/test_solvehelp.js    # hint ladder must not leak the answer early 
 node    tests/test_coach.js        # rebuilt coach render surfaces             (12 checks)
 node    tests/test_gamesetup.js    # turn-indicator state machine              (7 checks)
 node    tests/test_cosmetics.js    # equipping repaints all boards; free vs Pro (28 checks)
-node    tests/test_cmdk.js         # the hint card can never be stranded       (15 checks)
+
 node    tests/test_palette.js      # command palette exposes the play modes    (17 checks)
 node    tests/test_ladder.js       # think-it-through rungs + retractable rails (37 checks)
 node    tests/test_upgrade_intent.js # landing-page upgrade intent survives signup (14 checks)
