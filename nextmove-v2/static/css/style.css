@@ -2670,3 +2670,46 @@ body.blunder-open .forge-dock{opacity:.25;transition:opacity 200ms}
   #page-coach .forge-dock #coach-big{max-width:118px}
 }
 @media(max-height:720px){#page-coach .forge-dock #coach-big{max-width:110px}}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BOARD BACK UP, FORGE BIGGER, PANEL TIDIED
+   The board had been shrunk to make room for the game bar. Reclaiming the
+   space from the strip and the bar instead means the board is larger than it
+   was before any of this, and the controls still fit without scrolling.
+   ═══════════════════════════════════════════════════════════════════════════ */
+#page-coach .gm-board-wrap{width:min(72vh,820px,88vw);min-width:min(460px,88vw)}
+#page-coach .eval-strip,#page-coach .gm-gamebar{width:min(72vh,820px,88vw)}
+body.rail-right-off #page-coach .gm-board-wrap,
+body.rail-right-off #page-coach .eval-strip,
+body.rail-right-off #page-coach .gm-gamebar{width:min(78vh,900px,94vw)}
+#page-coach .gm-main{gap:8px}
+#page-coach .eval-strip{height:64px}
+#page-coach .gm-gamebar{padding:6px 12px}
+#page-coach .gm-act{padding:6px 12px;font-size:12px}
+
+/* GM Forge: bigger, and hard into the corner. */
+#page-coach .forge-dock{
+  width:auto;margin:0 8px 0 0;justify-self:start;align-self:end;
+  padding-left:4px}
+#page-coach .forge-dock #coach-big{width:auto;max-width:none;margin:0}
+#page-coach .forge-dock #forge-figure{width:230px;height:auto;
+  filter:drop-shadow(0 12px 26px rgba(0,0,0,.6))}
+@media(max-width:1400px){#page-coach .forge-dock #forge-figure{width:190px}}
+@media(max-width:1200px){#page-coach .forge-dock #forge-figure{width:150px}}
+@media(max-height:760px){#page-coach .forge-dock #forge-figure{width:170px}}
+/* The footer sits at left:24px bottom:10px, so it has to go on this screen. */
+body.play-locked .app-foot{display:none}
+
+/* His speech is at the top of the panel now, so the bubble tail points up. */
+#page-coach .forge-say{width:100%;margin-bottom:14px}
+#page-coach .forge-say .coach-bubble{border-radius:12px}
+#page-coach .forge-say .coach-bubble::after{display:none}
+
+/* Things that were restating something already on screen. */
+#page-coach #coach-history,
+#page-coach .coach-name-tag,
+#page-coach .coach-eval-row,
+#page-coach #coach-status-label:empty,
+#page-coach .gm-question-list:empty,
+#page-coach .coach-stepmeta:empty{display:none !important}
+#page-coach .eval-num{padding:10px 16px;width:128px}

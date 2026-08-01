@@ -2418,7 +2418,6 @@ function startBotGame(){
   if(State.coachMode==='coached'){
     Coach.setStatus('Watching the board');
     Coach.speak('Game on. Take your time before every move — I\'ll ask questions and point things out.');
-    Coach.renderQuestions(['Game on. Take your time before every move — I\'ll be asking questions and pointing things out.']);
     if(BotState.playerColor === 'white'){
       setTimeout(()=>Coach.afterBotMove(''), 350);
     }
@@ -3941,7 +3940,7 @@ const CoachMoment = {
     document.body.classList.remove('coach-blocking');
     document.querySelectorAll('.fb-sq.sq-focus').forEach(c=>c.classList.remove('sq-focus'));
     BotState.boardLocked=false;
-    Coach.setStatus('Your move.');
+    Coach.setStatus('');
     setTimeout(()=>{ if(window.ForgePointer) ForgePointer.retract(); }, 900);   // was 1800 — hand overstayed
   },
   stop(){
@@ -4042,7 +4041,7 @@ const CoachDialogue = {
     } else if(q){
       Coach.speak(q.text);              // notable: a short question, board stays free
       BotState.boardLocked = false;
-      Coach.setStatus('Your move.');
+      Coach.setStatus('');
     } else {
       this._reveal('see');             // hint/explain style: straight to the point
     }
@@ -4059,7 +4058,7 @@ const CoachDialogue = {
     if(BotState.board && BotState.board.arrow){
       (d.arrows||[]).forEach(a=>{ if(a && a.from && a.to) BotState.board.arrow(a.from, a.to, a.color); });
     }
-    Coach.setStatus('Your move.');
+    Coach.setStatus('');
     document.body.classList.remove('forge-focus');
     setTimeout(function(){ if(window.ForgePointer) ForgePointer.retract(); }, 1200);  // was 2600
     setTimeout(()=>CoachFigure.mood('idle'), 2400);
@@ -4303,7 +4302,7 @@ const Coach = (function(){
       // nothing worth saying — coach stays quiet, board stays free
       if(BotState.board && BotState.board.clearMarks) BotState.board.clearMarks();
       CoachFigure.mood('idle');
-      setStatus('Your move.');
+      setStatus('');
       return;
     }
     // there's a teaching moment — run the two-phase ask -> reveal
