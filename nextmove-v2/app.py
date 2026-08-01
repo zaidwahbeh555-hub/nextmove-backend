@@ -1017,6 +1017,14 @@ def add_xp():
     if xp_type=="puzzle":
         prog["puzzles_solved"]=prog.get("puzzles_solved",0)+1
         granted=grant_xp(user,"puzzle_solved")
+        # Track WHICH position was solved, so it rotates behind the unsolved ones
+        # instead of coming back first every time.
+        fen=(data.get("fen") or "").strip()
+        if fen:
+            done=user.get("puzzles_solved") or []
+            if fen not in done:
+                done.append(fen)
+            user["puzzles_solved"]=done[-400:]
     if xp_type=="analysis": prog["games_analysed"]=prog.get("games_analysed",0)+1
     if xp_type=="lesson" and lesson_id:
         completed=prog.get("lessons_completed",[])
@@ -4238,15 +4246,58 @@ def my_puzzles():
         db = load_db()
         rec = db.get(uname) or {}
         all_p = rec.get("puzzles") or []
+        solved = set(rec.get("puzzles_solved") or [])
+
+        # This used to hand back the same list in the same order every time, and
+        # the client starts at the first one -- so the same puzzles came up after
+        # every game forever. Anything not yet solved comes first, both halves
+        # shuffled, so the set is different each time it is opened.
+        fresh = [p for p in all_p if p.get("fen") not in solved]
+        done  = [p for p in all_p if p.get("fen") in solved]
+        random.shuffle(fresh); random.shuffle(done)
+        ordered = fresh + done
+
+        # Run low on your own positions and it mints more that need the same
+        # thinking: real positions validated to contain the pattern you keep
+        # getting wrong, rather than a repeat of a position you have seen.
+        minted = []
+        if is_pro(rec) and len(fresh) < 6:
+            counts = {}
+            for p in all_p:
+                pat = p.get("pattern") or "Missed tactic"
+                counts[pat] = counts.get(pat, 0) + 1
+            wanted = sorted(counts.items(), key=lambda kv: -kv[1])[:3] or [("Missed tactic", 1)]
+            seen_fens = {p.get("fen") for p in all_p}
+            for pat, _n in wanted:
+                for pos in drill_positions(pat, 4):
+                    f = pos.get("fen")
+                    if not f or f in seen_fens:
+                        continue
+                    seen_fens.add(f)
+                    minted.append({
+                        "fen": f,
+                        "solution": pos.get("solution") or pos.get("best") or "",
+                        "move_played": "", "phase": pos.get("phase") or "middlegame",
+                        "pattern": pat, "drop_cp": pos.get("drop_cp") or 0,
+                        "side": pos.get("side") or ("white" if " w " in f else "black"),
+                        "threat_desc": "", "generated": True,
+                    })
+            minted = [m for m in minted if m["solution"]]
+            random.shuffle(minted)
+
         if is_pro(rec):
-            return jsonify({"puzzles": all_p, "locked": 0, "limit": None, "plan": PLAN_NAME})
-        # Free sees the first few and is told plainly how many are being held back.
-        shown = all_p[:FREE_PUZZLES]
+            out = ordered + minted
+            return jsonify({"puzzles": out, "locked": 0, "limit": None, "plan": PLAN_NAME,
+                            "generated": len(minted), "from_your_games": len(ordered)})
+        # Free sees a few, and they rotate too rather than being the same five.
+        shown = ordered[:FREE_PUZZLES]
         return jsonify({"puzzles": shown, "locked": max(0, len(all_p) - len(shown)),
                         "limit": FREE_PUZZLES, "plan": PLAN_NAME,
                         "message": "Free gives you %d puzzles a day. %s unlocks every puzzle your "
-                                   "own games produce." % (FREE_PUZZLES, PLAN_NAME)})
-    except Exception:
+                                   "own games produce, plus fresh ones on the same patterns."
+                                   % (FREE_PUZZLES, PLAN_NAME)})
+    except Exception as e:
+        print("my-puzzles failed:", e)
         return jsonify({"puzzles": []})
 
 # ══════════════════════════════════════════════════════════════════════════════

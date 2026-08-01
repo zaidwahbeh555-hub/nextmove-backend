@@ -284,20 +284,34 @@ function showEl(id){const e=document.getElementById(id);if(e)e.classList.remove(
 function hideEl(id){const e=document.getElementById(id);if(e)e.classList.add('hidden')}
 
 /* ── XP ───────────────────────────────────────────────────────────────────── */
-function setXP(val){
-  State.xp=val;
-  document.getElementById('xp-count').textContent=val;
-  document.getElementById('user-xp-label').textContent=(State.plan==='pro'?'GM · ':'')+val+'XP';
-  document.getElementById('xp-fill').style.width=Math.min((val%500)/500*100,100)+'%';
+function setXP(val, balance){
+  State.xp = val;
+  if(balance !== undefined && balance !== null) State.balance = balance;
+  // The chip opens the shop, so it shows what is actually spendable. Lifetime
+  // XP still drives the level bar — that is what it measures.
+  const spend = (State.balance === undefined || State.balance === null) ? val : State.balance;
+  const c = document.getElementById('xp-count'); if(c) c.textContent = spend;
+  const l = document.getElementById('user-xp-label');
+  if(l) l.textContent = (State.plan==='pro'?'GM · ':'') + spend + ' XP to spend';
+  const f = document.getElementById('xp-fill');
+  if(f) f.style.width = Math.min((val%500)/500*100,100)+'%';
 }
-async function awardXP(amount,type,lessonId){
+// Anything that changes the balance repaints the chip, so the two can never
+// drift apart on screen.
+function syncBalance(balance){
+  if(balance === undefined || balance === null) return;
+  State.balance = balance;
+  setXP(State.xp, balance);
+}
+window.syncBalance = syncBalance;
+async function awardXP(amount,type,lessonId,fen){
   State.xp+=amount; setXP(State.xp);
   if(State.loggedIn){
-    const body={amount,type};if(lessonId)body.lesson_id=lessonId;
+    const body={amount,type};if(lessonId)body.lesson_id=lessonId;if(fen)body.fen=fen;
     try{
       const r=await fetch('/auth/add-xp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),credentials:'include'});
       const d=await r.json();
-      if(d.xp!==undefined)setXP(d.xp);
+      if(d.xp!==undefined)setXP(d.xp, d.balance);
       if(type==='lesson'&&lessonId&&!State.completedLessons.includes(lessonId)){
         State.completedLessons.push(lessonId);
         document.querySelectorAll(`[data-lesson="${lessonId}"]`).forEach(el=>el.classList.add('completed'));
@@ -1028,7 +1042,7 @@ async function renderShop(){
     if(!r.ok) throw new Error('catalog '+r.status);
     const d = await r.json();
     if(bal) bal.textContent = d.balance;
-    State.balance = d.balance;
+    syncBalance(d.balance);
     _gateCatalog = d;
     const locked = document.getElementById('shop-locked');
     if(locked) locked.classList.toggle('hidden', !!d.is_pro);
@@ -1095,8 +1109,7 @@ async function refreshCosmetics(){
     const d = await r.json();
     if(d.loggedIn){
       Cosmetics.apply(d.cosmetics);
-      if(d.balance!==undefined) State.balance = d.balance;
-      if(d.xp!==undefined) setXP(d.xp);
+      if(d.xp!==undefined) setXP(d.xp, d.balance);
     }
   }catch(e){ console.error('refreshCosmetics failed:', e); }
 }
@@ -1172,8 +1185,8 @@ function applySession(d){
   State.onboarding=d.onboarding||null;
   document.getElementById('user-name').textContent=d.username;
   document.getElementById('user-avatar').textContent=d.username[0].toUpperCase();
-  setXP(d.xp||0);
   if(d.balance!==undefined) State.balance=d.balance;
+  setXP(d.xp||0, d.balance);
   Cosmetics.apply(d.cosmetics);
   try{ syncCosmeticAffordances(); }catch(e){}
   State.completedLessons=d.progress?.lessons_completed||[];
@@ -1319,8 +1332,11 @@ async function loadMyPuzzles(){
     const r=await fetch('/my-puzzles',{credentials:'include'});
     const d=await r.json();
     if(d && d.puzzles && d.puzzles.length){
-      const seen=new Set((State.puzzles||[]).map(p=>p.fen));
-      d.puzzles.forEach(p=>{ if(!seen.has(p.fen)){ State.puzzles.push(p); seen.add(p.fen); } });
+      // Take the server's order outright. Merging into the existing array kept
+      // the original sequence forever, which is why the same puzzles came back
+      // after every game.
+      State.puzzles = d.puzzles;
+      State.puzzleIdx = 0;
       return State.puzzles.length;
     }
   }catch(e){}
@@ -2159,7 +2175,8 @@ function checkPuzzleMove(mv, src, tgt){
     status.textContent = 'Correct! Well done!';
     status.style.color = 'var(--green)';
     State.puzzleCorrect++;
-    awardXP(50,'puzzle').catch(function(e){ console.error("awardXP failed:", e); });
+    awardXP(50,'puzzle',null,(State.puzzles[State.puzzleIdx]||{}).fen)
+      .catch(function(e){ console.error("awardXP failed:", e); });
   } else {
     status.textContent = ` Not quite (${mv.san}) — try again!`;
     status.style.color = 'var(--red)';
@@ -5282,7 +5299,7 @@ try{ syncCosmeticAffordances(); }catch(e){}
    ═══════════════════════════════════════════════════════════════════════════ */
 const GameSetup = (function(){
   const $ = (id)=>document.getElementById(id);
-  let side = 'white', mode = 'coached';
+  let side = 'random', mode = 'coached';   // random unless they choose otherwise
 
   function showSetup(on){
     const p = $('gm-setup');   if(p) p.classList.toggle('hidden', !on);

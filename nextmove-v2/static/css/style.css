@@ -2001,8 +2001,12 @@ body.blunder-open #page-coach #coach-panel{opacity:.12;pointer-events:none;trans
 .shop-tag{font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--text-3)}
 
 /* Preview: a fixed 4x4 corner of a board. Fixed px, never a flex child. */
-.shop-mini{display:grid;grid-template-columns:repeat(4,1fr);width:100%;aspect-ratio:1;max-height:180px}
-.shop-mini i{display:block;position:relative;aspect-ratio:1}
+/* The cells used to size themselves from their own aspect-ratio while the
+   container was clamped to a shorter max-height, so the bottom row overflowed
+   down over the buy button. The grid owns the height now and clips. */
+.shop-mini{display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(4,1fr);
+  width:100%;aspect-ratio:1;overflow:hidden;border-radius:10px 10px 0 0}
+.shop-mini i{display:block;position:relative;min-width:0;min-height:0}
 .shop-mini img{position:absolute;inset:8%;width:84%;height:84%;object-fit:contain}
 
 .shop-btn{width:100%;padding:10px 16px;border-radius:999px;border:1px solid var(--border-hi);
