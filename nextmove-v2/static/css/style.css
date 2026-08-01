@@ -2540,38 +2540,3 @@ body.rail-right-off #page-coach .gm-gamebar{width:min(76vh,840px,92vw)}
 .tutorial-desc{font-size:13px !important;line-height:1.55 !important;margin-bottom:14px !important}
 .tutorial-actions .btn-outline{padding:7px 13px;font-size:12px}
 .tutorial-actions #t-next{padding:8px 16px;font-size:12.5px}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   COACH PANEL — only what is actually doing something
-   The panel had grown a stack of surfaces that repeat each other: a questions
-   list, a rail of prompts, a badge, theory chips, a name tag under a figure
-   that is obviously GM Forge, and a Move list disclosure whose contents were
-   already hidden on this screen so it opened onto nothing. The think-it-through
-   ladder replaced most of them. What is left is the coach, the card he is
-   currently using, and the one button that starts it.
-   ═══════════════════════════════════════════════════════════════════════════ */
-#page-coach #coach-questions,
-#page-coach #crail-items,
-#page-coach #coach-position-badge,
-#page-coach #coach-theory,
-#page-coach #coach-stepmeta,
-#page-coach .coach-name-tag,
-#page-coach #coach-history{display:none !important}
-
-/* The figure was taking a third of the column on its own. */
-#page-coach .coach-big{max-width:150px !important;margin:0 auto 4px}
-#page-coach .coach-bubble{font-size:13px;line-height:1.55;padding:11px 13px}
-#page-coach .coach-stage{gap:8px}
-#page-coach #coach-status-label{font-size:12px;color:var(--text-3);text-align:center}
-
-/* One line, and it goes away the moment you have drawn arrows. */
-#page-coach .cp-tip{font-size:12px;color:var(--text-3);margin:0 0 12px;line-height:1.5}
-#page-coach .cp-tip.hidden{display:none}
-#page-coach .cp-sec{margin-bottom:14px}
-
-/* With that gone the column fits a normal window without scrolling. The scroll
-   is kept as a safety net only: clipping instead would put the ladder's Next
-   button out of reach on a short screen, which is exactly the bug that has
-   shipped here before. */
-#page-coach .gm-side,#page-coach #coach-panel{
-  max-height:calc(100vh - 96px);overflow-y:auto;scrollbar-width:thin}
