@@ -6,6 +6,7 @@ No framework — each file runs standalone from `nextmove-v2/`.
 python3 tests/test_socratic.py     # coach must never name the engine's move  (13 checks)
 python3 tests/test_premove.py      # premove FEN side-flip, incl. illegal positions
 python3 tests/test_cosmetics.py    # no cosmetic combination is illegible     (471 checks)
+python3 tests/test_limits.py       # free accounts get only what Free includes (30 checks)
 node    tests/test_solvehelp.js    # hint ladder must not leak the answer early (24 checks)
 node    tests/test_coach.js        # rebuilt coach render surfaces             (12 checks)
 node    tests/test_gamesetup.js    # turn-indicator state machine              (7 checks)

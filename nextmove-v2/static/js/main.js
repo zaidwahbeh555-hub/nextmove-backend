@@ -2025,8 +2025,28 @@ function clearHighlights(){
   try{ clearAllHighlights('puzzle-board'); }catch(e){}
 }
 
-function loadPuzzle(idx){
+/* Claim a puzzle attempt before showing it. The daily allowance is counted on
+   the server, so it holds however the puzzle got onto the board -- capping the
+   list alone did nothing, because the client keeps what it has already been
+   given and re-solving was free. */
+async function claimPuzzle(){
+  if(!State.loggedIn) return true;
+  if(State.plan === 'pro') return true;
+  try{
+    const r = await fetch('/puzzles/claim', {method:'POST', credentials:'include'});
+    const d = await r.json();
+    if(!r.ok){ handleLocked(d); return false; }
+    if(typeof d.left === 'number'){
+      const el = document.getElementById('puzzle-status');
+      if(el && d.left === 0) el.dataset.last = '1';
+    }
+    return true;
+  }catch(e){ return true; }        // never lock someone out on a network blip
+}
+
+async function loadPuzzle(idx){
   if(idx>=State.puzzles.length||!State.puzzleBoard)return;
+  if(!(await claimPuzzle())) return;
   const p=State.puzzles[idx];
   State.puzzleGame=new Chess(p.fen);
   const side = (p.side==='white'?'white':'black');
@@ -2999,6 +3019,7 @@ async function fetchMorePuzzles(){
       credentials:'include'
     });
     const d = await r.json();
+    if(!r.ok){ handleLocked(d); return false; }
     if(d.puzzles && d.puzzles.length){
       State.puzzles.push(...d.puzzles);
       document.getElementById('puzzle-total').textContent = State.puzzles.length;

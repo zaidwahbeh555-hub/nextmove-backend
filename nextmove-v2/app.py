@@ -1239,13 +1239,17 @@ def analyse():
     if not player_color: player_color=None
     if not pgn_text: return jsonify({"error":"No PGN provided."}),400
     # Plan check
+    # Deep analysis is a Grandmaster feature. Free still gets the summary at the
+    # end of its coached game; this is the full engine pass over a whole PGN.
     u=current_user()
     if u:
         user=get_user(u) or {}
         if not is_pro(user):
-            count=games_today(user)
-            if count>=FREE_DAILY_LIMIT:
-                return jsonify({"error":"free_limit_reached","message":f"Free plan allows {FREE_DAILY_LIMIT} game analysis per day. Upgrade to Grandmaster for unlimited analysis.","upgrade":True,"limit":FREE_DAILY_LIMIT,"used":count}),403
+            return jsonify({"error":"pro_required","locked":"analysis","upgrade":True,
+                            "plan":PLAN_NAME,
+                            "message":"Deep analysis is part of %s. It runs the engine over every "
+                                      "move of the game and explains what each mistake cost."
+                                      % PLAN_NAME}),403
     sf=find_stockfish()
     if not sf: return jsonify({"error":"Stockfish not found."}),500
     games_raw,buf=[],[]
@@ -1465,6 +1469,13 @@ def generate_puzzles():
     """Generate infinite puzzles based on user's weakness patterns."""
     u = current_user()
     user = get_user(u) or {}
+    # "Infinite puzzles" is the definition of unlimited, so this is Grandmaster
+    # only. Free plays the five its own games produced.
+    if not is_pro(user):
+        return jsonify({"error": "free_limit_reached", "locked": "puzzles", "plan": PLAN_NAME,
+                        "message": "Free plays the %d puzzles a day your own games produce. %s "
+                                   "generates unlimited puzzles targeted at your weaknesses."
+                                   % (FREE_PUZZLES, PLAN_NAME)}), 403
     data = request.get_json(silent=True) or {}
     weakness = data.get("weakness", "tactics")
     count = min(int(data.get("count", 5)), 10)
@@ -4859,6 +4870,33 @@ def coach_begin():
     save_user(u, user)
     return jsonify({"ok": True, "unlimited": False, "left": left,
                     "limit": FREE_COACHED_GAMES, "plan": PLAN_NAME})
+
+@app.route("/puzzles/claim", methods=["POST"])
+@login_required
+def puzzles_claim():
+    """Claim one puzzle attempt. Free gets FREE_PUZZLES a day.
+
+    Capping the list returned by /my-puzzles was not enough: the client keeps
+    the puzzles it has already been given, and re-solving the same five was
+    unlimited. Solving is what gets counted now, so the limit holds however the
+    puzzle reached the board.
+    """
+    u = current_user(); user = get_user(u)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+    if is_pro(user):
+        return jsonify({"ok": True, "unlimited": True})
+    used = usage(user, "puzzles")
+    if used >= FREE_PUZZLES:
+        return jsonify({
+            "error": "free_limit_reached", "locked": "puzzles", "plan": PLAN_NAME,
+            "limit": FREE_PUZZLES, "used": used,
+            "message": "That is your %d puzzles for today. %s serves every puzzle your own games "
+                       "produce." % (FREE_PUZZLES, PLAN_NAME),
+        }), 403
+    left = FREE_PUZZLES - bump_usage(user, "puzzles")
+    save_user(u, user)
+    return jsonify({"ok": True, "unlimited": False, "left": left, "limit": FREE_PUZZLES})
 
 @app.route("/plan/features")
 def plan_features():
