@@ -1469,7 +1469,7 @@ body{display:block!important;min-height:100vh;overflow-x:hidden}
 #page-coach .gm-side,#page-coach #coach-panel{grid-column:3;grid-row:1;width:320px;margin-left:48px;
   align-self:center;justify-self:start}
 /* anything else that lands in the grid must not claim a column */
-#page-coach .gm-layout > *:not(.gm-main):not(.gm-side):not(#coach-panel){display:none}
+#page-coach .gm-layout > *:not(.gm-main):not(.gm-side):not(#coach-panel):not(#forge-dock){display:none}
 /* board sizing wins over every earlier layer */
 /* min-width was a hard 520px. Zooming in shrinks the CSS viewport, so 64vh fell
    below 520px, the board was forced wider than its column, and .main-wrap's
@@ -2635,3 +2635,38 @@ body.rail-right-off #page-coach .gm-gamebar{width:min(68vh,780px,92vw)}
   transition:all 120ms cubic-bezier(.32,.72,0,1)}
 .gm-setup-pgn:hover{background:rgba(59,201,168,.12);color:#5fe0c2}
 .gm-setup-pgn.hidden{display:none}
+
+/* ── Tidying after GM Forge moved out of the panel ──────────────────────────
+   Removing the figure left a label with nothing under it, an empty step-meta
+   div and an empty question list holding space in the column, and the dock
+   landed on top of the fixed footer, which sits at left:24px bottom:10px. */
+#page-coach .coach-stepmeta:empty,
+#page-coach .gm-question-list:empty,
+#page-coach .coach-help:empty,
+#page-coach .coach-eval-row{display:none !important}
+#page-coach .coach-stage{align-items:stretch}
+#page-coach .coach-stage:empty{display:none}
+
+/* Clear the footer, and stand the dock down entirely while a modal or the tour
+   is up so he is not sitting over them. */
+.forge-dock{bottom:52px}
+@media(max-width:1240px){.forge-dock{bottom:16px}}   /* footer is hidden here */
+body.blunder-open .forge-dock{opacity:.25;transition:opacity 200ms}
+
+/* ── GM Forge, anchored to the left column ─────────────────────────────────
+   He was position:fixed at left:20px with a 220px box, but the left gutter is
+   only about 165px at 1440 — so he was sitting on the board. Living in the
+   grid's left column means he cannot overlap it at any width. */
+#page-coach .forge-dock{
+  position:static;grid-column:1;grid-row:1;
+  justify-self:end;align-self:end;
+  width:min(210px,100%);margin:0 20px 8px 0;
+  display:flex;flex-direction:column;align-items:flex-start;gap:6px;
+  pointer-events:none}
+#page-coach .forge-dock .forge-say{pointer-events:auto}
+#page-coach .forge-dock #coach-big{width:100%;max-width:150px;margin:0}
+@media(max-width:1240px){
+  #page-coach .forge-dock{width:min(170px,100%);margin-right:12px}
+  #page-coach .forge-dock #coach-big{max-width:118px}
+}
+@media(max-height:720px){#page-coach .forge-dock #coach-big{max-width:110px}}
