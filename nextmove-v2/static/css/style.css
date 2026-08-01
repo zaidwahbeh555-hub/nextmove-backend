@@ -2540,3 +2540,98 @@ body.rail-right-off #page-coach .gm-gamebar{width:min(76vh,840px,92vw)}
 .tutorial-desc{font-size:13px !important;line-height:1.55 !important;margin-bottom:14px !important}
 .tutorial-actions .btn-outline{padding:7px 13px;font-size:12px}
 .tutorial-actions #t-next{padding:8px 16px;font-size:12.5px}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GM FORGE'S CORNER, HERO ACTION, CLEANER CANDIDATES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* He lives bottom-left now. He is here to point and to look like he is
+   thinking, so he does not need a column of the panel. What he says is one box
+   above him rather than a bubble and a feedback line stacked separately.
+   pointer-events stays off the wrapper so he never eats a click meant for the
+   board; the text box itself is still selectable. */
+.forge-dock{position:fixed;left:20px;bottom:16px;z-index:70;width:220px;
+  display:flex;flex-direction:column;align-items:flex-start;gap:6px;
+  pointer-events:none}
+.forge-dock #coach-big{width:150px;max-width:150px;margin:0}
+.forge-dock #forge-figure{width:100%;height:auto;display:block;
+  filter:drop-shadow(0 10px 22px rgba(0,0,0,.55))}
+body.rail-right-off .forge-dock{left:20px}
+@media(max-width:1180px){.forge-dock{width:180px}.forge-dock #coach-big{width:120px;max-width:120px}}
+@media(max-height:680px){.forge-dock #coach-big{width:104px;max-width:104px}}
+
+/* One box for everything he says, sitting on top of him. */
+.forge-say{width:100%;pointer-events:auto;display:flex;flex-direction:column;gap:0}
+.forge-say:empty{display:none}
+.forge-dock .coach-bubble{position:relative;background:var(--bg-panel);
+  border:1px solid var(--border-hi);border-radius:12px;padding:11px 13px;
+  font-size:13px;line-height:1.5;color:var(--text-1);margin:0;
+  box-shadow:0 12px 30px -14px rgba(0,0,0,.7);max-width:100%}
+/* A tail, so it reads as him speaking. */
+.forge-dock .coach-bubble::after{content:'';position:absolute;left:26px;bottom:-7px;
+  width:12px;height:12px;background:var(--bg-panel);
+  border-right:1px solid var(--border-hi);border-bottom:1px solid var(--border-hi);
+  transform:rotate(45deg)}
+/* The feedback line merges into the same box instead of being a second card. */
+.forge-dock .gm-feedback{background:var(--bg-panel);border:1px solid var(--border-hi);
+  border-bottom:none;border-radius:12px 12px 0 0;padding:10px 13px 8px;margin:0;
+  font-size:12px;line-height:1.5}
+.forge-dock .gm-feedback:not(.hidden) + .coach-bubble{border-radius:0 0 12px 12px;border-top:none}
+.forge-dock .gm-feedback.blunder{color:#ff8b90}
+.forge-dock .gm-feedback.mistake{color:#ffc46b}
+.forge-dock .coach-thinking-mini{margin:6px 0 0;padding-left:4px}
+
+/* ── The main action ──────────────────────────────────────────────────────── */
+.ladder-open{
+  gap:10px !important;padding:18px 18px !important;font-size:15px !important;
+  font-weight:700 !important;border-radius:14px !important;
+  color:#0D0D14 !important;
+  background:linear-gradient(135deg, var(--accent) 0%, #7C8BFF 100%) !important;
+  border:none !important;
+  box-shadow:0 10px 26px -10px rgba(91,108,255,.75) !important;
+  letter-spacing:-.01em}
+.ladder-open:hover{filter:brightness(1.06);transform:translateY(-1px);
+  box-shadow:0 14px 32px -10px rgba(91,108,255,.9) !important}
+.ladder-open .ic{width:19px;height:19px;color:#0D0D14}
+.ladder-open:hover .ic{color:#0D0D14}
+
+/* ── Candidates: rows, not boxes ──────────────────────────────────────────── */
+.crail-cand{display:flex;align-items:center;gap:10px;padding:10px 2px;
+  border:none;background:transparent;border-bottom:1px solid rgba(255,255,255,.06);
+  border-radius:0;font-size:13px;cursor:pointer;
+  transition:background 120ms cubic-bezier(.32,.72,0,1)}
+.crail-cand:last-child{border-bottom:none}
+.crail-cand:hover{background:rgba(255,255,255,.03)}
+.crail-cand .cc-move{font-weight:700;color:var(--text-1);min-width:52px;
+  font-variant-numeric:tabular-nums}
+.crail-cand .cc-reply{color:var(--text-3);font-size:12px;flex:1}
+.crail-cand .cc-gap{font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;
+  background:rgba(255,255,255,.05);color:var(--text-2);white-space:nowrap}
+.crail-cand .cc-gap.best{background:rgba(46,204,113,.14);color:#5fd88f}
+.crail-cand .cc-gap.mid{background:rgba(241,196,15,.12);color:#e0be5a}
+.crail-cand .cc-gap.bad{background:rgba(229,72,77,.12);color:#ef7d80}
+.crail-btn{border-radius:10px;border:1px solid var(--border-hi);background:transparent;
+  color:var(--text-1);font-weight:600;font-size:13px;padding:11px 16px;margin-top:10px}
+.crail-btn:hover{border-color:var(--accent);background:var(--accent-soft);color:var(--text-1)}
+
+/* ── Flip / Resign / Copy PGN / New game must be on screen ────────────────── */
+/* The board plus the eval strip plus this bar did not fit the column, so the
+   controls fell below the fold on a screen that cannot scroll. */
+#page-coach .gm-board-wrap{width:min(62vh,700px,86vw);min-width:min(440px,86vw)}
+#page-coach .eval-strip,#page-coach .gm-gamebar{width:min(62vh,700px,86vw)}
+#page-coach .gm-gamebar{padding:8px 12px;margin-top:2px}
+#page-coach .gm-gamebar-actions{gap:6px}
+#page-coach .gm-act{padding:7px 13px;font-size:12.5px}
+body.rail-right-off #page-coach .gm-board-wrap,
+body.rail-right-off #page-coach .eval-strip,
+body.rail-right-off #page-coach .gm-gamebar{width:min(68vh,780px,92vw)}
+
+/* Copy PGN reads as its own thing, not another grey button. */
+.gm-act-pgn{border-color:#3BC9A8 !important;color:#3BC9A8 !important}
+.gm-act-pgn:hover{background:rgba(59,201,168,.12) !important;color:#5fe0c2 !important}
+.gm-setup-pgn{width:100%;margin-top:10px;padding:11px 16px;border-radius:999px;
+  border:1px solid #3BC9A8;background:transparent;color:#3BC9A8;
+  font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;
+  transition:all 120ms cubic-bezier(.32,.72,0,1)}
+.gm-setup-pgn:hover{background:rgba(59,201,168,.12);color:#5fe0c2}
+.gm-setup-pgn.hidden{display:none}

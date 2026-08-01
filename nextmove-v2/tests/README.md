@@ -17,6 +17,7 @@ node    tests/test_ladder.js       # think-it-through rungs + retractable rails 
 node    tests/test_upgrade_intent.js # landing-page upgrade intent survives signup (14 checks)
 node    tests/test_candidates.js   # "Play them out" really plays them out    (21 checks)
 node    tests/test_tour.js         # new-account tour, spotlight + placement   (39 checks)
+node    tests/test_pgn.js          # exported PGN is one other sites accept   (25 checks)
 ```
 
 `test_cosmetics.py` re-checks every piece set against every board theme on both

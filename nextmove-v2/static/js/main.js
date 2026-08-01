@@ -2368,6 +2368,8 @@ function getEloFromAnalysis(){
 }
 
 function startBotGame(){
+  const _pgnBtn = document.getElementById('setup-pgn');
+  if(_pgnBtn) _pgnBtn.classList.add('hidden');
   // Coached games are limited on Free. Claim one first — the server decides, so
   // the limit is real rather than a thing the browser politely observes.
   if(State.coachMode === 'coached' && State.loggedIn && State.plan !== 'pro'){
@@ -2845,6 +2847,12 @@ function checkBotGameOver(){
       GameSetup.showSetup(true);
       const go = document.getElementById('setup-go');
       if(go) go.textContent = 'Play again';
+      // Pick the mode again for the next one, and offer the game you just
+      // finished as a PGN.
+      const pgn = document.getElementById('setup-pgn');
+      if(pgn) pgn.classList.remove('hidden');
+      const sub = document.querySelector('.gm-setup-sub');
+      if(sub) sub.textContent = 'Another one? Choose how you want to play it.';
     }, 1600);
   }
   Coach.renderQuestions(['Game over. Click "Train These Positions" when the review finishes — those puzzles come from THIS game.']);
@@ -2866,17 +2874,41 @@ function botResultString(g){
 }
 
 function getBotPGN(){
-  // Generate PGN from bot game history
+  // A PGN other sites will actually accept: the seven-tag roster, and the
+  // result repeated as a token at the end of the movetext, which is required
+  // and was missing. Lichess and Chess.com both reject or mangle it otherwise.
+  if(!BotState.game) return '';
   const moves = BotState.game.history();
-  let pgn = '[Event "ChessForge Bot Game"]\n';
-  pgn += `[White "${BotState.playerColor==='white'?'You':'ChessForge Bot'}"]\n`;
-  pgn += `[Black "${BotState.playerColor==='black'?'You':'ChessForge Bot'}"]\n`;
-  pgn += `[Result "${botResultString(BotState.game)}"]\n\n`;
+  const result = botResultString(BotState.game);
+  const d = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  const date = d.getFullYear() + '.' + pad(d.getMonth()+1) + '.' + pad(d.getDate());
+  const me = (State.user || 'You');
+  const white = BotState.playerColor === 'white' ? me : 'GM Forge';
+  const black = BotState.playerColor === 'black' ? me : 'GM Forge';
+  let pgn = '';
+  pgn += '[Event "ChessForge coached game"]\n';
+  pgn += '[Site "https://app.chessforge.org"]\n';
+  pgn += '[Date "' + date + '"]\n';
+  pgn += '[Round "-"]\n';
+  pgn += '[White "' + white + '"]\n';
+  pgn += '[Black "' + black + '"]\n';
+  pgn += '[Result "' + result + '"]\n\n';
+  let body = '';
   for(let i=0;i<moves.length;i++){
-    if(i%2===0) pgn += `${Math.floor(i/2)+1}. `;
-    pgn += moves[i] + ' ';
+    if(i%2===0) body += (Math.floor(i/2)+1) + '. ';
+    body += moves[i] + ' ';
   }
-  return pgn.trim();
+  body += result;                       // the closing token PGN requires
+  // Wrap at 80 columns, as the spec asks for.
+  const words = body.trim().split(/\s+/);
+  let line = '';
+  words.forEach(w=>{
+    if((line + ' ' + w).trim().length > 80){ pgn += line.trim() + '\n'; line = w; }
+    else line += ' ' + w;
+  });
+  pgn += line.trim();
+  return pgn;
 }
 
 function copyBotPGN(){
