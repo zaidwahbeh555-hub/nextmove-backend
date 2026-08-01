@@ -2956,12 +2956,12 @@ const TOUR = [
       + 'the mistakes you actually make into practice. Two minutes and you will know your way '
       + 'around.'},
 
-  {page:'coach', title:'The board is the whole product',
+  {page:'coach', focus:'bot-board', title:'The board is the whole product',
    desc:'Play here against an engine set near your level. Click a piece and every legal move '
       + 'lights up; drag or click to move. Right-click-drag draws an arrow, which matters in a '
       + 'moment.'},
 
-  {page:'coach', title:'Arrow keys review the game',
+  {page:'coach', focus:'bot-board', title:'Arrow keys review the game',
    desc:'Left and right walk back through the moves, up jumps to the start, down returns to the '
       + 'present. You can look back at any point mid-game without losing your place — playing a '
       + 'move puts you back to live.'},
@@ -2977,32 +2977,32 @@ const TOUR = [
       + 'He never just hands you the answer. He also opens it himself when something important '
       + 'happens.'},
 
-  {page:'coach', title:'Weighing two moves? Draw both',
+  {page:'coach', focus:'coach-panel', title:'Weighing two moves? Draw both',
    desc:'Right-click-drag an arrow for each move you are considering, then press Play them out. '
       + 'Each line is played forward on the real board with a sentence for each move, so you can '
       + 'see what your opponent gets. Then he asks which you would rather have — and if you say '
       + 'you are not sure, he explains before he ever reveals.'},
 
-  {page:'coach', title:'About to blunder',
+  {page:'coach', focus:'bot-board', title:'About to blunder',
    desc:'If a move is going to cost you, the board pauses before it counts. You can take it back, '
       + 'play it anyway, or have him walk you through what was wrong with it. The board stays '
       + 'visible the whole time.'},
 
-  {page:'training', title:'Training drills your actual weaknesses',
+  {page:'training', sel:'[data-page="training"]', title:'Training drills your actual weaknesses',
    desc:'Not generic puzzles. The patterns here come from mistakes you have really made, scheduled '
       + 'so they come back just before you would forget them. The Thinking Profile on this page '
       + 'shows how you tend to decide, not just what you played.'},
 
-  {page:'puzzles', title:'Puzzles built from your own games',
+  {page:'puzzles', sel:'[data-page="puzzles"]', title:'Puzzles built from your own games',
    desc:'Every blunder you make becomes a position to solve. Stuck? The hint ladder narrows it '
       + 'step by step and only names the move on the last rung.'},
 
-  {page:'progress', title:'Progress tells you the truth',
+  {page:'progress', sel:'[data-page="progress"]', title:'Progress tells you the truth',
    desc:'Your rating estimate comes only from games you play WITHOUT the coach, because those are '
       + 'the honest ones. Blunder rate, average centipawn loss, and which mistakes keep coming '
       + 'back are all here.'},
 
-  {page:'shop', title:'XP you earn, and what it buys',
+  {page:'shop', focus:'tb-xp-btn', title:'XP you earn, and what it buys',
    desc:'Playing, drilling and thinking carefully all earn XP. Spend it on board themes, piece '
       + 'sets, and outfits for GM Forge. Your balance is in the top bar and never expires.'},
 
@@ -3020,6 +3020,8 @@ let tourStep = 0;
 
 function startTutorial(){
   tourStep = 0;
+  const box = document.getElementById('tutorial-box');
+  if(box) delete box.dataset.moved;
   showTutorialStep();
   const ov = document.getElementById('tutorial-overlay');
   if(ov) ov.classList.remove('hidden');
@@ -3039,19 +3041,88 @@ function showTutorialStep(){
   if(ti) ti.textContent = step.title;
   if(de) de.textContent = step.desc;
 
-  // Ring whatever the step is about.
-  document.querySelectorAll('.tour-focus').forEach(el=>el.classList.remove('tour-focus'));
-  if(step.focus){
-    setTimeout(()=>{
-      const el = document.getElementById(step.focus);
-      if(el) el.classList.add('tour-focus');
-    }, 120);
-  }
+  // Spotlight the thing being described and put the card beside it. The old
+  // version dimmed the whole screen, which hid the very thing it was talking
+  // about.
+  clearTourFocus();
+  setTimeout(()=>{
+    const el = step.focus ? document.getElementById(step.focus)
+             : step.sel   ? document.querySelector(step.sel)
+             : null;
+    if(el){ el.classList.add('tour-focus'); }
+    placeTourBox(el);
+  }, 140);
   const back = document.getElementById('t-back');
   if(back) back.classList.toggle('hidden', tourStep === 0);
   const next = document.getElementById('t-next');
   if(next) next.textContent = (tourStep === TOUR.length - 1) ? 'Start playing' : 'Next';
 }
+
+
+function clearTourFocus(){
+  document.querySelectorAll('.tour-focus').forEach(el=>el.classList.remove('tour-focus'));
+}
+
+/* Put the card next to what it is describing, never on top of it. Below if
+   there is room, otherwise above, otherwise beside — then clamped so it can
+   never sit off-screen. The user can still drag it afterwards. */
+function placeTourBox(target){
+  const box = document.getElementById('tutorial-box');
+  if(!box) return;
+  if(box.dataset.moved === '1') return;          // they positioned it themselves
+  const bw = box.offsetWidth  || 340;
+  const bh = box.offsetHeight || 200;
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const gap = 18;
+  let left, top;
+  if(!target){                                    // no target: sit low and centred
+    left = (vw - bw) / 2;
+    top  = vh - bh - 40;
+  } else {
+    const r = target.getBoundingClientRect();
+    const below = vh - r.bottom, above = r.top;
+    if(below >= bh + gap)      top = r.bottom + gap;
+    else if(above >= bh + gap) top = r.top - bh - gap;
+    else                       top = Math.max(gap, (vh - bh) / 2);
+    left = r.left + r.width / 2 - bw / 2;         // centred on the target
+  }
+  left = Math.max(gap, Math.min(left, vw - bw - gap));
+  top  = Math.max(gap, Math.min(top,  vh - bh - gap));
+  box.style.left = left + 'px';
+  box.style.top  = top + 'px';
+  box.style.bottom = 'auto';
+  box.style.right  = 'auto';
+  box.style.transform = 'none';
+}
+
+/* Draggable by its header, in case the automatic spot is still in the way. */
+(function(){
+  let dragging = false, ox = 0, oy = 0;
+  document.addEventListener('mousedown', function(e){
+    const box = document.getElementById('tutorial-box');
+    if(!box || !box.contains(e.target)) return;
+    if(e.target.closest && e.target.closest('button')) return;   // buttons still click
+    const r = box.getBoundingClientRect();
+    ox = e.clientX - r.left; oy = e.clientY - r.top;
+    dragging = true; box.dataset.moved = '1';
+    box.classList.add('is-dragging');
+    e.preventDefault();
+  });
+  window.addEventListener('mousemove', function(e){
+    if(!dragging) return;
+    const box = document.getElementById('tutorial-box');
+    if(!box) return;
+    const bw = box.offsetWidth, bh = box.offsetHeight;
+    box.style.left = Math.min(Math.max(0, e.clientX - ox), window.innerWidth  - bw) + 'px';
+    box.style.top  = Math.min(Math.max(0, e.clientY - oy), window.innerHeight - bh) + 'px';
+    box.style.bottom = 'auto'; box.style.right = 'auto'; box.style.transform = 'none';
+  });
+  window.addEventListener('mouseup', function(){
+    dragging = false;
+    const box = document.getElementById('tutorial-box');
+    if(box) box.classList.remove('is-dragging');
+  });
+})();
 
 function nextTutorialStep(){
   tourStep++;
@@ -3065,7 +3136,7 @@ function prevTutorialStep(){
 function skipTutorial(){
   const ov = document.getElementById('tutorial-overlay');
   if(ov) ov.classList.add('hidden');
-  document.querySelectorAll('.tour-focus').forEach(el=>el.classList.remove('tour-focus'));
+  clearTourFocus();
   try{ localStorage.setItem('cf-tutorial-done', '1'); }catch(e){}
   // Remember it against the account, so it does not follow the browser around.
   if(State.loggedIn){

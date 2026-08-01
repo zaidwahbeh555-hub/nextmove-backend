@@ -8,13 +8,16 @@
 
 const els = {};
 function mk(id){
-  const el = {id, textContent:'', _c:new Set(), style:{},
+  const el = {id, textContent:'', _c:new Set(), style:{}, dataset:{},
+    offsetWidth:340, offsetHeight:200,
+    getBoundingClientRect:()=>({left:200, top:150, right:540, bottom:450, width:340, height:300}),
+    contains:()=>false,
     classList:{add:c=>el._c.add(c), remove:c=>el._c.delete(c),
                toggle:(c,on)=>{on?el._c.add(c):el._c.delete(c)}, contains:c=>el._c.has(c)}};
   els[id]=el; return el;
 }
 ['tutorial-overlay','tutorial-box','t-step-num','t-step-total','t-title','t-desc',
- 't-back','t-next','coach-panel','ladder-open','cmdk-hint'].forEach(mk);
+ 't-back','t-next','coach-panel','ladder-open','cmdk-hint','bot-board','tb-xp-btn'].forEach(mk);
 els['tutorial-overlay']._c.add('hidden');
 
 const store = {};
@@ -27,9 +30,17 @@ global.document = {
     if(sel === '.tour-focus') return Object.values(els).filter(e=>e._c.has('tour-focus'));
     return [];
   },
-  addEventListener(){}, querySelector:()=>null
+  addEventListener(){},
+  querySelector:(sel)=>{
+    const m = /\[data-page="([^"]+)"\]/.exec(sel||'');
+    if(m) return els['nav-'+m[1]] || mk('nav-'+m[1]);
+    return null;
+  }
 };
 global.window = global;
+global.window.addEventListener = function(){};
+global.window.innerWidth = 1440;
+global.window.innerHeight = 900;
 const pages = [];
 global.showPage = p=>pages.push(p);
 global.State = {loggedIn:true};
@@ -93,6 +104,38 @@ if(focusStep >= 0){
   const ringed = Object.values(els).some(e=>e._c.has('tour-focus'));
   check('the element for that step is ringed', ringed);
 }
+
+// ── every step points at something, and the card avoids it ─────────────────
+const noTarget = TOUR.filter(st=>!st.focus && !st.sel);
+check('at most one step has nothing to point at', noTarget.length <= 2,
+      noTarget.length + ' steps without a target');
+
+// The card must not be left sitting on top of the thing it is describing.
+// The shim's target occupies 200,150 -> 540,450 in a 1440x900 viewport.
+startTutorial();
+nextTutorialStep();                       // a step with focus:'bot-board'
+flush();
+const box = els['tutorial-box'];
+const bx = parseInt(box.style.left,10), by = parseInt(box.style.top,10);
+check('the card is positioned by script', !isNaN(bx) && !isNaN(by), bx + ',' + by);
+const overlapsX = bx < 540 && bx + 340 > 200;
+const overlapsY = by < 450 && by + 200 > 150;
+check('the card does not cover the highlighted element', !(overlapsX && overlapsY),
+      'card ' + bx + ',' + by + ' vs target 200,150-540,450');
+check('the card stays inside the viewport',
+      bx >= 0 && by >= 0 && bx + 340 <= 1440 && by + 200 <= 900);
+check('inline transform is cleared so left/top actually apply',
+      box.style.transform === 'none', box.style.transform);
+
+// Dragging pins it; automatic placement then leaves it alone.
+box.dataset.moved = '1';
+box.style.left = '10px'; box.style.top = '10px';
+nextTutorialStep(); flush();
+check('a card the user moved is not repositioned',
+      box.style.left === '10px', box.style.left);
+startTutorial();
+check('starting the tour again restores automatic placement',
+      box.dataset.moved === undefined, String(box.dataset.moved));
 
 // ── finishing ───────────────────────────────────────────────────────────────
 startTutorial();

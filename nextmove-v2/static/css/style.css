@@ -2512,3 +2512,31 @@ body.rail-right-off #page-coach .gm-gamebar{width:min(76vh,840px,92vw)}
 /* The old .tutorial-box rule sets z-index:7001, which sits under the new
    overlay at 9700 — the panel would have been buried by its own backdrop. */
 .tutorial-box{z-index:9702;pointer-events:all}
+
+/* ── Guided tour, second pass ────────────────────────────────────────────────
+   The overlay used to dim the entire screen, which hid the very thing each step
+   was describing. There is no full-screen dim any more: the darkening comes
+   from a huge box-shadow on the highlighted element, so everything outside it
+   dims and the element itself stays perfectly clear. The card is smaller and
+   parks itself next to the target rather than across the middle. */
+.tutorial-overlay{background:transparent !important;
+  backdrop-filter:none !important;-webkit-backdrop-filter:none !important;
+  pointer-events:none !important}
+
+/* The spotlight. 9999px of shadow covers any viewport; the element is untouched. */
+.tour-focus{position:relative;z-index:9701;border-radius:12px;
+  box-shadow:0 0 0 3px var(--accent), 0 0 0 9999px rgba(2,2,6,.66) !important;
+  animation:none !important;transition:box-shadow 240ms cubic-bezier(.32,.72,0,1)}
+/* Board squares must not be rounded away by the spotlight. */
+#bot-board.tour-focus,.gm-board-wrap.tour-focus{border-radius:6px}
+
+/* Smaller card, positioned by script, still readable. */
+.tutorial-box{width:min(340px,88vw) !important;padding:16px 18px !important;
+  border-radius:14px !important;cursor:grab;
+  box-shadow:0 18px 44px -16px rgba(0,0,0,.8) !important}
+.tutorial-box.is-dragging{cursor:grabbing;transition:none}
+.tutorial-step-label{font-size:10px;margin-bottom:6px}
+.tutorial-title{font-size:16px !important;margin-bottom:6px !important}
+.tutorial-desc{font-size:13px !important;line-height:1.55 !important;margin-bottom:14px !important}
+.tutorial-actions .btn-outline{padding:7px 13px;font-size:12px}
+.tutorial-actions #t-next{padding:8px 16px;font-size:12.5px}
