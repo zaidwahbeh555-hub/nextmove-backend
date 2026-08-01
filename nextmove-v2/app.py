@@ -1245,7 +1245,16 @@ Recent Users:
 
 # ── Core routes ────────────────────────────────────────────────────────────────
 @app.route("/")
-def index(): return render_template("index.html")
+def index():
+    # The ?v=mNN cache-buster lives INSIDE this page, so if the page itself is
+    # cached the buster never reaches the browser and no CSS or JS update ever
+    # lands. This response had no cache headers at all, which leaves it to the
+    # browser's heuristics -- and they cache. The page is cheap to render; the
+    # fingerprinted assets it points at are what should be cached.
+    resp = make_response(render_template("index.html"))
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    return resp
 
 @app.route("/parse-pgn", methods=["POST"])
 def parse_pgn():
