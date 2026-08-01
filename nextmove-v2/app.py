@@ -896,13 +896,14 @@ def register():
               "xp":0,"plan":"free","plan_expires":None,"daily_counts":{},"games":[],
               # Guided tutorial removed: new accounts are created already complete
               # so nothing gates or re-triggers a first-run flow.
-              "progress":empty_progress(),"onboarding":default_onboarding(new=False)}
+              "progress":empty_progress(),"onboarding":default_onboarding(new=False),
+              "tutorial_done":False}
     save_user(username,new_user)
     session["username"]=username; session.permanent=True
     # Notify admin
     send_admin_email("New ChessForge signup!",f"New user: {username}\nEmail: {email}\nTime: {time.strftime('%Y-%m-%d %H:%M')}")
     return jsonify({"ok":True,"username":username,"xp":0,"plan":"free","progress":empty_progress(),
-                    "onboarding":new_user["onboarding"]})
+                    "tutorial_done":False,"onboarding":new_user["onboarding"]})
 
 @app.route("/auth/login", methods=["POST"])
 def login():
@@ -920,6 +921,7 @@ def login():
     save_user(username,user)
     return jsonify({"ok":True,"username":username,"xp":user.get("xp",0),"plan":user.get("plan","free"),
                     "balance":xp_balance(user),"cosmetics":cosmetic_payload(user),
+                    "tutorial_done":bool(user.get("tutorial_done")),
                     "progress":user.get("progress",empty_progress()),"games":user.get("games",[]),
                     "onboarding":get_onboarding(user)})
 
@@ -938,6 +940,7 @@ def me():
     touch_seen(u, user)
     return jsonify({"loggedIn":True,"username":u,"xp":user.get("xp",0),"plan":user.get("plan","free"),
                     "balance":xp_balance(user),"cosmetics":cosmetic_payload(user),
+                    "tutorial_done":bool(user.get("tutorial_done")),
                     "progress":user.get("progress",empty_progress()),"games":user.get("games",[]),
                     "onboarding":get_onboarding(user)})
 
@@ -1091,6 +1094,17 @@ def shop_equip():
     user["cosmetics"] = cos
     save_user(current_user(), user)
     return jsonify({"ok": True, "equipped": cos["equipped"]})
+
+@app.route("/auth/tutorial-seen", methods=["POST"])
+@login_required
+def tutorial_seen():
+    """Remember that this account has been shown the tour."""
+    u = current_user(); user = get_user(u)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+    user["tutorial_done"] = True
+    save_user(u, user)
+    return jsonify({"ok": True})
 
 @app.route("/auth/upgrade", methods=["POST"])
 @login_required

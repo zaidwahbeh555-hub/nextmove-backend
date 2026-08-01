@@ -988,6 +988,7 @@ document.getElementById('login-btn').addEventListener('click',async()=>{
     const d=await r.json();if(d.error){err.textContent=d.error;return;}
     applySession(d);hideAuthModal();
     try{ UpgradeIntent.run(); }catch(e){}
+    try{ maybeStartTour(d); }catch(e){}
   }catch(e){err.textContent='Connection error. Please try again.';}
 });
 
@@ -1004,6 +1005,7 @@ document.getElementById('register-btn').addEventListener('click',async()=>{
     const d=await r.json();if(d.error){err.textContent=d.error;return;}
     applySession(d);hideAuthModal();
     try{ UpgradeIntent.run(); }catch(e){}
+    try{ maybeStartTour(d); }catch(e){}
   }catch(e){err.textContent='Connection error. Please try again.';}
 });
 
@@ -1061,6 +1063,7 @@ async function checkSession(){
     const r=await fetch('/auth/me',{credentials:'include'});
     const d=await r.json();
     if(d.loggedIn)applySession(d);else showAuthModal();
+    try{ maybeStartTour(d); }catch(e){}
     try{ UpgradeIntent.run(); }catch(e){}
   }catch(e){showAuthModal();}
   return true;
@@ -2940,53 +2943,158 @@ function getBotTip(){
 }
 
 
-/* ── Tutorial ─────────────────────────────────────────────────────────────── */
-const TUTORIAL_STEPS = [
-  {title:'Welcome to ChessForge! ', desc:'Let me show you around in 30 seconds. ChessForge analyses YOUR games to find YOUR specific patterns — not generic advice.', target:null, pos:{top:'50%',left:'50%',transform:'translate(-50%,-50%)'}},
-  {title:'Step 1: Analyze', desc:"Start by pasting a PGN from Chess.com or Lichess and clicking Load Game. We'll identify which player you are, then run Stockfish at depth 16.", target:'page-analyze', pos:{top:'20%',left:'50%',transform:'translateX(-50%)'}},
-  {title:'Step 2: Your Fingerprint', desc:'After analysis, ChessForge builds your Thinking Process Fingerprint — identifying WHY you make mistakes, not just what.', target:null, pos:{top:'30%',left:'50%',transform:'translateX(-50%)'}},
-  {title:'Step 3: Puzzles', desc:"Your blunders become puzzles you solve. After your puzzles run out, infinite puzzles target your specific weakness patterns.", target:'page-puzzles', pos:{top:'20%',left:'50%',transform:'translateX(-50%)'}},
-  {title:'Step 4: Play the Bot', desc:"The bot knows your weaknesses and deliberately creates positions that test them. Beat the bot = you are improving!", target:'page-bot', pos:{top:'20%',left:'50%',transform:'translateX(-50%)'}},
+/* ── Guided tour ─────────────────────────────────────────────────────────────
+   Walks a new account through the whole app. Each step navigates to the screen
+   it is describing, so you are looking at the real thing rather than reading
+   about it. Tied to the account, not the browser, so a new account on an old
+   browser still gets it and an old account on a new browser does not.
+   Re-runnable any time from the command palette. */
+const TOUR = [
+  {title:'Welcome to ChessForge',
+   desc:'This is not a tool that tells you what you did wrong after the fact. GM Forge sits '
+      + 'beside you while you play, asks the question you should have asked yourself, and turns '
+      + 'the mistakes you actually make into practice. Two minutes and you will know your way '
+      + 'around.'},
+
+  {page:'coach', title:'The board is the whole product',
+   desc:'Play here against an engine set near your level. Click a piece and every legal move '
+      + 'lights up; drag or click to move. Right-click-drag draws an arrow, which matters in a '
+      + 'moment.'},
+
+  {page:'coach', title:'Arrow keys review the game',
+   desc:'Left and right walk back through the moves, up jumps to the start, down returns to the '
+      + 'present. You can look back at any point mid-game without losing your place — playing a '
+      + 'move puts you back to live.'},
+
+  {page:'coach', focus:'coach-panel', title:'Everything GM Forge does is in one column',
+   desc:'He speaks at the top. Below that sit the walk-throughs, your candidate moves, and the '
+      + 'questions worth asking in this position. Nothing coaching-related lives anywhere else on '
+      + 'this screen.'},
+
+  {page:'coach', focus:'ladder-open', title:'"I don\'t know what to do here"',
+   desc:'The most useful button in the app. It walks you through the actual procedure: count the '
+      + 'attackers and defenders, decide whether anything is genuinely loose, then choose a move. '
+      + 'He never just hands you the answer. He also opens it himself when something important '
+      + 'happens.'},
+
+  {page:'coach', title:'Weighing two moves? Draw both',
+   desc:'Right-click-drag an arrow for each move you are considering, then press Play them out. '
+      + 'Each line is played forward on the real board with a sentence for each move, so you can '
+      + 'see what your opponent gets. Then he asks which you would rather have — and if you say '
+      + 'you are not sure, he explains before he ever reveals.'},
+
+  {page:'coach', title:'About to blunder',
+   desc:'If a move is going to cost you, the board pauses before it counts. You can take it back, '
+      + 'play it anyway, or have him walk you through what was wrong with it. The board stays '
+      + 'visible the whole time.'},
+
+  {page:'training', title:'Training drills your actual weaknesses',
+   desc:'Not generic puzzles. The patterns here come from mistakes you have really made, scheduled '
+      + 'so they come back just before you would forget them. The Thinking Profile on this page '
+      + 'shows how you tend to decide, not just what you played.'},
+
+  {page:'puzzles', title:'Puzzles built from your own games',
+   desc:'Every blunder you make becomes a position to solve. Stuck? The hint ladder narrows it '
+      + 'step by step and only names the move on the last rung.'},
+
+  {page:'progress', title:'Progress tells you the truth',
+   desc:'Your rating estimate comes only from games you play WITHOUT the coach, because those are '
+      + 'the honest ones. Blunder rate, average centipawn loss, and which mistakes keep coming '
+      + 'back are all here.'},
+
+  {page:'shop', title:'XP you earn, and what it buys',
+   desc:'Playing, drilling and thinking carefully all earn XP. Spend it on board themes, piece '
+      + 'sets, and outfits for GM Forge. Your balance is in the top bar and never expires.'},
+
+  {focus:'cmdk-hint', title:'Command palette',
+   desc:'Press Cmd-K or Ctrl-K anywhere to jump between screens, start a game, switch between '
+      + 'Coached and Free Play, or replay this tour.'},
+
+  {title:'That is the tour',
+   desc:'Free includes one coached game a day, five puzzles, and one training exercise per theme. '
+      + 'Grandmaster removes every limit and adds deep analysis, Ask GM Forge, Trap Trainer and '
+      + 'the shop. Now go play a game — the coaching only makes sense once you are in one.'}
 ];
 
-let tutorialStep = 0;
+let tourStep = 0;
 
 function startTutorial(){
-  tutorialStep = 0;
+  tourStep = 0;
   showTutorialStep();
-  document.getElementById('tutorial-overlay').classList.remove('hidden');
+  const ov = document.getElementById('tutorial-overlay');
+  if(ov) ov.classList.remove('hidden');
 }
 
 function showTutorialStep(){
-  const step = TUTORIAL_STEPS[tutorialStep];
+  const step = TOUR[tourStep];
   if(!step){ skipTutorial(); return; }
-  document.getElementById('t-step-num').textContent = tutorialStep + 1;
-  document.getElementById('t-step-total').textContent = TUTORIAL_STEPS.length;
-  document.getElementById('t-title').textContent = step.title;
-  document.getElementById('t-desc').textContent = step.desc;
-  const box = document.getElementById('tutorial-box');
-  Object.assign(box.style, {top:'',left:'',transform:'', bottom:'', right:''});
-  Object.assign(box.style, step.pos);
+  // Show the screen being described, so the words have something to point at.
+  if(step.page){ try{ showPage(step.page); }catch(e){} }
+  const n = document.getElementById('t-step-num');
+  const t = document.getElementById('t-step-total');
+  const ti = document.getElementById('t-title');
+  const de = document.getElementById('t-desc');
+  if(n) n.textContent = tourStep + 1;
+  if(t) t.textContent = TOUR.length;
+  if(ti) ti.textContent = step.title;
+  if(de) de.textContent = step.desc;
+
+  // Ring whatever the step is about.
+  document.querySelectorAll('.tour-focus').forEach(el=>el.classList.remove('tour-focus'));
+  if(step.focus){
+    setTimeout(()=>{
+      const el = document.getElementById(step.focus);
+      if(el) el.classList.add('tour-focus');
+    }, 120);
+  }
+  const back = document.getElementById('t-back');
+  if(back) back.classList.toggle('hidden', tourStep === 0);
+  const next = document.getElementById('t-next');
+  if(next) next.textContent = (tourStep === TOUR.length - 1) ? 'Start playing' : 'Next';
 }
 
 function nextTutorialStep(){
-  tutorialStep++;
-  if(tutorialStep >= TUTORIAL_STEPS.length){ skipTutorial(); return; }
+  tourStep++;
+  if(tourStep >= TOUR.length){ skipTutorial(); return; }
   showTutorialStep();
+}
+function prevTutorialStep(){
+  if(tourStep > 0){ tourStep--; showTutorialStep(); }
 }
 
 function skipTutorial(){
-  document.getElementById('tutorial-overlay').classList.add('hidden');
-  localStorage.setItem('cf-tutorial-done', '1');
-}
-
-// Show tutorial for first-time users
-(function(){
-  if(!localStorage.getItem('cf-tutorial-done')){
-    setTimeout(startTutorial, 2000);
+  const ov = document.getElementById('tutorial-overlay');
+  if(ov) ov.classList.add('hidden');
+  document.querySelectorAll('.tour-focus').forEach(el=>el.classList.remove('tour-focus'));
+  try{ localStorage.setItem('cf-tutorial-done', '1'); }catch(e){}
+  // Remember it against the account, so it does not follow the browser around.
+  if(State.loggedIn){
+    fetch('/auth/tutorial-seen', {method:'POST', credentials:'include'})
+      .catch(e=>console.error('tutorial-seen failed:', e));
   }
-})();
+  try{ showPage('coach'); }catch(e){}
+}
+window.startTutorial = startTutorial;
+window.nextTutorialStep = nextTutorialStep;
+window.prevTutorialStep = prevTutorialStep;
+window.skipTutorial = skipTutorial;
 
+// Esc leaves the tour.
+document.addEventListener('keydown', function(e){
+  const ov = document.getElementById('tutorial-overlay');
+  if(!ov || ov.classList.contains('hidden')) return;
+  if(e.key === 'Escape'){ e.preventDefault(); skipTutorial(); }
+  else if(e.key === 'ArrowRight'){ e.preventDefault(); nextTutorialStep(); }
+  else if(e.key === 'ArrowLeft'){ e.preventDefault(); prevTutorialStep(); }
+});
+
+// A brand-new account gets it once, after the session has settled.
+function maybeStartTour(d){
+  if(!d || !d.loggedIn && !d.ok) return;
+  if(d.tutorial_done) return;
+  setTimeout(()=>{ try{ startTutorial(); }catch(e){} }, 900);
+}
+window.maybeStartTour = maybeStartTour;
 
 /* ── Onboarding ───────────────────────────────────────────────────────────── */
 // Onboarding is driven by server state (State.onboarding). New users are guided
@@ -3501,6 +3609,8 @@ const CommandPalette = {
     {icon:'ic-sliders', label:'Shop',             key:'',  run:()=>showPage('shop')},
     {icon:'ic-chart',   label:'Game Review',      key:'',  run:()=>{ if(window.runPostgameReview) runPostgameReview(); }},
     {icon:'ic-book',    label:'Lessons',          key:'',  run:()=>showPage('training')},
+    {icon:'ic-bulb',    label:'Tutorial — show me around again', key:'',
+     run:()=>{ if(window.startTutorial) startTutorial(); }},
   ],
   sel:0, filtered:[], lastFocus:null,
   init(){
