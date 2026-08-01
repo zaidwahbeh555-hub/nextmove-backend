@@ -5655,10 +5655,12 @@ async function renderThinkingProfile(){
     if(sub) sub.textContent = d.samples
       ? ('Built from ' + d.samples + ' decisions · ' + d.confidence + '% confidence'
          + (d.headline ? ' · biggest leak: ' + d.headline : ''))
-      : 'How you decide — built from the candidate moves you mark while you play.';
+      : 'How you decide — built from every coached move, every game you finish, the '
+        + 'candidates you weigh, and what you ask GM Forge about.';
     if(!d.dimensions || !d.dimensions.length){
-      rows.innerHTML = '<div class="think-empty">No data yet. While you play, right-click-drag an '
-        + 'arrow to mark a move you are weighing. GM Forge learns how you decide from those.</div>';
+      rows.innerHTML = '<div class="think-empty">Nothing to read yet. Play a coached game — '
+        + 'every move you make, every game you finish and every question you ask GM Forge '
+        + 'feeds this. Marking candidate moves with an arrow adds to it too.</div>';
       return;
     }
     rows.innerHTML = d.dimensions.map(x=>

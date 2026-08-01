@@ -466,6 +466,22 @@ def xp_balance(user):
     """Spendable XP. `xp` stays the lifetime total so the level bar never drops."""
     return max(0, user.get("xp", 0) - get_wallet(user).get("spent", 0))
 
+def streak_bonus(streak):
+    """Extra XP for keeping a streak. Day one pays the base; it climbs to double
+    by day sixteen and stops there, so a long streak is worth protecting without
+    becoming the only thing that matters."""
+    return min(max(int(streak or 1) - 1, 0), 15) * 5
+
+def grant_streak_xp(user, streak):
+    """Base streak award plus the bonus for how long it has run."""
+    base = grant_xp(user, "streak_day")
+    if not base:
+        return 0                       # already claimed today
+    bonus = streak_bonus(streak)
+    if bonus:
+        user["xp"] = user.get("xp", 0) + bonus
+    return base + bonus
+
 def grant_xp(user, event, times=1):
     """Award XP for a verified event. Returns the amount actually granted.
 
@@ -3946,7 +3962,7 @@ def training_submit():
         if mastered:
             granted += grant_xp(user, "pattern_mastered")
     if new_streak_day:
-        granted += grant_xp(user, "streak_day")
+        granted += grant_streak_xp(user, st.get("count", 1))
     user["training"] = tr; save_user(u, user)
     return jsonify({"ok": True, "pattern": name, "strength": p["strength"], "band": strength_band(p["strength"]),
                     "passed": passed, "mastered": mastered, "streak": st["count"],
