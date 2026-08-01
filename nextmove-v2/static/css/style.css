@@ -2739,29 +2739,45 @@ body.play-locked .app-foot{display:none}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    TRAINING PAGE
+   Title first, the profile under it, the streak pinned to the actual corner.
+   Comfortaa is used here and nowhere else in the app.
    ═══════════════════════════════════════════════════════════════════════════ */
-/* Rounded, thick and clean for the page title only — everything else stays on
-   the UI face so the app does not start looking like two products. */
-#page-training .train-header h1{
-  font-family:'Comfortaa', var(--font-ui);
-  font-weight:700;font-size:34px;letter-spacing:-.01em;line-height:1.15}
-#page-training .train-header p{max-width:56ch}
+#page-training{position:relative}
 
-/* Streak sits in the corner and says what it is for. */
-#page-training .train-header{display:flex;align-items:flex-start;justify-content:space-between;
-  gap:24px;flex-wrap:wrap}
-.streak-card{background:var(--bg-panel);border:1px solid var(--border);border-radius:14px;
-  padding:14px 16px;width:min(260px,100%);flex:none}
-.streak-top{display:flex;align-items:baseline;gap:8px}
-.streak-card .flame{color:#ff9f43;display:flex;align-items:center;align-self:center}
-.streak-card .flame .ic{width:20px;height:20px}
-.streak-card .streak-num{font-size:30px;font-weight:700;color:var(--text-1);line-height:1;
+.train-top{margin-bottom:26px;max-width:60ch}
+.train-title{font-family:'Comfortaa', var(--font-ui);
+  font-weight:700;font-size:40px;line-height:1.1;letter-spacing:-.015em;
+  color:#FFFFFF;margin:0 0 8px}
+.train-lede{font-size:14px;line-height:1.6;color:var(--text-2);margin:0;max-width:54ch}
+.train-lede em{font-style:normal;color:var(--text-1);font-weight:600}
+
+/* Literally the top-right corner, just under the bar. Scoped to this page, and
+   .page is display:none elsewhere so it cannot leak onto another screen. */
+#page-training .streak-card{
+  position:fixed;top:88px;right:24px;z-index:40;
+  width:230px;background:var(--bg-panel);border:1px solid var(--border);
+  border-radius:14px;padding:14px 16px}
+.streak-top{display:flex;align-items:center;gap:8px}
+.streak-card .flame{color:#ff9f43;display:flex;align-items:center}
+.streak-card .flame .ic{width:19px;height:19px}
+.streak-card .streak-num{font-size:28px;font-weight:700;color:#FFFFFF;line-height:1;
   font-variant-numeric:tabular-nums}
-.streak-card .streak-lbl{font-size:11px;font-weight:600;letter-spacing:.08em;
-  text-transform:uppercase;color:var(--text-3)}
-.streak-why{font-size:12px;line-height:1.55;color:var(--text-3);margin:10px 0 0}
-@media(max-width:820px){.streak-card{width:100%}}
+.streak-card .streak-lbl{font-size:11px;font-weight:600;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--text-3);line-height:1.2}
+.streak-why{font-size:11.5px;line-height:1.55;color:var(--text-3);margin:9px 0 0}
+@media(max-width:1120px){
+  #page-training .streak-card{position:static;width:100%;max-width:340px;margin:0 0 24px}
+}
 
-/* The Thinking Profile line runs long now that it lists what feeds it. */
-#page-training .think-sub{max-width:70ch;line-height:1.6}
-.think-empty{font-size:13px;line-height:1.65;color:var(--text-3);max-width:64ch}
+/* ── Thinking Profile ─────────────────────────────────────────────────────── */
+.think-card{background:transparent;border:none;padding:0;margin:0 0 30px;max-width:none}
+.think-head{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.think-title{font-family:'Comfortaa', var(--font-ui);
+  font-weight:700;font-size:26px;line-height:1.2;letter-spacing:-.01em;
+  color:#FFFFFF;margin:0}
+.think-head .cp-help{width:18px;height:18px;font-size:11px;margin-left:2px}
+.think-sub{font-size:13px;line-height:1.65;color:var(--text-2);margin:0 0 14px;max-width:72ch}
+.think-sub.hidden{display:none}
+.think-stats{font-size:12px;color:var(--text-3);margin:0 0 16px}
+.think-stats.hidden{display:none}
+#page-training .think-empty{font-size:13px;line-height:1.65;color:var(--text-3);max-width:64ch}

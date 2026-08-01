@@ -675,18 +675,21 @@ function forgePreview(kind, id){
     '</svg>';
 }
 
-/* The "?" beside Your candidate moves. The explanation used to sit on screen
-   permanently; it is one press away instead, and stays open once opened. */
+/* "?" buttons that reveal an explanation. The text used to sit on screen
+   permanently; it is one press away instead, and stays open once opened. Each
+   button names what it controls via aria-controls, so this is one
+   implementation rather than one per panel. */
 (function(){
   function init(){
-    const btn = document.getElementById('cands-help');
-    const tip = document.getElementById('crail-tip');
-    if(!btn || !tip) return;
-    btn.addEventListener('click', function(e){
-      e.preventDefault(); e.stopPropagation();
-      const open = tip.classList.toggle('hidden') === false;
-      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-      btn.classList.toggle('is-open', open);
+    document.querySelectorAll('.cp-help[aria-controls]').forEach(function(btn){
+      const tip = document.getElementById(btn.getAttribute('aria-controls'));
+      if(!tip) return;
+      btn.addEventListener('click', function(e){
+        e.preventDefault(); e.stopPropagation();
+        const open = tip.classList.toggle('hidden') === false;
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        btn.classList.toggle('is-open', open);
+      });
     });
   }
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
@@ -5651,12 +5654,17 @@ async function renderThinkingProfile(){
   try{
     const r = await fetch('/thinking-profile', {credentials:'include'});
     const d = await r.json();
-    const sub = document.getElementById('think-sub');
-    if(sub) sub.textContent = d.samples
-      ? ('Built from ' + d.samples + ' decisions · ' + d.confidence + '% confidence'
-         + (d.headline ? ' · biggest leak: ' + d.headline : ''))
-      : 'How you decide — built from every coached move, every game you finish, the '
-        + 'candidates you weigh, and what you ask GM Forge about.';
+    // The description lives behind the "?" and is static; the running numbers
+    // get their own line so the two do not overwrite each other.
+    const stats = document.getElementById('think-stats');
+    if(stats){
+      stats.textContent = d.samples
+        ? ('Built from ' + d.samples + ' decision' + (d.samples===1?'':'s')
+           + ' · ' + d.confidence + '% confidence'
+           + (d.headline ? ' · biggest leak: ' + d.headline : ''))
+        : '';
+      stats.classList.toggle('hidden', !d.samples);
+    }
     if(!d.dimensions || !d.dimensions.length){
       rows.innerHTML = '<div class="think-empty">Nothing to read yet. Play a coached game — '
         + 'every move you make, every game you finish and every question you ask GM Forge '
