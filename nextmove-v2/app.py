@@ -4923,18 +4923,19 @@ def _mistake_dims(pattern, drop_cp=0, san="", coached=False):
     """
     keys = list(MISTAKE_DIMS.get(pattern or "", []))
     if not keys:
-        keys = ["evaluation_accuracy"]
+        keys = ["risk_read"]
     bad = int(drop_cp or 0) >= 150
     # A capture that loses material is the signature of grabbing without looking.
     if "x" in (san or "") and bad:
-        keys.append("impulsive_captures")
+        keys.append("impulse")
     # Going wrong while the coach was actively asking questions says something
     # sharper than going wrong alone.
     if coached and bad:
         keys.append("threat_blindness")
     dims = {}
     for k in keys:
-        if k not in THINKING_DIMENSIONS:
+        k = _dim_key(k)          # tolerate an old name rather than dropping it
+        if not k:
             continue
         d = dims.setdefault(k, {"obs": 0, "hits": 0})
         d["obs"] += 1
