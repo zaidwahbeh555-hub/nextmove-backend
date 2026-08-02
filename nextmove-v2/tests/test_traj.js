@@ -1,10 +1,14 @@
 // The rating trajectory chart.
 //
 // A chart is read by people and executed by me, so the parts that are
-// computable get computed: that only solo games are plotted, that points land
+// computable get computed: that the right series is chosen, that points land
 // inside the plot area, that a flat run does not render as a misleading
 // straight line at the top of the box, and that the empty state appears instead
 // of an axis with nothing on it.
+//
+// The case that shipped broken: coached games record elo 0, so gating the chart
+// on rating left it empty for anyone playing the coached mode — most of the
+// product. Accuracy is on every game, so that is the fallback.
 //
 // Run from nextmove-v2/:  node tests/test_traj.js
 
@@ -64,10 +68,30 @@ const H = (n, opts={}) => Array.from({length:n}, (_,i)=>({
   d: '2026-08-' + String(i+1).padStart(2,'0'), acpl: 40, blunders: 1, result: '1-0'
 }));
 
-// ── only solo games are plotted ─────────────────────────────────────────────
+// ── rating is preferred when there is enough of it ──────────────────────────
 let r = Traj.render(H(6).concat(H(4, {mode:'coached'})));
-check('coached games are excluded', r && r.n === 6, r && r.n);
+check('rating mode is chosen when solo games exist', r && r.rating === true);
+check('and only the rated games are plotted', r && r.n === 6, r && r.n);
 check('the empty state is hidden when there is data', els['traj-empty']._c.has('hidden'));
+
+// ── coached-only players get a chart too ────────────────────────────────────
+// This is the case that shipped broken: coached games record elo 0, so gating
+// on rating left the chart empty for most of the product.
+const coached = Array.from({length:5}, (_,i)=>({
+  mode:'coached', elo:0, acpl: 90 - i*10, blunders: 3-i>0?3-i:0,
+  d:'2026-08-0'+(i+1), result:'1-0'
+}));
+const rc = Traj.render(coached);
+check('coached-only history still draws a chart', rc && rc.n === 5, rc && rc.n);
+check('and falls back to accuracy, not rating', rc && rc.rating === false);
+check('the empty state stays hidden for coached-only', els['traj-empty']._c.has('hidden'));
+const cy = [...els['traj-svg'].innerHTML.matchAll(/class="tj-dot"[^>]*cy="([\d.]+)"/g)].map(m=>+m[1]);
+check('falling centipawn loss draws upward', cy[cy.length-1] < cy[0],
+      'first ' + cy[0].toFixed(0) + ' last ' + cy[cy.length-1].toFixed(0));
+check('accuracy ticks are labelled as a percentage',
+      /class="tj-tick"[^>]*>\d+%</.test(els['traj-svg'].innerHTML));
+// back to the rating case for the geometry checks below
+r = Traj.render(H(6).concat(H(4, {mode:'coached'})));
 
 // ── geometry stays inside the box ───────────────────────────────────────────
 const svg = els['traj-svg'].innerHTML;
@@ -103,8 +127,10 @@ check('no games shows the empty state', !els['traj-empty']._c.has('hidden'));
 check('and draws nothing', els['traj-svg'].innerHTML === '');
 Traj.render(H(1));
 check('a single game is not a trajectory', !els['traj-empty']._c.has('hidden'));
-Traj.render(H(4, {mode:'coached'}));
-check('coached games alone are not a trajectory', !els['traj-empty']._c.has('hidden'));
+// Coached games alone DO draw one now — that was the bug. What still cannot is
+// a single game of any kind, or games with nothing measurable on them.
+Traj.render([{mode:'coached', elo:0, acpl:50, blunders:1, d:'2026-08-01'}]);
+check('one coached game is still not a trajectory', !els['traj-empty']._c.has('hidden'));
 
 // ── hover ───────────────────────────────────────────────────────────────────
 Traj.render(H(6));
