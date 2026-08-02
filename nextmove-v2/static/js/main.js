@@ -5828,34 +5828,57 @@ window.Candidates = Candidates;
 
 /* ── Thinking Profile (Progress page) ─────────────────────────────────────── */
 async function renderThinkingProfile(){
-  const rows = document.getElementById('think-rows'); if(!rows) return;
-  rows.innerHTML = '<div class="think-empty">Loading…</div>';
+  const rows = document.getElementById('think-rows');
+  if(!rows) return;
+  rows.innerHTML = '<div class="think-empty">Reading\u2026</div>';
   try{
     const r = await fetch('/thinking-profile', {credentials:'include'});
     const d = await r.json();
-    // The description lives behind the "?" and is static; the running numbers
-    // get their own line so the two do not overwrite each other.
+    if(d.error){ rows.innerHTML = ''; return; }
+
+    // The description sits behind the "?" and is static; the running numbers get
+    // their own line so the two cannot overwrite each other.
     const stats = document.getElementById('think-stats');
     if(stats){
       stats.textContent = d.samples
-        ? ('Built from ' + d.samples + ' decision' + (d.samples===1?'':'s')
-           + ' · ' + d.confidence + '% confidence'
-           + (d.headline ? ' · biggest leak: ' + d.headline : ''))
+        ? ('Read from ' + d.samples + ' decision' + (d.samples===1?'':'s')
+           + ' \u00b7 ' + d.confidence + '% confidence'
+           + (d.headline ? ' \u00b7 weakest habit: ' + d.headline : ''))
         : '';
       stats.classList.toggle('hidden', !d.samples);
     }
+
     if(!d.dimensions || !d.dimensions.length){
-      rows.innerHTML = '<div class="think-empty">Nothing to read yet. Play a coached game — '
+      rows.innerHTML = '<div class="think-empty">Nothing to read yet. Play a coached game \u2014 '
         + 'every move you make, every game you finish and every question you ask GM Forge '
         + 'feeds this. Marking candidate moves with an arrow adds to it too.</div>';
       return;
     }
-    rows.innerHTML = d.dimensions.map(x=>
-      '<div class="think-row"><span class="think-name">' + esc(x.label) + '</span>'
-      + '<span class="think-obs">' + x.rate + '%</span>'
-      + '<span class="think-band ' + esc(x.band.toLowerCase().replace(' ','-')) + '">'
-      + esc(x.band) + '</span></div>').join('');
+
+    // A card per habit with a segmented meter. This was a list of rows: a label,
+    // a rule underneath, and a percentage floating on the far side -- and the
+    // percentage was a FAILURE rate, so a big number was bad news presented
+    // exactly like good news. High is good now, and weakest sorts first.
+    const SEG = 10;
+    rows.innerHTML = '<div class="tp-grid">' + d.dimensions.map(function(x){
+      const lit = Math.max(1, Math.round(x.score / 100 * SEG));
+      let bars = '';
+      for(let i = 0; i < SEG; i++){
+        bars += '<i class="' + (i < lit ? 'on' : '') + '" style="--i:' + i + '"></i>';
+      }
+      return '<article class="tp-card ' + esc(x.band.toLowerCase()) + '">'
+        + '<header class="tp-head">'
+        +   '<h3 class="tp-name">' + esc(x.label) + '</h3>'
+        +   '<span class="tp-band">' + esc(x.band) + '</span>'
+        + '</header>'
+        + '<div class="tp-meter" role="img" aria-label="' + x.score + ' out of 100">' + bars + '</div>'
+        + '<div class="tp-score"><b>' + x.score + '</b><span>/100</span>'
+        +   '<em>' + x.observations + ' read' + (x.observations===1?'':'s') + '</em></div>'
+        + '<p class="tp-blurb">' + esc(x.score >= 75 ? x.good : x.blurb) + '</p>'
+        + '</article>';
+    }).join('') + '</div>';
   }catch(e){
+    console.error('renderThinkingProfile failed:', e);
     rows.innerHTML = '<div class="think-empty">Could not load your profile.</div>';
   }
 }

@@ -4642,22 +4642,71 @@ def ask_forge():
 # engine wanted, then fold the result into a long-term thinking profile.
 # ══════════════════════════════════════════════════════════════════════════════
 
-# Cognitive dimensions — WHY mistakes happen, not just what they were.
+# How you think, not what you know. The old set mixed chess vocabulary in with
+# habits -- "Candidate Move Quality", "Piece Coordination" -- which describes the
+# move rather than the person making it, and several of them measured the same
+# thing twice. These are eight distinct habits, each one something you could
+# actually change about how you decide.
+#
+# name  : what it is called
+# blurb : the habit, in one sentence, in the second person
+# good  : what it looks like when it is a strength
 THINKING_DIMENSIONS = {
-    "candidate_quality":   "Candidate Move Quality",
-    "opponent_blindness":  "Opponent Blindness",
-    "tunnel_vision":       "Tunnel Vision",
-    "impulsive_captures":  "Impulsive Captures",
-    "premature_attacks":   "Premature Attacks",
-    "threat_recognition":  "Threat Recognition",
-    "evaluation_accuracy": "Evaluation Accuracy",
-    "board_vision":        "Board Vision",
-    "calculation_depth":   "Calculation Depth",
-    "king_safety":         "King Safety Awareness",
-    "piece_coordination":  "Piece Coordination",
-    "strategic_planning":  "Strategic Planning",
-    "quiet_moves":         "Quiet Move Search",
+    "tunnel_vision": {
+        "name": "Idea Range",
+        "blurb": "You find one idea and stop looking — the move you saw first is the move you play.",
+        "good": "You keep looking after you have already found something that works."},
+    "threat_blindness": {
+        "name": "Threat Radar",
+        "blurb": "You plan your own move without asking what they are trying to do to you.",
+        "good": "You read their intention before you commit to yours."},
+    "impulse": {
+        "name": "Impulse Control",
+        "blurb": "A capture or a check is on the board and your hand moves before you have checked it is safe.",
+        "good": "You make forcing moves earn their place."},
+    "search_width": {
+        "name": "Search Width",
+        "blurb": "How many real options you weigh before choosing one.",
+        "good": "You put two or three genuine candidates side by side."},
+    "depth": {
+        "name": "Calculation Depth",
+        "blurb": "How far down a line you follow before deciding it is fine.",
+        "good": "You play it out far enough to see what it actually gives them."},
+    "risk_read": {
+        "name": "Risk Read",
+        "blurb": "How accurately you judge whether a position is good or bad for you.",
+        "good": "Your read of the position matches what is on the board."},
+    "board_awareness": {
+        "name": "Board Awareness",
+        "blurb": "You lose track of pieces away from where you are looking.",
+        "good": "The whole board stays in view, not just the part you are working on."},
+    "composure": {
+        "name": "Composure",
+        "blurb": "Your thinking holds up when the position gets sharp or you are behind.",
+        "good": "Pressure does not change how carefully you look."},
 }
+
+# Old keys, so profiles built before this still count for something rather than
+# being silently thrown away.
+LEGACY_DIMS = {
+    "candidate_quality":  "search_width",
+    "opponent_blindness": "threat_blindness",
+    "threat_recognition": "threat_blindness",
+    "impulsive_captures": "impulse",
+    "premature_attacks":  "impulse",
+    "evaluation_accuracy": "risk_read",
+    "calculation_depth":  "depth",
+    "quiet_moves":        "search_width",
+    "king_safety":        "composure",
+    "piece_coordination": "board_awareness",
+    "strategic_planning": "risk_read",
+}
+
+def _dim_key(k):
+    """Map any key, old or new, onto a live dimension."""
+    if k in THINKING_DIMENSIONS:
+        return k
+    return LEGACY_DIMS.get(k)
 
 def _empty_thinking_profile():
     return {"samples": 0, "dims": {k: {"hits": 0, "obs": 0} for k in THINKING_DIMENSIONS},
@@ -4667,6 +4716,14 @@ def get_thinking_profile(user):
     tp = user.get("thinking_profile")
     if not tp or "dims" not in tp:
         return _empty_thinking_profile()
+    # Roll anything recorded under an old key into the dimension that replaced
+    # it, so a profile built before the rename is not thrown away.
+    for old_key, new_key in LEGACY_DIMS.items():
+        if old_key in tp["dims"]:
+            src = tp["dims"].pop(old_key)
+            dst = tp["dims"].setdefault(new_key, {"hits": 0, "obs": 0})
+            dst["obs"] += src.get("obs", 0)
+            dst["hits"] += src.get("hits", 0)
     for k in THINKING_DIMENSIONS:
         tp["dims"].setdefault(k, {"hits": 0, "obs": 0})
     return tp
@@ -4761,13 +4818,13 @@ def _thinking_verdict(cmp_):
     if not cands:
         # No candidates marked — we can still judge the move itself.
         if played.get("loss") is not None:
-            obs("evaluation_accuracy", played["loss"] > 1.0)
+            obs("risk_read", played["loss"] > 1.0)
         return {"headline": "", "detail": "", "dims": dims, "tags": tags}
 
     considered_best = best in names
     played_best = played.get("is_best")
 
-    obs("candidate_quality", not considered_best)
+    obs("search_width", not considered_best)
     obs("tunnel_vision", len(cands) <= 1)
     if len(cands) <= 1:
         tags.append("Searched narrowly — only one candidate")
@@ -4775,24 +4832,24 @@ def _thinking_verdict(cmp_):
     if cmp_["threats"]:
         # Did any candidate actually deal with what the opponent wanted?
         addressed = considered_best or any(c["loss"] <= 0.3 for c in cands)
-        obs("opponent_blindness", not addressed)
-        obs("threat_recognition", not addressed)
+        obs("threat_blindness", not addressed)
+        obs("threat_blindness", not addressed)
         if not addressed:
             tags.append("Opponent had a real threat (%s) and none of your candidates met it"
                         % cmp_["threats"][0])
 
     if cands and all(c["forcing"] for c in cands):
-        obs("quiet_moves", True)
+        obs("search_width", True)
         tags.append("Every candidate was forcing — no quiet improving move considered")
     elif cands:
-        obs("quiet_moves", False)
+        obs("search_width", False)
 
     if played.get("forcing") and not played_best and len(cands) <= 1:
-        obs("impulsive_captures", True)
+        obs("impulse", True)
         tags.append("Played a forcing move without weighing alternatives")
 
     if played.get("loss") is not None:
-        obs("evaluation_accuracy", played["loss"] > 1.0)
+        obs("risk_read", played["loss"] > 1.0)
 
     # Headline — the sentence the player actually reads.
     if played_best and considered_best:
@@ -4803,7 +4860,7 @@ def _thinking_verdict(cmp_):
         detail = ("You played %s instead, which costs about %.2f. The search was right; the "
                   "decision was not. When a candidate looks strong, check what is actually wrong "
                   "with it before discarding it." % (played["move"], max(played["loss"] or 0, 0)))
-        obs("evaluation_accuracy", True)
+        obs("risk_read", True)
     elif best and not considered_best:
         head = "You never considered %s." % best
         detail = ("Your candidates were %s. The best move was not among them, so no amount of "
@@ -4827,10 +4884,12 @@ def _fold_profile(user, dims, source="candidates"):
     """
     tp = get_thinking_profile(user)
     for k, v in (dims or {}).items():
-        if k not in tp["dims"]:
+        key = _dim_key(k)
+        if not key:
             continue
-        tp["dims"][k]["obs"] += v.get("obs", 0)
-        tp["dims"][k]["hits"] += v.get("hits", 0)
+        slot = tp["dims"].setdefault(key, {"hits": 0, "obs": 0})
+        slot["obs"] += v.get("obs", 0)
+        slot["hits"] += v.get("hits", 0)
     tp["samples"] = tp.get("samples", 0) + 1
     src = tp.setdefault("sources", {})
     src[source] = int(src.get(source, 0)) + 1
@@ -4842,17 +4901,17 @@ def _fold_profile(user, dims, source="candidates"):
 # board-vision failure; a queen sortie on move four is a premature attack. One
 # mistake can speak to more than one.
 MISTAKE_DIMS = {
-    "Hanging piece":            ["board_vision", "opponent_blindness"],
-    "Missed tactic":            ["candidate_quality", "calculation_depth"],
-    "King safety issue":        ["king_safety"],
-    "Early queen development":  ["premature_attacks", "strategic_planning"],
-    "Opening mistake":          ["strategic_planning"],
-    "Middlegame mistake":       ["strategic_planning", "piece_coordination"],
-    "Endgame mistake":          ["calculation_depth"],
-    "Positional mistake":       ["quiet_moves", "strategic_planning"],
-    "Trapped piece":            ["board_vision"],
-    "Overloaded defender":      ["threat_recognition"],
-    "Back rank":                ["king_safety", "board_vision"],
+    "Hanging piece":            ["board_awareness", "threat_blindness"],
+    "Missed tactic":            ["search_width", "depth"],
+    "King safety issue":        ["composure", "threat_blindness"],
+    "Early queen development":  ["impulse", "risk_read"],
+    "Opening mistake":          ["risk_read"],
+    "Middlegame mistake":       ["risk_read", "board_awareness"],
+    "Endgame mistake":          ["depth", "composure"],
+    "Positional mistake":       ["search_width", "risk_read"],
+    "Trapped piece":            ["board_awareness", "depth"],
+    "Overloaded defender":      ["threat_blindness"],
+    "Back rank":                ["board_awareness", "composure"],
 }
 
 def _mistake_dims(pattern, drop_cp=0, san="", coached=False):
@@ -4872,7 +4931,7 @@ def _mistake_dims(pattern, drop_cp=0, san="", coached=False):
     # Going wrong while the coach was actively asking questions says something
     # sharper than going wrong alone.
     if coached and bad:
-        keys.append("opponent_blindness")
+        keys.append("threat_blindness")
     dims = {}
     for k in keys:
         if k not in THINKING_DIMENSIONS:
@@ -4885,14 +4944,14 @@ def _mistake_dims(pattern, drop_cp=0, san="", coached=False):
 
 # What someone asks about is evidence of what they cannot see for themselves.
 ASK_DIMS = [
-    (r"threat|threaten|attacking me|what is he doing|his plan", ["threat_recognition", "opponent_blindness"]),
-    (r"why (is|was) (this|that|it) (bad|wrong|a mistake)",      ["evaluation_accuracy"]),
-    (r"hang|loose|undefended|en prise|lose a piece",            ["board_vision"]),
-    (r"what if|calculat|line|deeper|further ahead",             ["calculation_depth"]),
-    (r"king|castl|mate|check",                                  ["king_safety"]),
-    (r"plan|strateg|what should i be doing|long term",          ["strategic_planning"]),
-    (r"better move|other move|alternative|instead",             ["candidate_quality"]),
-    (r"quiet|slow move|nothing to do|no tactics",               ["quiet_moves"]),
+    (r"threat|threaten|attacking me|what is he doing|his plan", ["threat_blindness"]),
+    (r"why (is|was) (this|that|it) (bad|wrong|a mistake)",      ["risk_read"]),
+    (r"hang|loose|undefended|en prise|lose a piece",            ["board_awareness"]),
+    (r"what if|calculat|line|deeper|further ahead",             ["depth"]),
+    (r"king|castl|mate|check",                                  ["composure"]),
+    (r"plan|strateg|what should i be doing|long term",          ["risk_read"]),
+    (r"better move|other move|alternative|instead",             ["search_width"]),
+    (r"quiet|slow move|nothing to do|no tactics",               ["search_width"]),
 ]
 
 def _ask_dims(question):
@@ -5372,18 +5431,24 @@ def thinking_profile():
         return jsonify({"error": "Not logged in"}), 401
     tp = get_thinking_profile(user)
     rows = []
-    for key, label in THINKING_DIMENSIONS.items():
+    for key, meta in THINKING_DIMENSIONS.items():
         dd = tp["dims"].get(key, {"hits": 0, "obs": 0})
         obs = dd.get("obs", 0); hits = dd.get("hits", 0)
         if not obs:
             continue
         rate = hits / float(obs)
-        band = ("Strength" if rate < 0.25 else
-                "Steady"   if rate < 0.5  else
-                "Leak"     if rate < 0.75 else "Big leak")
-        rows.append({"key": key, "label": label, "observations": obs,
-                     "rate": round(rate * 100), "band": band})
-    rows.sort(key=lambda r: (-r["rate"], -r["observations"]))
+        # Score it the way round a person wants to read it: high is good. The
+        # old page reported a failure rate, so a big number was bad news shown
+        # in the same grey as everything else.
+        score = round((1 - rate) * 100)
+        band = ("Sharp"     if score >= 75 else
+                "Solid"     if score >= 55 else
+                "Shaky"     if score >= 30 else "Exposed")
+        rows.append({"key": key, "label": meta["name"], "blurb": meta["blurb"],
+                     "good": meta["good"], "observations": obs,
+                     "score": score, "rate": round(rate * 100), "band": band})
+    # Weakest first: the thing to work on should be the thing you see.
+    rows.sort(key=lambda r: (r["score"], -r["observations"]))
     confidence = min(100, int(tp.get("samples", 0) / 60.0 * 100))
     # Say what the profile is actually built on. It used to be candidate reviews
     # alone, so it could be confidently wrong about someone who never drew an
@@ -5401,7 +5466,8 @@ def thinking_profile():
     return jsonify({"samples": tp.get("samples", 0), "confidence": confidence,
                     "updated": tp.get("updated", ""), "dimensions": rows,
                     "sources": sources,
-                    "headline": (rows[0]["label"] if rows and rows[0]["rate"] >= 50 else None)})
+                    "headline": (rows[0]["label"] if rows and rows[0]["score"] < 55 else None),
+                    "strongest": (rows[-1]["label"] if rows and rows[-1]["score"] >= 75 else None)})
 
 # ══════════════════════════════════════════════════════════════════════════════
 # COACH RAIL — position-specific questions, and candidate playback.
@@ -5677,7 +5743,7 @@ def progress_record():
             g["obs"] += v["obs"]; g["hits"] += v["hits"]
     # A clean game is evidence in the other direction: observed, not hit.
     if int(d.get("blunders") or 0) == 0 and int(d.get("moves") or 0) >= 20:
-        for k in ("board_vision", "threat_recognition", "evaluation_accuracy"):
+        for k in ("board_awareness", "threat_blindness", "risk_read"):
             g = gdims.setdefault(k, {"obs": 0, "hits": 0})
             g["obs"] += 1
     if gdims:

@@ -2910,3 +2910,55 @@ body.play-locked .app-foot{display:none}
 
 .recent-card{background:var(--bg-panel);border:1px solid var(--border);border-radius:14px;
   padding:18px 20px}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THINKING PROFILE — a card per habit
+   This was a list: a label, a rule under it, a percentage floating on the far
+   side. Nothing to look at, and the percentage was a failure rate, so a big
+   number was bad news wearing the same grey as good news. Cards, segmented
+   meters, high-is-good, weakest first.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.tp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(268px,1fr));gap:14px}
+
+.tp-card{position:relative;overflow:hidden;padding:16px 17px 15px;border-radius:14px;
+  background:var(--bg-panel);border:1px solid var(--border)}
+/* A faint scan grid, and a bloom in the corner tinted by how the habit is going. */
+.tp-card::before{content:'';position:absolute;inset:0;pointer-events:none;opacity:.55;
+  background-image:linear-gradient(rgba(255,255,255,.022) 1px,transparent 1px),
+                   linear-gradient(90deg,rgba(255,255,255,.022) 1px,transparent 1px);
+  background-size:22px 22px}
+.tp-card::after{content:'';position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(120% 80% at 100% 0%, var(--tp-glow, rgba(91,108,255,.14)), transparent 60%)}
+.tp-card > *{position:relative;z-index:1}
+
+.tp-card.sharp   {--tp-tint:#3BC9A8;--tp-glow:rgba(59,201,168,.16);border-color:rgba(59,201,168,.28)}
+.tp-card.solid   {--tp-tint:#7C8BFF;--tp-glow:rgba(124,139,255,.15)}
+.tp-card.shaky   {--tp-tint:#E5A73D;--tp-glow:rgba(229,167,61,.14)}
+.tp-card.exposed {--tp-tint:#E5484D;--tp-glow:rgba(229,72,77,.15);border-color:rgba(229,72,77,.30)}
+
+.tp-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.tp-name{font-family:'Comfortaa', var(--font-ui);
+  font-size:15px;font-weight:700;color:#FFFFFF;margin:0;letter-spacing:-.005em}
+.tp-band{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--tp-tint,#7C8BFF);padding:3px 8px;border-radius:999px;
+  background:color-mix(in srgb, var(--tp-tint,#7C8BFF) 14%, transparent);white-space:nowrap}
+
+/* The meter. Segments rather than a bar, so it reads as an instrument. */
+.tp-meter{display:flex;gap:3px;height:26px;align-items:stretch;margin-bottom:11px}
+.tp-meter i{flex:1;border-radius:3px;background:rgba(255,255,255,.055)}
+.tp-meter i.on{background:var(--tp-tint,#7C8BFF);
+  box-shadow:0 0 10px -2px var(--tp-tint,#7C8BFF);
+  animation:tpLight 340ms cubic-bezier(.32,.72,0,1) both;
+  animation-delay:calc(var(--i) * 45ms)}
+@keyframes tpLight{from{opacity:0;transform:scaleY(.35)}to{opacity:1;transform:scaleY(1)}}
+
+.tp-score{display:flex;align-items:baseline;gap:5px;margin-bottom:9px}
+.tp-score b{font-size:26px;font-weight:700;line-height:1;color:#FFFFFF;
+  font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.tp-score span{font-size:12px;color:var(--text-3)}
+.tp-score em{margin-left:auto;font-style:normal;font-size:11px;color:var(--text-3)}
+
+.tp-blurb{font-size:12px;line-height:1.55;color:var(--text-2);margin:0}
+
+@media(prefers-reduced-motion:reduce){.tp-meter i.on{animation:none}}
+@media(max-width:640px){.tp-grid{grid-template-columns:1fr}}
