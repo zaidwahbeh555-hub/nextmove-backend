@@ -18,7 +18,8 @@ node    tests/test_upgrade_intent.js # landing-page upgrade intent survives sign
 node    tests/test_candidates.js   # "Play them out" really plays them out    (21 checks)
 node    tests/test_tour.js         # new-account tour, spotlight + placement   (39 checks)
 node    tests/test_pgn.js          # exported PGN is one other sites accept   (25 checks)
-node    tests/test_traj.js         # rating chart geometry and edge cases     (25 checks)
+node    tests/test_traj.js         # progress chart geometry and edge cases   (31 checks)
+node    tests/test_randomside.js   # random colour is random from every path  (11 checks)
 ```
 
 `test_cosmetics.py` re-checks every piece set against every board theme on both

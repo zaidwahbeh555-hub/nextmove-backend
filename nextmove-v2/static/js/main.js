@@ -2556,6 +2556,14 @@ function getEloFromAnalysis(){
 }
 
 function startBotGame(){
+  // Every entry point lands here, so this is where the colour is decided.
+  const _sel = document.getElementById('bot-color');
+  if(_sel && _sel.value === 'random'){
+    BotState.playerColor = Math.random() < 0.5 ? 'white' : 'black';
+    BotState.randomSide = true;      // leave the select on random for next time
+  } else {
+    BotState.randomSide = false;
+  }
   const _pgnBtn = document.getElementById('setup-pgn');
   if(_pgnBtn) _pgnBtn.classList.add('hidden');
   const _svBtn = document.getElementById('setup-save');
@@ -2577,7 +2585,9 @@ function startBotGame(){
       })
       .catch(e=>console.error('coach/begin failed:', e));
   }
-  BotState.playerColor = document.getElementById('bot-color').value;
+  if(!BotState.randomSide){
+    BotState.playerColor = document.getElementById('bot-color').value;
+  }
   // Games start from the setup panel AND the command palette; hide from here
   // so both entry points leave the same UI state.
   if(window.GameSetup) GameSetup.showSetup(false);
@@ -5364,9 +5374,9 @@ const GameSetup = (function(){
   }
 
   function start(){
-    const colour = side === 'random' ? (Math.random() < 0.5 ? 'white' : 'black') : side;
-    // startBotGame() reads this hidden <select>, so keep it the source of truth.
-    const sel = $('bot-color'); if(sel) sel.value = colour;
+    // Keep the preference, including 'random', on the select — startBotGame()
+    // rolls it, so every way of starting a game gets the same treatment.
+    const sel = $('bot-color'); if(sel) sel.value = side;
     if(typeof setBotMode === 'function') setBotMode(mode);
     showSetup(false);
     if(typeof startBotGame === 'function') startBotGame();
