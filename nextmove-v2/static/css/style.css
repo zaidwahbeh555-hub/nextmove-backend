@@ -2979,9 +2979,7 @@ body.play-locked .app-foot{display:none}
 .tp-score span{font-size:11px}
 .tp-score em{margin-left:0;font-size:10px;width:100%}
 .tp-blurb{font-size:11px;line-height:1.5}
-@media(max-width:1500px){.tp-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}}
-@media(max-width:900px){.tp-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:560px){.tp-grid{grid-template-columns:1fr}}
+/* superseded by the one-row rules further down */
 
 /* ── Streak: higher and smaller, and nothing runs under it ──────────────────
    It sits fixed in the corner, so content flowing full width passed beneath it.
