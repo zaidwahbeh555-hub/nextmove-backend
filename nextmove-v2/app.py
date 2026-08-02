@@ -3789,6 +3789,26 @@ TRAIN_POOLS = {
 }
 def default_training():
     return {"patterns": {}, "streak": {"count": 0, "last_day": ""}, "history": []}
+# Training is built from games you played WITHOUT the coach. A mistake you make
+# while someone is asking you questions is not the mistake you make alone, and
+# the second one is what training is for. Coached games still count, but only
+# just enough to notice a pattern that solo play has not surfaced yet.
+SOLO_WEIGHT, COACHED_WEIGHT = 0.9, 0.1
+
+def weighted_patterns(st):
+    """Pattern -> evidence score, with solo games carrying 90% of the weight."""
+    solo = st.get("patterns_solo") or {}
+    coached = st.get("patterns_coached") or {}
+    if not solo and not coached:
+        # Older records only kept a combined count; treat it as coached-grade
+        # evidence rather than throwing it away or over-trusting it.
+        coached = st.get("patterns") or {}
+    names = set(solo) | set(coached)
+    out = {}
+    for n in names:
+        out[n] = SOLO_WEIGHT * float(solo.get(n, 0)) + COACHED_WEIGHT * float(coached.get(n, 0))
+    return out
+
 def get_training(user):
     return user.get("training") or default_training()
 def ensure_patterns(tr, seed_from=None):
@@ -3896,18 +3916,31 @@ def strength_band(s):
 @login_required
 def training_weaknesses():
     u = current_user(); user = get_user(u) or {}
-    tr = ensure_patterns(get_training(user))
+    st = get_stats(user)
+    ev = weighted_patterns(st)
+    # Seed from what this player actually gets wrong, heaviest first. It used to
+    # seed the same generic list for everyone and never look at their games.
+    seed = [n for n, _ in sorted(ev.items(), key=lambda kv: -kv[1])]
+    tr = ensure_patterns(get_training(user), seed_from=seed or None)
     user["training"] = tr; save_user(u, user)
     now = int(time.time())
     notes = {t[0]: t[1] for t in TRAIN_TYPES}
+    solo = st.get("patterns_solo") or {}
     out = []
     for name, p in tr["patterns"].items():
         out.append({"pattern": name, "note": notes.get(name, ""), "strength": p.get("strength", 0),
                     "band": strength_band(p.get("strength", 0)), "seen": p.get("seen", 0),
-                    "correct": p.get("correct", 0), "due": p.get("due", 0), "due_now": p.get("due", 0) <= now})
-    out.sort(key=lambda x: x["strength"])
+                    "correct": p.get("correct", 0), "due": p.get("due", 0),
+                    "due_now": p.get("due", 0) <= now,
+                    "evidence": round(ev.get(name, 0.0), 2),
+                    "from_solo": int(solo.get(name, 0))})
+    # Weakest AND best-evidenced first: a pattern your own solo games keep
+    # producing outranks one that is merely untrained.
+    out.sort(key=lambda x: (x["strength"] - x["evidence"] * 12))
     mastered = sum(1 for x in out if x["strength"] >= 80)
-    return jsonify({"weaknesses": out, "streak": tr["streak"], "mastered": mastered, "due_count": sum(1 for x in out if x["due_now"])})
+    return jsonify({"weaknesses": out, "streak": tr["streak"], "mastered": mastered,
+                    "solo_games": (st.get("solo") or {}).get("games", 0),
+                    "due_count": sum(1 for x in out if x["due_now"])})
 
 @app.route("/training/next", methods=["POST", "GET"])
 @login_required
@@ -3936,7 +3969,10 @@ def training_next():
     else:
         items = list(tr["patterns"].items())
         due = [x for x in items if x[1].get("due", 0) <= now] or items
-        due.sort(key=lambda x: x[1].get("strength", 0))   # weakest / most-due first
+        # Weakest first, but a pattern your solo games keep producing jumps the
+        # queue over one that is simply untouched.
+        ev2 = weighted_patterns(get_stats(user))
+        due.sort(key=lambda x: x[1].get("strength", 0) - ev2.get(x[0], 0.0) * 12)
         name = due[0][0]
     user["training"] = tr; save_user(u, user)
     return jsonify({"pattern": name, "band": strength_band(tr["patterns"][name].get("strength", 0)),
@@ -5718,9 +5754,14 @@ def progress_record():
         est = int(d.get("est_elo") or 0)
         if est:
             bucket["elo_samples"] = (bucket.get("elo_samples") or [])[-19:] + [est]
+    # Kept separately so training can weight them apart. A mistake made without
+    # the coach is far better evidence of what you actually get wrong.
+    bucket_key = "patterns_solo" if mode == "solo" else "patterns_coached"
+    st.setdefault(bucket_key, {})
     for pat in (d.get("patterns") or [])[:8]:
         if isinstance(pat, str):
             st["patterns"][pat] = st["patterns"].get(pat, 0) + 1
+            st[bucket_key][pat] = st[bucket_key].get(pat, 0) + 1
     st["history"] = (st.get("history") or [])[-29:] + [{
         "d": time.strftime("%Y-%m-%d"), "mode": mode,
         "blunders": int(d.get("blunders") or 0), "acpl": round(float(d.get("acpl") or 0), 1),
