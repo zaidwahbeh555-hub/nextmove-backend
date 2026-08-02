@@ -1922,7 +1922,8 @@ body.blunder-open #page-coach #coach-panel{opacity:.12;pointer-events:none;trans
   letter-spacing:-.02em;font-variant-numeric:tabular-nums}
 .ps-v.good{color:var(--green)} .ps-v.bad{color:var(--orange)}
 .ps-s{display:block;font-size:11px;color:var(--text-3)}
-.spark{display:flex;align-items:flex-end;gap:5px;height:84px;padding-top:6px}
+.spark{display:flex;flex-direction:column;gap:2px;height:auto;padding-top:4px;
+  max-height:320px;overflow-y:auto;scrollbar-width:thin}
 .spark-bar{flex:1;min-width:4px;border-radius:4px 4px 0 0;background:var(--accent);opacity:.75;
   transition:opacity .12s;position:relative}
 .spark-bar:hover{opacity:1}
@@ -2856,3 +2857,56 @@ body.play-locked .app-foot{display:none}
   .traj-top{flex-direction:column-reverse;align-items:flex-start}
 }
 @media(prefers-reduced-motion:reduce){.tj-dot{transition:none}}
+
+/* ── Recent games ───────────────────────────────────────────────────────────
+   Was a row of bars whose height meant average centipawn loss, so taller read
+   as better while meaning worse — pointing the opposite way to the chart right
+   above it — with red carrying "more than one blunder" and nothing saying so.
+   Few rows, each needing its own identity, so it is a list and every value is
+   written out. No key to learn. */
+.card-note{font-size:12px;color:var(--text-3);margin:0 0 12px;line-height:1.5}
+.gamerow{display:grid;grid-template-columns:26px 1fr 1fr auto auto;align-items:center;
+  gap:12px;padding:9px 4px;border-bottom:1px solid rgba(255,255,255,.05)}
+.gamerow:last-child{border-bottom:none}
+.gr-res{width:22px;height:22px;border-radius:6px;display:flex;align-items:center;
+  justify-content:center;font-size:11px;font-weight:700;letter-spacing:.02em}
+.gr-res.win{background:rgba(59,201,168,.16);color:#3BC9A8}
+.gr-res.loss{background:rgba(229,72,77,.14);color:#E5484D}
+.gr-res.draw{background:rgba(255,255,255,.07);color:var(--text-2)}
+.gr-res.none{background:rgba(255,255,255,.04);color:var(--text-3)}
+.gr-acc,.gr-bl{display:flex;align-items:baseline;gap:5px;min-width:0}
+.gr-acc b,.gr-bl b{font-size:14px;font-weight:700;color:var(--text-1);
+  font-variant-numeric:tabular-nums}
+.gr-bl.has b{color:#E5A73D}
+.gr-acc i,.gr-bl i{font-style:normal;font-size:11px;color:var(--text-3)}
+.gr-mode{font-size:11px;color:var(--text-3);text-transform:capitalize}
+.gr-date{font-size:11px;color:var(--text-3);font-variant-numeric:tabular-nums}
+@media(max-width:640px){
+  .gamerow{grid-template-columns:24px 1fr 1fr;gap:8px}
+  .gr-mode,.gr-date{display:none}
+}
+
+/* ── Progress: three numbers, large ─────────────────────────────────────────
+   The page carried a nudge, four counters, a repeated-mistakes list and a saved
+   games table alongside the thing it is actually for. What is left is the
+   trajectory and three numbers, each with its direction stated in words as well
+   as colour. */
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:22px}
+.kpi{background:var(--bg-panel);border:1px solid var(--border);border-radius:14px;
+  padding:18px 20px;position:relative;overflow:hidden}
+.kpi::after{content:'';position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(120% 90% at 100% 0%, rgba(91,108,255,.10), transparent 62%)}
+.kpi-k{display:block;font-size:11px;font-weight:600;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--text-3);margin-bottom:10px}
+.kpi-v{display:block;font-size:42px;font-weight:700;line-height:1;color:#FFFFFF;
+  letter-spacing:-.025em;font-variant-numeric:tabular-nums}
+.kpi-d{display:inline-block;margin-top:9px;font-size:12px;font-weight:700;
+  padding:3px 9px;border-radius:999px;font-variant-numeric:tabular-nums}
+.kpi-d.good{background:rgba(59,201,168,.14);color:#3BC9A8}
+.kpi-d.bad{background:rgba(229,72,77,.12);color:#E5484D}
+.kpi-d.hidden{display:none}
+.kpi-s{display:block;font-size:11.5px;color:var(--text-3);margin-top:9px;line-height:1.45}
+@media(max-width:900px){.kpis{grid-template-columns:1fr}}
+
+.recent-card{background:var(--bg-panel);border:1px solid var(--border);border-radius:14px;
+  padding:18px 20px}

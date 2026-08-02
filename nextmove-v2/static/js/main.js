@@ -400,6 +400,9 @@ const Ladder = (function(){
   // from a cold count.
   async function open(about){
     if(!BotState || !BotState.game){ return; }
+    // Leaning on the coach is counted, so the Progress page can show you
+    // needing him less over time.
+    BotState.helpUsed = (BotState.helpUsed || 0) + 1;
     const btn = $('ladder-open');
     if(btn){ btn.disabled = true; btn.textContent = 'Reading the position…'; }
     try{
@@ -2558,6 +2561,7 @@ function startBotGame(){
   const _svBtn = document.getElementById('setup-save');
   if(_svBtn) _svBtn.classList.add('hidden');
   BotState.saveRequested = false;
+  BotState.helpUsed = 0;
   // Coached games are limited on Free. Claim one first — the server decides, so
   // the limit is real rather than a thing the browser politely observes.
   if(State.coachMode === 'coached' && State.loggedIn && State.plan !== 'pro'){
@@ -3024,7 +3028,8 @@ function checkBotGameOver(){
         blunders: bl, mistakes: mi, inaccuracies: ina,
         acpl: perf.length ? Math.round(perf.reduce((a,b)=>a+b,0)/perf.length) : 0,
         est_elo: BotState.lastEstElo || 0,
-        patterns: BotState.weaknesses || [], result: result
+        patterns: BotState.weaknesses || [], result: result,
+        help: BotState.helpUsed || 0
       })}).catch(()=>{});
   }catch(e){}
   Coach.setStatus('Game over');
@@ -6174,30 +6179,66 @@ async function renderProgressReport(){
       } else { dl.textContent = ''; dl.className = 'traj-delta hidden'; }
     }
 
-    const br = el('pg-blunder');
-    if(br){ br.textContent = d.solo_games ? d.blunder_rate + '%' : '—';
-            br.className = 'ps-v ' + (d.blunder_rate > 4 ? 'bad' : d.blunder_rate ? 'good' : ''); }
-    const ac = el('pg-acpl'); if(ac) ac.textContent = d.solo_games ? d.acpl : '—';
-    const so = el('pg-solo'); if(so) so.textContent = d.solo_games;
-    const tr = el('pg-trend');
-    if(tr){
-      if(d.trend === null || d.trend === undefined){ tr.textContent = '—'; tr.className = 'ps-v'; }
-      else { tr.textContent = (d.trend > 0 ? '−' : '+') + Math.abs(d.trend);
-             tr.className = 'ps-v ' + (d.trend > 0 ? 'good' : 'bad'); }
+    // The three numbers. Each carries its own direction, and the arrow is
+    // labelled with the change so the colour is never doing the work alone.
+    function kpi(vid, did, value, delta, better, suffix, invert){
+      const v = el(vid); if(v) v.textContent = value;
+      const dd = el(did); if(!dd) return;
+      if(delta === null || delta === undefined || delta === 0){
+        dd.textContent = ''; dd.className = 'kpi-d hidden'; return;
+      }
+      const good = (better === null || better === undefined)
+        ? (invert ? delta < 0 : delta > 0) : better;
+      const arrow = delta > 0 ? '▲' : '▼';
+      dd.textContent = arrow + ' ' + Math.abs(delta) + (suffix || '');
+      dd.className = 'kpi-d ' + (good ? 'good' : 'bad');
     }
 
-    // Recent games: taller bar = more given away that game.
+    const a = d.accuracy || {};
+    kpi('pg-accuracy', 'pg-accuracy-d',
+        a.value == null ? '—' : a.value + '%', a.delta, a.better, ' pts');
+
+    kpi('pg-blunder', 'pg-blunder-d',
+        d.solo_games ? d.blunder_rate + '%' : '—',
+        d.trend == null ? null : -d.trend, d.trend == null ? null : d.trend > 0, '');
+
+    const hp = d.help || {};
+    kpi('pg-help', 'pg-help-d',
+        hp.value == null ? '—' : hp.value, hp.delta, hp.better, '');
+
+    // Recent games: newest first.
+    // This was a row of bars whose height was average centipawn loss, so taller
+    // meant WORSE — the opposite of the chart directly above it — with red
+    // meaning "more than one blunder" and nothing anywhere saying so. Colour
+    // alone carrying meaning, on an axis pointing the wrong way. It is a short
+    // list, so it is a list: each game says what it was in words.
     const sp = el('pg-spark');
     if(sp){
-      const h = d.history || [];
-      if(!h.length) sp.innerHTML = '<span class="spark-empty">No games recorded yet.</span>';
-      else {
-        const max = Math.max(...h.map(x=>x.acpl||0), 1);
+      const h = (d.history || []).slice().reverse();      // newest first
+      if(!h.length){
+        sp.innerHTML = '<span class="spark-empty">No games recorded yet.</span>';
+      } else {
+        const outcome = (r)=>{
+          const t = String(r || '').toLowerCase();
+          if(t.startsWith('you won')) return {k:'win',  s:'W', label:'Won'};
+          if(t.includes('draw') || t.includes('stalemate') || t.includes('½'))
+            return {k:'draw', s:'D', label:'Drew'};
+          if(t) return {k:'loss', s:'L', label:'Lost'};
+          return {k:'none', s:'·', label:'Unfinished'};
+        };
+        const accOf = a => Math.max(0, Math.min(100, Math.round(100 - (+a || 0) / 1.6)));
         sp.innerHTML = h.map(x=>{
-          const pct = Math.max(6, Math.round((x.acpl||0)/max*100));
-          return '<span class="spark-bar' + ((x.blunders||0) > 1 ? ' hi' : '') + '" style="height:'
-               + pct + '%" title="' + esc(x.d) + ' · ' + (x.acpl||0) + ' avg loss · '
-               + (x.blunders||0) + ' blunders"></span>';
+          const o = outcome(x.result);
+          const acc = accOf(x.acpl);
+          const bl = +x.blunders || 0;
+          return '<div class="gamerow">'
+            + '<span class="gr-res ' + o.k + '" title="' + o.label + '">' + o.s + '</span>'
+            + '<span class="gr-acc"><b>' + acc + '%</b><i>accuracy</i></span>'
+            + '<span class="gr-bl' + (bl ? ' has' : '') + '"><b>' + bl + '</b><i>blunder'
+            + (bl === 1 ? '' : 's') + '</i></span>'
+            + '<span class="gr-mode">' + esc(x.mode || '') + '</span>'
+            + '<span class="gr-date">' + esc(x.d || '') + '</span>'
+            + '</div>';
         }).join('');
       }
     }

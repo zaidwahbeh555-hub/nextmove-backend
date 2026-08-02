@@ -5658,6 +5658,9 @@ def progress_record():
         "d": time.strftime("%Y-%m-%d"), "mode": mode,
         "blunders": int(d.get("blunders") or 0), "acpl": round(float(d.get("acpl") or 0), 1),
         "elo": int(d.get("est_elo") or 0), "result": d.get("result") or "",
+        # How often the coach was leaned on this game. Falling is the good
+        # direction: it means you are working it out yourself.
+        "help": int(d.get("help") or 0),
     }]
     st["daily"][time.strftime("%Y-%m-%d")] = st["daily"].get(time.strftime("%Y-%m-%d"), 0) + 1
     user["stats"] = st
@@ -5686,6 +5689,39 @@ def progress_record():
         granted += grant_xp(user, "clean_game")
     save_user(current_user(), user)
     return jsonify({"ok": True, "xp_granted": granted, "balance": xp_balance(user)})
+
+def _half_avg(vals):
+    """Recent half versus the earlier half — the simplest honest trend."""
+    vals = [v for v in vals if v is not None]
+    if len(vals) < 4:
+        return None, None
+    mid = len(vals) // 2
+    early = sum(vals[:mid]) / float(mid)
+    late = sum(vals[mid:]) / float(len(vals) - mid)
+    return late, late - early
+
+def _acc_summary(st):
+    """Accuracy per game, from average centipawn loss. Higher is better."""
+    h = st.get("history") or []
+    acc = [max(0.0, min(100.0, 100.0 - float(x.get("acpl") or 0) / 1.6)) for x in h]
+    if not acc:
+        return {"value": None, "delta": None, "n": 0}
+    now, delta = _half_avg(acc)
+    return {"value": round(acc[-1]), "avg": round(sum(acc) / len(acc)),
+            "delta": None if delta is None else round(delta, 1), "n": len(acc),
+            "better": None if delta is None else delta > 0}
+
+def _help_summary(st):
+    """How often the coach is leaned on per game. Lower is better."""
+    h = [x for x in (st.get("history") or []) if x.get("mode") == "coached"]
+    vals = [float(x.get("help") or 0) for x in h]
+    if not vals:
+        return {"value": None, "delta": None, "n": 0}
+    now, delta = _half_avg(vals)
+    return {"value": round(sum(vals[-5:]) / float(min(len(vals), 5)), 1),
+            "delta": None if delta is None else round(delta, 1), "n": len(vals),
+            # Asking less is progress, so the sign flips.
+            "better": None if delta is None else delta < 0}
 
 @app.route("/progress/report")
 @login_required
@@ -5743,6 +5779,7 @@ def progress_report():
         "patterns": [{"name": k, "count": v} for k, v in pats],
         "thinking": dims[:5],
         "history": (st.get("history") or [])[-30:],   # the chart wants a trajectory, not a snapshot
+        "accuracy": _acc_summary(st), "help": _help_summary(st),
         "xp": user.get("xp", 0), "plan": user.get("plan", "free"),
         "nudge": nudge,
     })
