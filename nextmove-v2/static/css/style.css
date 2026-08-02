@@ -2962,3 +2962,38 @@ body.play-locked .app-foot{display:none}
 
 @media(prefers-reduced-motion:reduce){.tp-meter i.on{animation:none}}
 @media(max-width:640px){.tp-grid{grid-template-columns:1fr}}
+
+/* ── Thinking Profile: all eight across one row ─────────────────────────────
+   Eight in a row means roughly 165px each at 1440, so the card gets tighter:
+   the name wraps to two lines, the meter thins, and the blurb drops a size.
+   Below 1500 it folds to four and then two rather than squeezing further. */
+.tp-grid{grid-template-columns:repeat(8,minmax(0,1fr));gap:9px}
+.tp-card{padding:13px 12px 12px;border-radius:12px}
+.tp-head{flex-direction:column;align-items:flex-start;gap:5px;margin-bottom:10px}
+.tp-name{font-size:13px;line-height:1.25}
+.tp-band{font-size:9px;padding:2px 7px;letter-spacing:.08em}
+.tp-meter{height:18px;gap:2px;margin-bottom:8px}
+.tp-meter i{border-radius:2px}
+.tp-score{gap:4px;margin-bottom:7px;flex-wrap:wrap}
+.tp-score b{font-size:21px}
+.tp-score span{font-size:11px}
+.tp-score em{margin-left:0;font-size:10px;width:100%}
+.tp-blurb{font-size:11px;line-height:1.5}
+@media(max-width:1500px){.tp-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}}
+@media(max-width:900px){.tp-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.tp-grid{grid-template-columns:1fr}}
+
+/* ── Streak: higher and smaller, and nothing runs under it ──────────────────
+   It sits fixed in the corner, so content flowing full width passed beneath it.
+   The page keeps a lane clear at the widths where the card is pinned. */
+#page-training .streak-card{top:80px;right:20px;width:194px;padding:11px 13px;border-radius:12px}
+.streak-card .streak-num{font-size:23px}
+.streak-card .flame .ic{width:16px;height:16px}
+.streak-card .streak-lbl{font-size:10px}
+.streak-why{font-size:10.5px;line-height:1.5;margin-top:7px}
+@media(min-width:1121px){
+  #page-training .train-top,
+  #page-training .think-card > .think-head,
+  #page-training .think-sub,
+  #page-training .think-stats{padding-right:226px}
+}
