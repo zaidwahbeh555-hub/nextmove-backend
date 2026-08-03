@@ -90,6 +90,27 @@ const tick=()=>new Promise(r=>setImmediate(()=>setImmediate(r)));
   check('locked style actually strikes through', /line-through/.test(rule), rule.slice(0,70));
   check('and shows it is not clickable', /not-allowed/.test(rule));
 
+  // ── the reported bug: a refused coached game must still count ────────────
+  // He picked Coached, was told to play unaided first, played a whole silent
+  // game -- and it was filed as coached, so it did not credit the daily game
+  // and he had to play another one.
+  const src2 = require('fs').readFileSync('static/js/main.js','utf8');
+  const w = src2.slice(src2.indexOf('function startBotGame(){'),
+                       src2.indexOf('function beginBotGame(){'));
+  check('the claim is made before the game starts, not during it',
+        /return;\s*\}\s*beginBotGame\(\);/.test(w.replace(/\n/g,'')),
+        'wrapper defers start');
+  check('a refusal switches to unaided play before anything begins',
+        /solo_required[\s\S]*setBotMode\('free'\)[\s\S]*beginBotGame/.test(w));
+  check('a failed claim also falls back to unaided rather than fake-coached',
+        /catch\(function\(e\)\{[\s\S]*setBotMode\('free'\)/.test(w));
+  check('the game still starts after a refusal -- it is not swallowed',
+        (w.match(/beginBotGame\(\)/g)||[]).length >= 1);
+  // What the finished game reports is read off State.coachMode, so the flip
+  // above is what makes it count.
+  check('the finished game reports the mode it was actually played in',
+        /coached: State\.coachMode === 'coached'/.test(src2));
+
   console.log(`\n  ${pass}/${total} passed`);
   process.exit(pass===total?0:1);
 })();

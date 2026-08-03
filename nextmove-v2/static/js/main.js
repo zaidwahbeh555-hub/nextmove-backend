@@ -2657,7 +2657,50 @@ function getEloFromAnalysis(){
   return 1800;
 }
 
+// Claim the coached game BEFORE any of it starts.
+//
+// This used to run while the game was already going: the board came up in
+// coached mode, GM Forge gave the coached greeting, and only a moment later did
+// the refusal land and flip it to free play. Two things went wrong with that.
+// You got told to play unaided AFTER being greeted as though you were being
+// coached, and the mode the finished game reported was whatever survived that
+// race -- so a game you really did play unaided could still be filed as
+// coached, not credit the daily free-play game, and leave you having to play
+// another one. Nothing starts now until the server has answered.
 function startBotGame(){
+  if(State.coachMode === 'coached' && State.loggedIn){
+    fetch('/coach/begin', {method:'POST', credentials:'include',
+                           headers:{'Content-Type':'application/json'},
+                           body: JSON.stringify({mode:'coached'})})
+      .then(r=>r.json().then(d=>({ok:r.ok, d})))
+      .then(({ok, d})=>{
+        if(!ok && d && d.error === 'solo_required'){
+          // Not an upsell — a game played unaided unlocks it, on any plan.
+          setBotMode('free');
+          Coach.speak('Unaided game first — this one counts. ' + (d.why || ''));
+          const g = document.getElementById('gate-note');
+          if(g){ g.textContent = d.message || ''; g.classList.remove('hidden', 'ok'); }
+        } else if(!ok && d && d.upgrade){
+          Coach.speak(d.message || 'That is your free coached game for today.');
+          try{ showProGate('coached'); }catch(e){}
+        } else if(d && d.left === 0){
+          Coach.speak('That is your last free coached game today. Make it count.');
+        }
+      })
+      .catch(function(e){
+        // If the claim cannot be made, play unaided. That is the honest state:
+        // the coach is not going to work, and the game will be counted as the
+        // unaided one it actually was.
+        console.error('coach/begin failed:', e);
+        setBotMode('free');
+      })
+      .then(function(){ beginBotGame(); });
+    return;
+  }
+  beginBotGame();
+}
+
+function beginBotGame(){
   // Every entry point lands here, so this is where the colour is decided.
   const _sel = document.getElementById('bot-color');
   if(_sel && _sel.value === 'random'){
@@ -2672,31 +2715,6 @@ function startBotGame(){
   if(_svBtn) _svBtn.classList.add('hidden');
   BotState.saveRequested = false;
   BotState.helpUsed = 0;
-  // Coached games are limited on Free. Claim one first — the server decides, so
-  // the limit is real rather than a thing the browser politely observes.
-  // The daily free-play gate applies to everyone, Grandmaster included, so this
-  // is no longer only asked for free accounts.
-  if(State.coachMode === 'coached' && State.loggedIn){
-    fetch('/coach/begin', {method:'POST', credentials:'include',
-                           headers:{'Content-Type':'application/json'},
-                           body: JSON.stringify({mode:'coached'})})
-      .then(r=>r.json().then(d=>({ok:r.ok, d})))
-      .then(({ok, d})=>{
-        if(!ok && d && d.error === 'solo_required'){
-          // Not an upsell — a free-play game unlocks it, on any plan.
-          try{ setBotMode('free'); }catch(e){}
-          Coach.speak('Free play first. ' + (d.why || ''));
-          const g = document.getElementById('gate-note');
-          if(g){ g.textContent = d.message || ''; g.classList.remove('hidden'); }
-        } else if(!ok && d && d.upgrade){
-          Coach.speak(d.message || 'That is your free coached game for today.');
-          try{ showProGate('coached'); }catch(e){}
-        } else if(d && d.left === 0){
-          Coach.speak('That is your last free coached game today. Make it count.');
-        }
-      })
-      .catch(e=>console.error('coach/begin failed:', e));
-  }
   if(!BotState.randomSide){
     BotState.playerColor = document.getElementById('bot-color').value;
   }

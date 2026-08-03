@@ -19,11 +19,11 @@ global.State = {coachMode:'free', loggedIn:false, plan:'free'};
 // Only the colour-deciding head of startBotGame is under test; the rest of the
 // function builds a board this shim has no business simulating.
 const src = require('fs').readFileSync('static/js/main.js','utf8');
-const a = src.indexOf('function startBotGame(){');
+const a = src.indexOf('function beginBotGame(){');   // the colour roll lives here now
 const head = src.slice(a, src.indexOf("const _pgnBtn", a));
 const pick = src.slice(src.indexOf('  if(!BotState.randomSide){', a),
                        src.indexOf('\n', src.indexOf('  }', src.indexOf('  if(!BotState.randomSide){', a))));
-eval('global.rollColour = function(){' + head.replace('function startBotGame(){','') + pick + '\n};');
+eval('global.rollColour = function(){' + head.replace('function beginBotGame(){','') + pick + '\n};');
 
 let pass=0, total=0;
 function check(label, cond, detail){ total++; if(cond) pass++;

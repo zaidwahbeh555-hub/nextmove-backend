@@ -562,5 +562,124 @@
         "2026-07-29": 3
       }
     }
+  },
+  "gatetest": {
+    "password": "d1fbdcfdf1591efa5801b0107e379b9c:38612be3d9a49a1edafc575428c047344aa5024a838d990b11b700cf226b8860",
+    "email": "g@t.com",
+    "created": 1785801271,
+    "xp": 35,
+    "plan": "free",
+    "plan_expires": null,
+    "daily_counts": {},
+    "games": [],
+    "progress": {
+      "games_analysed": 0,
+      "blunders_found": 0,
+      "puzzles_solved": 0,
+      "lessons_completed": [],
+      "challenge_solved": []
+    },
+    "onboarding": {
+      "new_user": false,
+      "complete": true,
+      "step": "done",
+      "calibration_game": null,
+      "coached_game": null
+    },
+    "tutorial_done": false,
+    "stats": {
+      "solo": {
+        "games": 1,
+        "moves": 30,
+        "blunders": 2,
+        "mistakes": 1,
+        "inaccuracies": 3,
+        "acpl_sum": 55.0,
+        "elo_samples": [
+          1150
+        ]
+      },
+      "coached": {
+        "games": 0,
+        "moves": 0,
+        "blunders": 0,
+        "mistakes": 0,
+        "inaccuracies": 0
+      },
+      "patterns": {
+        "hanging": 1
+      },
+      "history": [
+        {
+          "d": "2026-08-03",
+          "mode": "solo",
+          "blunders": 2,
+          "acpl": 55.0,
+          "elo": 1150,
+          "result": "1-0",
+          "help": 0
+        }
+      ],
+      "daily": {
+        "2026-08-03": 1
+      },
+      "patterns_solo": {
+        "hanging": 1
+      }
+    },
+    "thinking_profile": {
+      "samples": 1,
+      "dims": {
+        "tunnel_vision": {
+          "hits": 0,
+          "obs": 0
+        },
+        "threat_blindness": {
+          "hits": 0,
+          "obs": 0
+        },
+        "impulse": {
+          "hits": 0,
+          "obs": 0
+        },
+        "search_width": {
+          "hits": 0,
+          "obs": 0
+        },
+        "depth": {
+          "hits": 0,
+          "obs": 0
+        },
+        "risk_read": {
+          "hits": 1,
+          "obs": 1
+        },
+        "board_awareness": {
+          "hits": 0,
+          "obs": 0
+        },
+        "composure": {
+          "hits": 0,
+          "obs": 0
+        }
+      },
+      "notes": [],
+      "updated": "2026-08-03",
+      "sources": {
+        "solo_games": 1
+      }
+    },
+    "usage": {
+      "day": "2026-08-03",
+      "solo_done": 1,
+      "coached": 1
+    },
+    "wallet": {
+      "spent": 0,
+      "day": "2026-08-03",
+      "counts": {
+        "game_solo": 1
+      }
+    }
   }
 }
