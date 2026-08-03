@@ -5,7 +5,7 @@ import os, io, json, random, hashlib, hmac, time, secrets, urllib.request, urlli
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import chess, chess.pgn, chess.engine
-from flask import Flask, request, jsonify, render_template, session, make_response
+from flask import Flask, request, jsonify, render_template, session, make_response, redirect
 from collections import defaultdict
 from functools import wraps
 
@@ -92,6 +92,12 @@ STRIPE_PRO_PRICE = os.environ.get("STRIPE_PRICE_ID", "")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "chessforge-admin-2024")
 ADMIN_EMAIL    = "zaidwahbeh555@gmail.com"
 SENDGRID_KEY   = os.environ.get("SENDGRID_API_KEY", "")
+# Read in two other places as a local; the reset link needs it at module level.
+APP_URL        = os.environ.get("APP_URL", "https://app.chessforge.org")
+# Google sign-in. Unset means the button is simply not offered, rather than
+# offered and then failing.
+GOOGLE_CLIENT_ID     = os.environ.get("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
 
 BAD_WORDS = [
     "nigger","nigga","faggot","fag","kike","spic","chink","gook","wetback",
@@ -705,6 +711,58 @@ def increment_game_count(user):
     user["daily_counts"] = {today: user["daily_counts"].get(today, 0) + 1}
 
 # ── Email ──────────────────────────────────────────────────────────────────────
+def send_email(to_addr, subject, body):
+    """Send to any address. Returns True only if SendGrid actually accepted it,
+    so callers can tell 'not configured' from 'sent'."""
+    if not SENDGRID_KEY or not to_addr:
+        return False
+    try:
+        payload = json.dumps({
+            "personalizations": [{"to": [{"email": to_addr}]}],
+            "from": {"email": "noreply@chessforge.org", "name": "ChessForge"},
+            "subject": subject,
+            "content": [{"type": "text/plain", "value": body}],
+        }).encode()
+        req = urllib.request.Request(
+            "https://api.sendgrid.com/v3/mail/send", data=payload,
+            headers={"Authorization": "Bearer %s" % SENDGRID_KEY,
+                     "Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return 200 <= r.status < 300
+    except Exception as e:
+        print("send_email failed:", e)
+        return False
+
+# ── Password reset ───────────────────────────────────────────────────────────
+# The token is random, stored only as a hash, single use, and short lived. A
+# reset link sitting in an inbox is a standing key to the account otherwise.
+RESET_TTL = 30 * 60          # half an hour
+
+def _hash_token(tok):
+    return hashlib.sha256(tok.encode()).hexdigest()
+
+def issue_reset_token(username, user):
+    tok = secrets.token_urlsafe(32)
+    user["reset"] = {"hash": _hash_token(tok), "exp": int(time.time()) + RESET_TTL}
+    save_user(username, user)
+    return tok
+
+def consume_reset_token(tok):
+    """Find the account this token belongs to and spend it. None if invalid."""
+    if not tok:
+        return None, None
+    want = _hash_token(tok)
+    db = load_db()
+    now = int(time.time())
+    for uname, rec in db.items():
+        r = rec.get("reset") or {}
+        # compare_digest so a wrong token cannot be narrowed down by timing
+        if r.get("hash") and hmac.compare_digest(r["hash"], want):
+            if int(r.get("exp") or 0) < now:
+                return None, None
+            return uname, rec
+    return None, None
+
 def send_admin_email(subject, body):
     """Send email to admin via SendGrid API or skip if not configured."""
     if not SENDGRID_KEY: return
@@ -898,6 +956,10 @@ def register():
     password=data.get("password","").strip()
     email=data.get("email","").strip().lower()
     if not username or not password: return jsonify({"error":"Username and password required."}),400
+    confirm = (data.get("confirm") or "").strip()
+    # Checked here too: the browser check is a convenience, not a guarantee.
+    if confirm and confirm != password:
+        return jsonify({"error":"Those two passwords do not match."}),400
     if not email or "@" not in email: return jsonify({"error":"A valid email is required."}),400
     if len(username)<3: return jsonify({"error":"Username must be at least 3 characters."}),400
     if not is_username_clean(username): return jsonify({"error":"That username is not allowed. Please choose a different one."}),400
@@ -940,6 +1002,173 @@ def login():
                     "tutorial_done":bool(user.get("tutorial_done")),
                     "progress":user.get("progress",empty_progress()),"games":user.get("games",[]),
                     "onboarding":get_onboarding(user)})
+
+@app.route("/auth/forgot", methods=["POST"])
+def auth_forgot():
+    """Send a reset link. Always answers the same way.
+
+    Saying "no account with that email" would turn this into a tool for finding
+    out who has an account here, so the response never varies.
+    """
+    d = request.get_json(silent=True) or {}
+    email = (d.get("email") or "").strip().lower()
+    generic = {"ok": True, "message": "If that email has an account, a reset link is on its way. "
+                                      "It expires in 30 minutes."}
+    if not email or "@" not in email:
+        return jsonify(generic)
+    db = load_db()
+    match = None
+    for uname, rec in db.items():
+        if (rec.get("email") or "").strip().lower() == email:
+            match = (uname, rec); break
+    if not match:
+        return jsonify(generic)
+    uname, rec = match
+    if rec.get("google_id") and not rec.get("password"):
+        return jsonify({"ok": True, "message": "That account signs in with Google — use the "
+                                               "Continue with Google button instead."})
+    tok = issue_reset_token(uname, rec)
+    link = "%s/reset?token=%s" % (APP_URL.rstrip("/"), urllib.parse.quote(tok))
+    sent = send_email(email, "Reset your ChessForge password",
+        "Someone asked to reset the password for %s.\n\n%s\n\n"
+        "The link works once and expires in 30 minutes. If this was not you, "
+        "ignore this email — nothing has changed." % (uname, link))
+    if not sent:
+        print("PASSWORD RESET (email not configured) for %s: %s" % (uname, link))
+    return jsonify(generic)
+
+@app.route("/auth/reset", methods=["POST"])
+def auth_reset():
+    """Set a new password from a reset token."""
+    d = request.get_json(silent=True) or {}
+    tok = (d.get("token") or "").strip()
+    pw  = (d.get("password") or "").strip()
+    pw2 = (d.get("confirm") or "").strip()
+    if len(pw) < 6:
+        return jsonify({"error": "Password must be at least 6 characters."}), 400
+    if pw != pw2:
+        return jsonify({"error": "Those two passwords do not match."}), 400
+    uname, rec = consume_reset_token(tok)
+    if not uname:
+        return jsonify({"error": "That reset link has expired or already been used. "
+                                 "Ask for a new one."}), 400
+    rec["password"] = hash_password(pw)
+    rec.pop("reset", None)          # single use
+    save_user(uname, rec)
+    session["username"] = uname; session.permanent = True
+    return jsonify({"ok": True, "username": uname})
+
+@app.route("/auth/reset/check")
+def auth_reset_check():
+    """Is this link still good? Lets the page say so before asking for a password."""
+    uname, _ = consume_reset_token((request.args.get("token") or "").strip())
+    return jsonify({"valid": bool(uname), "username": uname or ""})
+
+# ── Google sign-in ───────────────────────────────────────────────────────────
+# Authorisation-code flow. The id_token is fetched by this server directly from
+# Google's token endpoint over TLS using our own client secret, so it arrives on
+# a channel only Google could have written to — which is why the payload can be
+# read without separately verifying its signature. That reasoning does NOT hold
+# for a token handed over by a browser, and none is accepted from one here.
+GOOGLE_AUTH  = "https://accounts.google.com/o/oauth2/v2/auth"
+GOOGLE_TOKEN = "https://oauth2.googleapis.com/token"
+
+def google_configured():
+    return bool(GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET)
+
+def _google_redirect_uri():
+    return APP_URL.rstrip("/") + "/auth/google/callback"
+
+def _b64url_json(part):
+    pad = "=" * (-len(part) % 4)
+    import base64
+    return json.loads(base64.urlsafe_b64decode(part + pad).decode())
+
+@app.route("/auth/google/start")
+def google_start():
+    if not google_configured():
+        return jsonify({"error": "Google sign-in is not configured on this server."}), 503
+    state = secrets.token_urlsafe(24)
+    session["g_state"] = state
+    q = urllib.parse.urlencode({
+        "client_id": GOOGLE_CLIENT_ID,
+        "redirect_uri": _google_redirect_uri(),
+        "response_type": "code",
+        "scope": "openid email profile",
+        "state": state,
+        "prompt": "select_account",
+    })
+    return redirect(GOOGLE_AUTH + "?" + q)
+
+@app.route("/auth/google/callback")
+def google_callback():
+    if not google_configured():
+        return redirect("/?auth=google_unconfigured")
+    # state must match what we put in the session, or this is not our redirect
+    if not request.args.get("state") or request.args.get("state") != session.pop("g_state", None):
+        return redirect("/?auth=google_state")
+    code = request.args.get("code")
+    if not code:
+        return redirect("/?auth=google_denied")
+    try:
+        body = urllib.parse.urlencode({
+            "code": code,
+            "client_id": GOOGLE_CLIENT_ID,
+            "client_secret": GOOGLE_CLIENT_SECRET,
+            "redirect_uri": _google_redirect_uri(),
+            "grant_type": "authorization_code",
+        }).encode()
+        req = urllib.request.Request(GOOGLE_TOKEN, data=body,
+                                     headers={"Content-Type": "application/x-www-form-urlencoded"})
+        with urllib.request.urlopen(req, timeout=12) as r:
+            tok = json.loads(r.read().decode())
+        claims = _b64url_json((tok.get("id_token") or "").split(".")[1])
+    except Exception as e:
+        print("google callback failed:", e)
+        return redirect("/?auth=google_error")
+
+    email = (claims.get("email") or "").strip().lower()
+    gid   = claims.get("sub") or ""
+    if not email or not gid or not claims.get("email_verified", True):
+        return redirect("/?auth=google_email")
+
+    db = load_db()
+    uname = None
+    for u, rec in db.items():
+        if rec.get("google_id") == gid or (rec.get("email") or "").strip().lower() == email:
+            uname = u; break
+
+    if uname:
+        rec = db[uname]
+        rec["google_id"] = gid            # link it for next time
+        now = int(time.time())
+        rec["last_login"] = now; rec["last_seen"] = now
+        rec["login_count"] = int(rec.get("login_count") or 0) + 1
+        save_user(uname, rec)
+    else:
+        # Make a username from the email, and keep going until it is free.
+        base = re.sub(r"[^a-z0-9_]", "", email.split("@")[0].lower()) or "player"
+        uname = base[:18]
+        n = 1
+        while get_user(uname):
+            n += 1; uname = ("%s%d" % (base[:16], n))
+        now = int(time.time())
+        save_user(uname, {
+            "password": "",               # no password: Google is the credential
+            "google_id": gid, "email": email, "created": now,
+            "xp": 0, "plan": "free", "plan_expires": None, "daily_counts": {}, "games": [],
+            "progress": empty_progress(), "onboarding": default_onboarding(new=False),
+            "tutorial_done": False, "last_login": now, "last_seen": now, "login_count": 1,
+        })
+        send_admin_email("New ChessForge signup (Google)",
+                         "New user: %s\nEmail: %s" % (uname, email))
+    session["username"] = uname; session.permanent = True
+    return redirect("/?auth=google_ok")
+
+@app.route("/auth/config")
+def auth_config():
+    """What sign-in options this server can actually offer."""
+    return jsonify({"google": google_configured(), "email_reset": bool(SENDGRID_KEY)})
 
 @app.route("/auth/logout", methods=["POST"])
 def logout():
@@ -1262,6 +1491,14 @@ def index():
     resp = make_response(render_template("index.html"))
     resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     resp.headers["Pragma"] = "no-cache"
+    return resp
+
+@app.route("/reset")
+def reset_page():
+    """Where the emailed link lands. Self-contained so it cannot be affected by
+    anything happening on the main app page."""
+    resp = make_response(render_template("reset.html"))
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     return resp
 
 @app.route("/parse-pgn", methods=["POST"])
@@ -4911,7 +5148,14 @@ def _thinking_verdict(cmp_):
 
     return {"headline": head, "detail": detail, "dims": dims, "tags": tags}
 
+# What the profile is allowed to learn from. Coached play is deliberately
+# excluded: a mistake made while someone is asking you questions is not the
+# mistake you make on your own, and this is meant to describe the second.
+PROFILE_SOURCES = {"solo_games", "candidates"}
+
 def _fold_profile(user, dims, source="candidates"):
+    if source not in PROFILE_SOURCES:
+        return get_thinking_profile(user)      # recorded nowhere, on purpose
     """Fold one observation into the long-term profile.
 
     `source` records where the evidence came from, so the profile can say what
@@ -5144,6 +5388,26 @@ def _ladder_options(engine, board, best_san, n=3):
     random.shuffle(opts)
     return opts, opts.index(best_san)
 
+def solo_done_today(user):
+    return usage(user, "solo_done") > 0
+
+def daily_gate_state(user):
+    done = solo_done_today(user)
+    return {
+        "solo_done_today": done,
+        "coached_locked": not done,
+        "why": "Your rating, your accuracy and your whole thinking profile are read from games "
+               "you play WITHOUT the coach — they are the only honest measurement. One a day "
+               "keeps that reading current, and unlocks coached play for the rest of the day.",
+    }
+
+@app.route("/coach/gate")
+@login_required
+def coach_gate():
+    """Whether coached play is unlocked today, and why not if it is not."""
+    user = get_user(current_user()) or {}
+    return jsonify(daily_gate_state(user))
+
 @app.route("/coach/begin", methods=["POST"])
 @login_required
 def coach_begin():
@@ -5154,6 +5418,14 @@ def coach_begin():
     u = current_user(); user = get_user(u)
     if not user:
         return jsonify({"error": "User not found"}), 404
+    # Free play first, every day, for everyone — Grandmaster included. The point
+    # is the measurement, not the quota.
+    if (request.get_json(silent=True) or {}).get("mode", "coached") == "coached" \
+       and not solo_done_today(user):
+        st = daily_gate_state(user)
+        st.update({"error": "solo_required", "locked": "solo_first", "plan": PLAN_NAME,
+                   "message": "Play one game without the coach first. " + st["why"]})
+        return jsonify(st), 403
     if is_pro(user):
         return jsonify({"ok": True, "unlimited": True, "plan": PLAN_NAME})
     blocked = quota_blocked(user, "coached", FREE_COACHED_GAMES, "coached game")
@@ -5492,11 +5764,8 @@ def thinking_profile():
     # arrow; naming the sources makes that visible instead of implied.
     src = tp.get("sources") or {}
     SOURCE_LABELS = {
-        "coached_moves":  "Moves played with the coach watching",
-        "coached_games":  "Coached games finished",
-        "solo_games":     "Solo games finished",
-        "candidates":     "Candidate-move reviews",
-        "ask_forge":      "Questions asked of GM Forge",
+        "solo_games":     "Games finished without the coach",
+        "candidates":     "Candidate moves you weighed",
     }
     sources = [{"key": k, "label": SOURCE_LABELS.get(k, k), "count": int(v)}
                for k, v in sorted(src.items(), key=lambda kv: -int(kv[1])) if v]
@@ -5792,6 +6061,10 @@ def progress_record():
         _fold_profile(user, gdims, "coached_games" if mode == "coached" else "solo_games")
     # XP for finishing a game. Solo pays more than coached because solo is the
     # honest test -- it is also the only mode the rating estimate trusts.
+    if mode == "solo":
+        # Unlocks coached play for the rest of the day.
+        if not solo_done_today(user):
+            bump_usage(user, "solo_done")
     granted = grant_xp(user, "game_solo" if mode == "solo" else "game_coached")
     if int(d.get("moves") or 0) >= 20 and int(d.get("blunders") or 0) == 0:
         granted += grant_xp(user, "clean_game")
@@ -5809,8 +6082,12 @@ def _half_avg(vals):
     return late, late - early
 
 def _acc_summary(st):
-    """Accuracy per game, from average centipawn loss. Higher is better."""
-    h = st.get("history") or []
+    """Accuracy per game, from average centipawn loss. Higher is better.
+
+    Free play only. Accuracy while someone is pointing out your mistakes is a
+    measure of the coach, not of you.
+    """
+    h = [x for x in (st.get("history") or []) if x.get("mode") == "solo"]
     acc = [max(0.0, min(100.0, 100.0 - float(x.get("acpl") or 0) / 1.6)) for x in h]
     if not acc:
         return {"value": None, "delta": None, "n": 0}
@@ -5843,7 +6120,11 @@ def progress_report():
 
     sg = max(1, solo.get("games", 0))
     sm = max(1, solo.get("moves", 0))
-    blunder_rate = round(solo.get("blunders", 0) / float(sm) * 100, 1)
+    # Every blunder you make is yours, coached or not — the coach does not play
+    # your moves. So this counts both, over the moves of both.
+    all_bl = solo.get("blunders", 0) + coached.get("blunders", 0)
+    all_mv = max(1, solo.get("moves", 0) + coached.get("moves", 0))
+    blunder_rate = round(all_bl / float(all_mv) * 100, 1)
     acpl = round(solo.get("acpl_sum", 0.0) / float(sg), 1)
     samples = solo.get("elo_samples") or []
     est_elo = int(sum(samples) / len(samples)) if samples else None

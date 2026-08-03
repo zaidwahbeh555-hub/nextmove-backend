@@ -739,7 +739,10 @@ const Traj = (function(){
     const hist = (history||[]).filter(h=>h && typeof h === 'object');
     const rated = hist.filter(h=>h.mode === 'solo' && +h.elo > 0);
     const useRating = rated.length >= 2;
-    const src = useRating ? rated : hist;
+    const soloAll = hist.filter(h=>h.mode === 'solo');
+    // Rating if there is enough of it, then free-play accuracy, then every game
+    // — so the chart is never empty, and the caption says which it is.
+    const src = useRating ? rated : (soloAll.length >= 2 ? soloAll : hist);
     // Accuracy from average centipawn loss: 0 lost is 100, and it falls away
     // from there. Higher is better either way, so the line means the same thing
     // in both modes — up is improvement.
@@ -817,9 +820,13 @@ const Traj = (function(){
     wireHover(svg, pts, x, y, useRating);
     // Say what is being plotted, so a number on the axis is never ambiguous.
     const cap = document.getElementById('traj-cap');
+    const soloOnly = src.every(h=>h.mode === 'solo');
     if(cap) cap.textContent = useRating
-      ? 'Your estimated rating across recent solo games.'
-      : 'Accuracy per game — 100 means you gave nothing away. Every game counts, coached or not.';
+      ? 'Your estimated rating across recent free-play games.'
+      : (soloOnly
+          ? 'Accuracy per free-play game — 100 means you gave nothing away.'
+          : 'Accuracy per game. Free play is the honest measure, so this switches to '
+            + 'free-play-only once you have played a couple.');
     return {first:pts[0].v, last:pts[pts.length-1].v, n:pts.length, rating:useRating};
   }
 
@@ -1052,6 +1059,9 @@ document.addEventListener('click', function(e){
 
 // Reflect plan on the play-screen affordance.
 function syncCosmeticAffordances(){
+  // The one place plan state is reflected in the chrome.
+  const up = document.getElementById('tb-upgrade');
+  if(up) up.classList.toggle('hidden', State.plan === 'pro' || !State.loggedIn);
   const lock = document.getElementById('gm-skin-lock');
   if(lock) lock.hidden = State.plan==='pro';
   const dot = document.getElementById('nav-shop-new');
@@ -1184,8 +1194,10 @@ document.getElementById('register-btn').addEventListener('click',async()=>{
   if(!u||!p){err.textContent='Please enter username and password.';return;}
   if(!em){err.textContent='Email is required — we use it to link your subscription.';return;}
   if(!em.includes('@')||!em.includes('.')){err.textContent='Please enter a valid email address.';return;}
+  const p2=(document.getElementById('reg-password2')||{}).value;
+  if(p2 !== undefined && p !== p2){err.textContent='Those two passwords do not match.';return;}
   try{
-    const r=await fetch('/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,email:em,password:p}),credentials:'include'});
+    const r=await fetch('/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,email:em,password:p,confirm:p2}),credentials:'include'});
     const d=await r.json();if(d.error){err.textContent=d.error;return;}
     applySession(d);hideAuthModal();
     try{ UpgradeIntent.run(); }catch(e){}
@@ -1194,6 +1206,70 @@ document.getElementById('register-btn').addEventListener('click',async()=>{
 });
 
 document.getElementById('skip-auth').addEventListener('click',hideAuthModal);
+
+/* ── Google, forgot password, confirm password ───────────────────────────── */
+(function(){
+  function $(id){ return document.getElementById(id); }
+  function panel(name){
+    document.querySelectorAll('.auth-panel').forEach(p=>p.classList.remove('active'));
+    const p = $('auth-' + name); if(p) p.classList.add('active');
+    document.querySelectorAll('.auth-tab').forEach(t=>
+      t.classList.toggle('active', t.dataset.auth === name));
+  }
+
+  // Only offer Google if the server can actually complete it. A button that
+  // always fails is worse than no button.
+  fetch('/auth/config').then(r=>r.json()).then(function(c){
+    if(c && c.google){
+      const b = $('google-btn'), or = $('auth-or');
+      if(b) b.classList.remove('hidden');
+      if(or) or.classList.remove('hidden');
+    }
+  }).catch(function(){});
+
+  const g = $('google-btn');
+  if(g) g.addEventListener('click', function(){ location.href = '/auth/google/start'; });
+
+  const f = $('forgot-btn');
+  if(f) f.addEventListener('click', function(e){ e.preventDefault(); panel('forgot'); });
+  const back = $('forgot-back');
+  if(back) back.addEventListener('click', function(e){ e.preventDefault(); panel('login'); });
+
+  const send = $('forgot-send');
+  if(send) send.addEventListener('click', function(){
+    const em = ($('forgot-email').value || '').trim();
+    const msg = $('forgot-msg');
+    if(!em || em.indexOf('@') < 0){ msg.textContent = 'Enter the email on your account.'; return; }
+    send.disabled = true; send.textContent = 'Sending…';
+    fetch('/auth/forgot', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({email: em})})
+      .then(r=>r.json())
+      .then(function(d){
+        msg.textContent = d.message || 'Check your email.';
+        msg.classList.add('ok');
+      })
+      .catch(function(){ msg.textContent = 'Could not send that. Try again in a moment.'; })
+      .finally(function(){ send.disabled = false; send.textContent = 'Send reset link'; });
+  });
+
+  // Coming back from Google.
+  const q = new URLSearchParams(location.search).get('auth');
+  if(q){
+    const words = {
+      google_ok: '', google_denied: 'Google sign-in was cancelled.',
+      google_state: 'That sign-in attempt expired. Try again.',
+      google_error: 'Google sign-in failed. Try again, or use a password.',
+      google_email: 'That Google account has no verified email.',
+      google_unconfigured: 'Google sign-in is not switched on for this server.'
+    };
+    const t = words[q];
+    if(t){ const e = $('login-error'); if(e) e.textContent = t; }
+    try{
+      const u = new URL(location.href); u.searchParams.delete('auth');
+      history.replaceState(null, '', u.pathname + u.search);
+    }catch(e){}
+  }
+})();
 
 document.getElementById('logout-btn').addEventListener('click',async()=>{
   await fetch('/auth/logout',{method:'POST',credentials:'include'});
@@ -1728,6 +1804,16 @@ const TrainingDrill = {
 };
 window.TrainingDrill = TrainingDrill;
 document.querySelectorAll('.nav-link').forEach(l=>l.addEventListener('click',e=>{e.preventDefault();showPage(l.dataset.page);}));
+// The logo goes to the app's own home, not out to the marketing site. Leaving
+// the product is a deliberate act, and it has its own item in the account menu.
+(function(){
+  const b = document.getElementById('brand-home');
+  if(!b) return;
+  b.addEventListener('click', ()=>showPage('coach'));
+  b.addEventListener('keydown', e=>{
+    if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); showPage('coach'); }
+  });
+})();
 
 /* ── Tabs ─────────────────────────────────────────────────────────────────── */
 document.querySelectorAll('.tab').forEach(btn=>{
@@ -2572,11 +2658,21 @@ function startBotGame(){
   BotState.helpUsed = 0;
   // Coached games are limited on Free. Claim one first — the server decides, so
   // the limit is real rather than a thing the browser politely observes.
-  if(State.coachMode === 'coached' && State.loggedIn && State.plan !== 'pro'){
-    fetch('/coach/begin', {method:'POST', credentials:'include'})
+  // The daily free-play gate applies to everyone, Grandmaster included, so this
+  // is no longer only asked for free accounts.
+  if(State.coachMode === 'coached' && State.loggedIn){
+    fetch('/coach/begin', {method:'POST', credentials:'include',
+                           headers:{'Content-Type':'application/json'},
+                           body: JSON.stringify({mode:'coached'})})
       .then(r=>r.json().then(d=>({ok:r.ok, d})))
       .then(({ok, d})=>{
-        if(!ok && d && d.upgrade){
+        if(!ok && d && d.error === 'solo_required'){
+          // Not an upsell — a free-play game unlocks it, on any plan.
+          try{ setBotMode('free'); }catch(e){}
+          Coach.speak('Free play first. ' + (d.why || ''));
+          const g = document.getElementById('gate-note');
+          if(g){ g.textContent = d.message || ''; g.classList.remove('hidden'); }
+        } else if(!ok && d && d.upgrade){
           Coach.speak(d.message || 'That is your free coached game for today.');
           try{ showProGate('coached'); }catch(e){}
         } else if(d && d.left === 0){
@@ -2618,7 +2714,7 @@ function startBotGame(){
   setBotStatus('Game on' + eloStr + (BotState.playerColor==='white' ? ' — you play White, make your move!' : ' — you play Black, bot is moving…'));
   enableCoachButtons(true);
   if(State.coachMode==='coached'){
-    Coach.setStatus('Watching the board');
+    Coach.setStatus('');
     Coach.speak('Game on. Take your time before every move — I\'ll ask questions and point things out.');
     if(BotState.playerColor === 'white'){
       setTimeout(()=>Coach.afterBotMove(''), 350);
@@ -4531,7 +4627,7 @@ const Coach = (function(){
     if(State.coachMode !== 'coached') return;
     if(!BotState.game || !BotState.gameActive) return;
     if(BotState.game.turn() !== BotState.playerColor[0]) return;
-    setStatus('Looking at the position');
+    setStatus('');
     setThinking(true);
     let d = {silent:true};
     try{
@@ -4613,7 +4709,7 @@ const Coach = (function(){
       coachApplyMarks(d);
       speak(d.commentary);
     }
-    setStatus(d.severity==='best' ? 'Top move ' : (d.severity==='inaccuracy' ? 'Slight inaccuracy' : 'Watching the board'));
+    setStatus(d.severity==='best' ? 'Top move' : (d.severity==='inaccuracy' ? 'Slight inaccuracy' : ''));
     setTimeout(makeBotMove, 500);
   }
   async function ask(type){
@@ -5339,6 +5435,29 @@ const GameSetup = (function(){
   function showSetup(on){
     const p = $('gm-setup');   if(p) p.classList.toggle('hidden', !on);
     const b = $('gm-gamebar'); if(b) b.classList.toggle('hidden', on);
+    if(on) refreshGate();
+  }
+
+  // Say plainly whether coached play is available today, and why not.
+  function refreshGate(){
+    if(!window.State || !State.loggedIn) return;
+    fetch('/coach/gate', {credentials:'include'}).then(r=>r.json()).then(function(g){
+      const note = $('gate-note');
+      const btn  = document.querySelector('#setup-mode .gm-seg-btn[data-mode="coached"]');
+      if(btn) btn.classList.toggle('is-locked', !!g.coached_locked);
+      if(note){
+        note.textContent = g.coached_locked
+          ? 'Coached play unlocks after one free-play game today. ' + g.why
+          : 'Free play done today — coached play is unlocked.';
+        note.classList.toggle('hidden', false);
+        note.classList.toggle('ok', !g.coached_locked);
+      }
+      if(g.coached_locked){
+        side = side; mode = 'free';
+        document.querySelectorAll('#setup-mode .gm-seg-btn').forEach(b2=>
+          b2.classList.toggle('active', b2.dataset.mode === 'free'));
+      }
+    }).catch(function(){});
   }
 
   function setTurn(text, state){
@@ -5849,9 +5968,9 @@ async function renderThinkingProfile(){
     }
 
     if(!d.dimensions || !d.dimensions.length){
-      rows.innerHTML = '<div class="think-empty">Nothing to read yet. Play a coached game \u2014 '
-        + 'every move you make, every game you finish and every question you ask GM Forge '
-        + 'feeds this. Marking candidate moves with an arrow adds to it too.</div>';
+      rows.innerHTML = '<div class="think-empty">Nothing to read yet. Finish a game without the '
+        + 'coach, or mark candidate moves with an arrow while you play \u2014 those are the two '
+        + 'things this reads from.</div>';
       return;
     }
 

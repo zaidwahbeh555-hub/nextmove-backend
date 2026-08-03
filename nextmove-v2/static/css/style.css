@@ -3019,3 +3019,61 @@ body.play-locked .app-foot{display:none}
 @media(max-width:1179px){.tp-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}}
 @media(max-width:820px){.tp-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:520px){.tp-grid{grid-template-columns:1fr}}
+
+/* ── Google button, forgot-password link, auth divider ─────────────────────── */
+.gsi{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;
+  padding:11px 16px;margin-bottom:14px;border-radius:999px;cursor:pointer;
+  background:#FFFFFF;border:1px solid #DADCE0;color:#1F1F1F;
+  font-family:inherit;font-size:14px;font-weight:600;
+  transition:filter 120ms cubic-bezier(.32,.72,0,1)}
+.gsi:hover{filter:brightness(.96)}
+.gsi.hidden{display:none}
+.gsi-mark{width:18px;height:18px;flex:none}
+.auth-or{display:flex;align-items:center;gap:12px;margin:0 0 14px;color:var(--text-3);font-size:11px;
+  text-transform:uppercase;letter-spacing:.1em}
+.auth-or::before,.auth-or::after{content:'';flex:1;height:1px;background:var(--border)}
+.auth-or.hidden{display:none}
+.auth-link{display:block;width:100%;margin-top:10px;padding:6px;background:none;border:none;
+  color:var(--text-3);font-family:inherit;font-size:12.5px;cursor:pointer;text-align:center}
+.auth-link:hover{color:var(--text-1)}
+.auth-blurb{font-size:12.5px;line-height:1.6;color:var(--text-2);margin:0 0 16px}
+.auth-error.ok{color:#3BC9A8}
+
+/* "Weakness map" reads as a section title, so it is sized like one. */
+#page-training .train-section-label{font-family:'Comfortaa', var(--font-ui);
+  font-size:22px;font-weight:700;color:#FFFFFF;letter-spacing:-.01em;
+  text-transform:none;margin:24px 0 12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+#page-training .train-section-label .cm-legend{font-family:var(--font-ui);
+  font-size:11px;font-weight:500;letter-spacing:.02em;text-transform:none;color:var(--text-3)}
+
+/* The daily free-play gate, explained where the choice is made. */
+.gate-note{font-size:12px;line-height:1.55;color:var(--text-2);margin:0 0 14px;
+  padding:10px 12px;border-radius:10px;
+  background:rgba(229,167,61,.10);border:1px solid rgba(229,167,61,.28)}
+.gate-note.ok{background:rgba(59,201,168,.10);border-color:rgba(59,201,168,.26);color:var(--text-3)}
+.gate-note.hidden{display:none}
+.gm-seg-btn.is-locked{opacity:.45;position:relative}
+/* No emoji as interface icons — a small drawn padlock instead. */
+.gm-seg-btn.is-locked::after{content:'';display:inline-block;width:7px;height:6px;
+  margin-left:6px;vertical-align:middle;border-radius:1px;background:currentColor;
+  box-shadow:0 -4px 0 -1px transparent, inset 0 0 0 99px currentColor;
+  position:relative}
+.gm-seg-btn.is-locked::before{content:'';position:absolute;width:6px;height:5px;
+  margin-left:-1px;margin-top:-5px;border:1.4px solid currentColor;border-bottom:none;
+  border-radius:3px 3px 0 0;opacity:.9;pointer-events:none;display:none}
+#brand-home{cursor:pointer;user-select:none}
+#brand-home:hover .logo-word{opacity:.85}
+#brand-home:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border-radius:8px}
+
+/* Upgrade, in the top bar where it cannot be missed. Hidden once you are on
+   Grandmaster — nothing more to sell. */
+.tb-upgrade{display:flex;align-items:center;gap:7px;padding:0 15px;height:34px;
+  border-radius:999px;border:none;cursor:pointer;font-family:inherit;
+  font-size:12.5px;font-weight:700;color:#0D0D14;
+  background:linear-gradient(135deg, var(--accent) 0%, #7C8BFF 100%);
+  box-shadow:0 6px 16px -8px rgba(91,108,255,.85);
+  transition:filter 120ms cubic-bezier(.32,.72,0,1), transform 120ms cubic-bezier(.32,.72,0,1)}
+.tb-upgrade:hover{filter:brightness(1.08);transform:translateY(-1px)}
+.tb-upgrade .ic{width:15px;height:15px}
+.tb-upgrade.hidden{display:none}
+@media(max-width:900px){.tb-upgrade span{display:none}.tb-upgrade{padding:0 11px}}

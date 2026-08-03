@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reset your password · ChessForge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#0A0A10;--panel:#12131C;--panel-hi:#1A1B26;--border:#22232F;--border-hi:#2E3040;
+        --accent:#5B6CFF;--t1:#EDEEF5;--t2:#8E92A8;--t3:#565A70;--red:#E5484D;--green:#3BC9A8}
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+       background:var(--bg);color:var(--t1);padding:24px;
+       font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-size:15px;line-height:1.6}
+  .card{width:min(420px,100%);background:var(--panel);border:1px solid var(--border);
+        border-radius:16px;padding:28px}
+  h1{font-family:'Comfortaa',system-ui;font-size:24px;font-weight:700;margin:0 0 6px;color:#fff}
+  p.sub{font-size:13px;color:var(--t2);margin:0 0 20px}
+  label{display:block;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+        color:var(--t3);margin:0 0 6px}
+  input{width:100%;padding:11px 13px;border-radius:8px;border:1px solid var(--border-hi);
+        background:var(--panel-hi);color:var(--t1);font-family:inherit;font-size:14px;margin-bottom:14px}
+  input:focus{outline:none;border-color:var(--accent)}
+  button{width:100%;padding:12px;border-radius:999px;border:none;background:var(--accent);
+         color:#0D0D14;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer}
+  button:hover{filter:brightness(1.08)}
+  button:disabled{opacity:.6;cursor:default}
+  .msg{font-size:13px;margin:0 0 14px;padding:10px 12px;border-radius:8px;display:none}
+  .msg.err{display:block;background:rgba(229,72,77,.12);color:#ff8b90}
+  .msg.ok{display:block;background:rgba(59,201,168,.12);color:var(--green)}
+  .foot{margin:16px 0 0;font-size:12px;color:var(--t3);text-align:center}
+  .foot a{color:var(--t2)}
+  .rules{font-size:11px;color:var(--t3);margin:-8px 0 14px}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>Set a new password</h1>
+  <p class="sub" id="who">Checking your link&hellip;</p>
+  <div class="msg" id="msg"></div>
+  <form id="form" style="display:none">
+    <label for="pw">New password</label>
+    <input id="pw" type="password" autocomplete="new-password" required>
+    <p class="rules">At least 6 characters.</p>
+    <label for="pw2">Confirm new password</label>
+    <input id="pw2" type="password" autocomplete="new-password" required>
+    <button type="submit" id="go">Save new password</button>
+  </form>
+  <p class="foot"><a href="/">Back to ChessForge</a></p>
+</div>
+<script>
+(function(){
+  var token = new URLSearchParams(location.search).get('token') || '';
+  var msg = document.getElementById('msg');
+  var form = document.getElementById('form');
+  var who = document.getElementById('who');
+  function show(text, kind){ msg.textContent = text; msg.className = 'msg ' + kind; }
+
+  fetch('/auth/reset/check?token=' + encodeURIComponent(token))
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(d.valid){
+        who.textContent = 'Resetting the password for ' + d.username + '.';
+        form.style.display = 'block';
+        document.getElementById('pw').focus();
+      } else {
+        who.textContent = '';
+        show('That link has expired or has already been used. Ask for a new one from the sign-in screen.', 'err');
+      }
+    })
+    .catch(function(){ show('Could not check that link. Try again in a moment.', 'err'); });
+
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    var pw = document.getElementById('pw').value;
+    var pw2 = document.getElementById('pw2').value;
+    if(pw.length < 6){ show('Password must be at least 6 characters.', 'err'); return; }
+    if(pw !== pw2){ show('Those two passwords do not match.', 'err'); return; }
+    var go = document.getElementById('go');
+    go.disabled = true; go.textContent = 'Saving…';
+    fetch('/auth/reset', {method:'POST', credentials:'include',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({token: token, password: pw, confirm: pw2})})
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if(d.ok){
+          show('Password changed. Taking you into ChessForge…', 'ok');
+          form.style.display = 'none';
+          setTimeout(function(){ location.href = '/'; }, 1200);
+        } else {
+          show(d.error || 'Could not change the password.', 'err');
+          go.disabled = false; go.textContent = 'Save new password';
+        }
+      })
+      .catch(function(){
+        show('Something went wrong. Try again.', 'err');
+        go.disabled = false; go.textContent = 'Save new password';
+      });
+  });
+})();
+</script>
+</body>
+</html>
