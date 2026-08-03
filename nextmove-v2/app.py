@@ -1969,7 +1969,10 @@ def coach_position():
                       # positional point later on. Derived from the move counter
                       # rather than move_stack, which is empty on a board rebuilt
                       # from a FEN -- as this one always is.
-                      "ply": ply_from_board(board)})
+                      "ply": ply_from_board(board),
+                      # so socratic_guard can build a replacement from the real
+                      # position instead of a generic pool
+                      "board": board, "played_moves": played_moves})
 
         # QUIET — a coach watches most of the time. He speaks here only when
         # something he has been tracking is worth raising; otherwise he says
@@ -1977,12 +1980,12 @@ def coach_position():
         if level in ("routine", "silent") or scenario == "quiet":
             mem = build_game_memory(played_moves)
             mctx = memory_ctx(mem)
-            speak_odds = 0.22 if len(played_moves) > 12 else 0.12
-            if random.random() > speak_odds:
-                return jsonify({"silent": True, "engagement": "silent",
-                                "scenario": scenario, "blocking": False,
-                                "dialogue": [], "arrows": [], "highlights": [],
-                                "eval": eval_pawns, "best_move_san": best_san})
+            # He speaks on every move now. The old behaviour rolled a die and
+            # spoke 12-22% of the time, which is why it felt like he sometimes
+            # noticed things and sometimes did not — he was not deciding, the
+            # random number generator was. Every line still has to clear
+            # line_is_concrete, line_is_clean and the triviality gate, so this
+            # buys frequency without buying filler.
             if mctx and len(played_moves) > 12 and random.random() < 0.4:
                 text = pick_line(MEMORY_LINES, dict(light, **mctx), recent)   # refer back
             else:
@@ -2001,22 +2004,12 @@ def coach_position():
                 "eval": eval_pawns, "best_move_san": best_san,
             })
 
-        # RHYTHM COOLDOWN — a coach does not comment two moves running. Only a
-        # critical moment breaks the silence; anything less waits its turn. This
-        # is what makes an interruption feel like it means something.
+        # The four-ply cooldown that used to mute notable moments is gone: he is
+        # meant to be present on every move. The ply is still recorded so a line
+        # can refer back to when something happened.
         if level == "notable":
-            ply = len(played_moves)
             try:
-                last = session.get("coach_last_ply", -99)
-            except Exception:
-                last = -99
-            if ply - last < 4:
-                return jsonify({"silent": True, "engagement": "silent",
-                                "scenario": scenario, "blocking": False,
-                                "dialogue": [], "arrows": [], "highlights": [],
-                                "eval": eval_pawns, "best_move_san": best_san})
-            try:
-                session["coach_last_ply"] = ply
+                session["coach_last_ply"] = len(played_moves)
             except Exception:
                 pass
 
@@ -2830,10 +2823,12 @@ def _recent_store():
         return []
 
 def engagement_for(scenario):
-    """Critical stops the game; notable asks briefly; routine stays SILENT.
+    """Critical stops the game; notable asks briefly; routine still speaks.
 
-    A coach who comments on every move is noise. Staying quiet most of the time
-    is what makes an interruption mean something."""
+    "Routine" now means a short, concrete reaction rather than silence. A coach
+    who says nothing for six moves reads as broken rather than restrained, and
+    the quality gates -- concrete, unbanned, non-trivial -- are what keep the
+    frequent lines from becoming filler."""
     if scenario in ("opponent_fork","opponent_pin","player_about_to_blunder",
                     "player_can_win_material","player_found_brilliancy"): return "critical"
     if scenario in ("opponent_threat_single_piece","critical_castling_decision",
@@ -3053,6 +3048,11 @@ CONCEPTS = {
  "back_rank":("What is a back-rank weakness?","Your king sits on the back rank behind unmoved pawns with no escape square. A rook or queen reaching that rank is mate. The fix is luft - a quiet pawn move that opens a hole for the king."),
 }
 
+
+def _nonempty_dialogue(items):
+    """Drop empty lines, so "not silent" always means there is something to read."""
+    return [d for d in (items or [])
+            if (d.get("text") if isinstance(d, dict) else str(d or "")).strip()]
 
 def build_moment(board, top_lines, played_moves, engine=None):
     """The coaching brain. Geometry from python-chess, every claim checked against the engine."""
@@ -3315,11 +3315,21 @@ def socratic_guard(text, best_san, ctx=None, topic="threat"):
     ctx = ctx or {}
     ply = ctx.get("ply")
     if not line_is_worth_saying(text, ply):
-        # Say something about the actual position instead, or say nothing.
+        # Replace it with something true of this position rather than a generic
+        # nudge from a small pool — and never with nothing, because the caller
+        # has already decided it is going to speak.
+        board = ctx.get("board")
+        if board is not None:
+            try:
+                alt = factual_line(board, "routine", ctx, ctx.get("played_moves") or [])
+                if alt and line_is_clean(alt):
+                    return alt
+            except Exception:
+                pass
         sq = ctx.get("sq") or ctx.get("tsq")
         if sq:
-            return _fmt(gm_phrase(ATTENTION_LINES["square"]), {"sq": sq, "piece": "piece"})
-        return ""
+            return _fmt(gm_phrase(ATTENTION_LINES["square"]), {"sq": sq, "piece": ctx.get("piece") or "piece"})
+        return "Nothing is hanging. Take the move that improves your worst-placed piece."
     if not _names_move(text, best_san):
         return text
     sq = ctx.get("sq") or ctx.get("tsq") or ctx.get("fsq")

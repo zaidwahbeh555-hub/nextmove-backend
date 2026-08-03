@@ -80,11 +80,22 @@ ok = ok and m.ply_from_board(chess.Board(b.fen())) == 2      # survives the roun
 p, f = (p+1, f) if ok else (p, f+1)
 print("  [%s] ply survives a FEN round trip" % ("PASS" if ok else "FAIL"))
 
-print("\nrhythm: routine moments are silent")
-sil = m.engagement_for("some_quiet_thing") == "silent"
+print("\nrhythm: he speaks on every move, and a blunder still stops the game")
+# He used to roll a die and speak on 12-22% of routine moves, which is why it
+# felt inconsistent. Frequency is now guaranteed; quality is what the gates
+# above are for.
 crit = m.engagement_for("player_about_to_blunder") == "critical"
-print("  [%s] routine -> silent" % ("PASS" if sil else "FAIL"))
-print("  [%s] blunder -> critical (still speaks)" % ("PASS" if crit else "FAIL"))
-p += (sil + crit); f += (2 - sil - crit)
+note = m.engagement_for("opponent_threat_single_piece") == "notable"
+print("  [%s] blunder -> critical (stops the game)" % ("PASS" if crit else "FAIL"))
+print("  [%s] a threat -> notable (asks, does not block)" % ("PASS" if note else "FAIL"))
+p += (crit + note); f += (2 - crit - note)
+
+# The dice and the cooldown must be gone from the source, not just unused.
+src = open("app.py").read()
+no_dice = "speak_odds" not in src
+no_cool = "if ply - last < 4" not in src
+print("  [%s] no random speak_odds left" % ("PASS" if no_dice else "FAIL"))
+print("  [%s] no four-ply cooldown left" % ("PASS" if no_cool else "FAIL"))
+p += (no_dice + no_cool); f += (2 - no_dice - no_cool)
 print("\n%d passed, %d failed" % (p, f))
 sys.exit(0 if f == 0 else 1)
