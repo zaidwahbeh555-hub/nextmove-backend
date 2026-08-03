@@ -5416,9 +5416,10 @@ def daily_gate_state(user):
     return {
         "solo_done_today": done,
         "coached_locked": not done,
-        "why": "Your rating, your accuracy and your whole thinking profile are read from games "
-               "you play WITHOUT the coach — they are the only honest measurement. One a day "
-               "keeps that reading current, and unlocks coached play for the rest of the day.",
+        "why": "Your training drills are built from the mistakes you make on your own, and your "
+               "rating, your accuracy and your Thinking Profile are read only from those games — "
+               "coached ones do not count, because the coach is doing part of the work. One game "
+               "a day keeps the measurement honest.",
     }
 
 @app.route("/coach/gate")

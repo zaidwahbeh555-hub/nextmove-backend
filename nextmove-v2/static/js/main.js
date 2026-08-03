@@ -5492,15 +5492,22 @@ const GameSetup = (function(){
       const note = $('gate-note');
       const btn  = document.querySelector('#setup-mode .gm-seg-btn[data-mode="coached"]');
       if(btn) btn.classList.toggle('is-locked', !!g.coached_locked);
+      // The explanation belongs to the struck-out state and nothing else. Once
+      // the solo game is done there is no rule left to explain, so the note
+      // goes away rather than turning into a "you are allowed" message nobody
+      // needs to read every time they start a game.
       if(note){
-        note.textContent = g.coached_locked
-          ? 'Coached play unlocks after one free-play game today. ' + g.why
-          : 'Free play done today — coached play is unlocked.';
-        note.classList.toggle('hidden', false);
-        note.classList.toggle('ok', !g.coached_locked);
+        if(g.coached_locked){
+          note.textContent = 'Coached is locked until you finish one game on your own today. ' + g.why;
+          note.classList.remove('hidden', 'ok');
+        } else {
+          note.textContent = '';
+          note.classList.add('hidden');
+          note.classList.remove('ok');
+        }
       }
       if(g.coached_locked){
-        side = side; mode = 'free';
+        mode = 'free';
         document.querySelectorAll('#setup-mode .gm-seg-btn').forEach(b2=>
           b2.classList.toggle('active', b2.dataset.mode === 'free'));
       }
@@ -5533,6 +5540,7 @@ const GameSetup = (function(){
     const wrap = $(wrapId); if(!wrap) return;
     wrap.addEventListener('click', (e)=>{
       const btn = e.target.closest('.gm-seg-btn'); if(!btn) return;
+      if(btn.classList.contains('is-locked')) return;   // struck out means struck out
       wrap.querySelectorAll('.gm-seg-btn').forEach(b=>b.classList.remove('active'));
       btn.classList.add('active');
       onPick(btn.dataset[attr]);

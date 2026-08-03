@@ -3052,15 +3052,13 @@ body.play-locked .app-foot{display:none}
   background:rgba(229,167,61,.10);border:1px solid rgba(229,167,61,.28)}
 .gate-note.ok{background:rgba(59,201,168,.10);border-color:rgba(59,201,168,.26);color:var(--text-3)}
 .gate-note.hidden{display:none}
-.gm-seg-btn.is-locked{opacity:.45;position:relative}
-/* No emoji as interface icons — a small drawn padlock instead. */
-.gm-seg-btn.is-locked::after{content:'';display:inline-block;width:7px;height:6px;
-  margin-left:6px;vertical-align:middle;border-radius:1px;background:currentColor;
-  box-shadow:0 -4px 0 -1px transparent, inset 0 0 0 99px currentColor;
-  position:relative}
-.gm-seg-btn.is-locked::before{content:'';position:absolute;width:6px;height:5px;
-  margin-left:-1px;margin-top:-5px;border:1.4px solid currentColor;border-bottom:none;
-  border-radius:3px 3px 0 0;opacity:.9;pointer-events:none;display:none}
+/* Struck through, not just dimmed. Dimming alone read as "this is the one you
+   picked" -- the option still looked selectable, so people chose Coached and
+   only found out it was blocked once the game refused to start. */
+.gm-seg-btn.is-locked{opacity:.42;cursor:not-allowed;
+  text-decoration:line-through;text-decoration-thickness:1.5px;
+  text-decoration-color:var(--text-2)}
+.gm-seg-btn.is-locked:hover{background:transparent;color:inherit}
 #brand-home{cursor:pointer;user-select:none}
 #brand-home:hover .logo-word{opacity:.85}
 #brand-home:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border-radius:8px}
