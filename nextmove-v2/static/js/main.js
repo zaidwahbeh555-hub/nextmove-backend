@@ -867,6 +867,22 @@ const Traj = (function(){
 })();
 window.Traj = Traj;
 
+/* Polling loops only make sense while the play screen is actually in front of
+   you. They used to run forever on every page — including one that makes a
+   Stockfish-backed request — which is a steady cost for nothing. */
+function coachScreenLive(){
+  if(document.hidden) return false;                 // background tab: stop entirely
+  const p = document.getElementById('page-coach');
+  return !!(p && p.classList.contains('active'));
+}
+function pollWhileCoaching(fn, ms){
+  return setInterval(function(){
+    if(!coachScreenLive()) return;
+    try{ fn(); }catch(e){}
+  }, ms);
+}
+window.coachScreenLive = coachScreenLive;
+
 /* ── Shop ─────────────────────────────────────────────────────────────────── */
 const XP_RULE_LABELS = {
   puzzle_solved:'Solve a puzzle', drill_passed:'Pass a drill',
@@ -3896,22 +3912,32 @@ const ForgePointer = {
         p.style.strokeDasharray=L; p.style.strokeDashoffset=L;
       });
       void arm.getBoundingClientRect();
+      // The arm used to draw for 420ms and only then, via a setTimeout, fade the
+      // hand in over another 180 — half a second of waiting, in two steps that
+      // could drift apart under load. They overlap now: the hand starts on a CSS
+      // delay while the arm is still extending, so it arrives as the arm lands.
+      // One easing curve throughout, and no overshoot — the old one sprang past
+      // its target at 1.4, which is what read as clunky.
+      const EASE = 'cubic-bezier(.32,.72,0,1)';
       requestAnimationFrame(function(){
         [out,arm].forEach(function(p){
-          p.style.transition='stroke-dashoffset .42s cubic-bezier(.34,1.4,.64,1)';
-          p.style.strokeDashoffset=0;
+          p.style.transition = 'stroke-dashoffset .34s ' + EASE;
+          p.style.strokeDashoffset = 0;
         });
       });
       hand.style.transition='none'; hand.style.opacity=0;
       hand.setAttribute('transform', this.handTransform(g));
-      const self=this;
-      setTimeout(function(){
-        hand.style.transition='opacity .18s ease-out, transform .18s cubic-bezier(.34,1.4,.64,1)';
-        hand.style.opacity=1; hand.setAttribute('transform', self.handTransform(g));
-      }, 300);
+      void hand.getBoundingClientRect();
+      requestAnimationFrame(function(){
+        hand.style.transition = 'opacity .2s ' + EASE + ' .14s, transform .28s ' + EASE;
+        hand.style.opacity = 1;
+      });
     } else {
-      hand.style.transition='opacity .18s ease-out';
-      hand.setAttribute('transform', this.handTransform(g));   // sweep: endpoint slides, arm stays out
+      // Sweeping between squares: the arm stays out and the endpoint glides,
+      // so this is the one that most needs to feel continuous.
+      hand.style.transition='transform .34s cubic-bezier(.32,.72,0,1), opacity .2s ease-out';
+      [out,arm].forEach(function(p){ p.style.transition='d .34s cubic-bezier(.32,.72,0,1)'; });
+      hand.setAttribute('transform', this.handTransform(g));
     }
     document.querySelectorAll('.fb-sq--pointed').forEach(function(s){ s.classList.remove('fb-sq--pointed'); });
     sqEl.classList.add('fb-sq--pointed');
@@ -3944,11 +3970,12 @@ const ForgePointer = {
     const arm=document.getElementById('forge-arm'), out=document.getElementById('forge-arm-out'), hand=document.getElementById('forge-hand');
     document.querySelectorAll('.fb-sq--pointed').forEach(function(s){ s.classList.remove('fb-sq--pointed'); });
     const x=document.getElementById('forge-point-x'); if(x) x.classList.add('hidden');
-    if(hand){ hand.style.transition='opacity .2s ease-in'; hand.style.opacity=0; }
+    // Hand first, then the arm follows it back — the reverse of arriving.
+    if(hand){ hand.style.transition='opacity .14s cubic-bezier(.32,.72,0,1)'; hand.style.opacity=0; }
     [out,arm].forEach(function(p){
       if(!p) return;
       const L = p.getTotalLength ? p.getTotalLength() : 0;
-      p.style.transition='stroke-dashoffset .3s ease-in';
+      p.style.transition='stroke-dashoffset .26s cubic-bezier(.32,.72,0,1) .06s';
       p.style.strokeDashoffset = L;
     });
     this.active=false;
@@ -4687,8 +4714,28 @@ const Coach = (function(){
         credentials:'include'
       });
       d = await r.json();
-    }catch(e){ d = {silent:true}; }
+    }catch(e){ d = {silent:true, analysis_failed:true}; }
+
+    // The server reports analysis_failed when it could not actually check the
+    // move. Treating that as "fine" is what let blunders through unremarked, so
+    // it gets one retry before we give up and say so.
+    if(d && d.analysis_failed){
+      try{
+        const r2 = await fetch('/coach-move-feedback', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({fen_before: fenBefore, san_played: sanPlayed,
+                                weaknesses: BotState.weaknesses,
+                                played_moves: getPlayedSAN().slice(0,-1)}),
+          credentials:'include'});
+        const d2 = await r2.json();
+        if(d2 && !d2.analysis_failed) d = d2;
+      }catch(e){}
+    }
     setThinking(false);
+    if(d && d.analysis_failed){
+      setStatus('Could not check that move — the engine was busy.');
+      Coach.speak('I could not read that one. Play on and I will pick it up next move.');
+    }
     // Record perf for live calibration + post-game puzzles
     BotState.perf = BotState.perf || []; BotState.moveData = BotState.moveData || [];
     BotState.perf.push(typeof d.drop_cp==='number' ? d.drop_cp : 0);
@@ -5551,7 +5598,7 @@ const GameSetup = (function(){
     refresh();
     // The move cycle is spread across several call sites; polling keeps the bar
     // honest without threading a callback through every one of them.
-    setInterval(refresh, 400);
+    pollWhileCoaching(refresh, 400);
   }
 
   return {init, refresh, showSetup, resign, flip, newGame, start};
@@ -5937,7 +5984,7 @@ const Candidates = (function(){
   function reset(){ clearVerdict(); const w=$('cand'); if(w){w.classList.add('hidden');} const l=$('cand-list'); if(l) l.innerHTML=''; }
 
   // Poll rather than patching every arrow call site — cheap and always accurate.
-  function init(){ setInterval(paint, 500); }
+  function init(){ pollWhileCoaching(paint, 500); }
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 
@@ -6282,7 +6329,11 @@ const CoachRail = (function(){
         }
       } else if(d){ d.remove(); if(BotState.board && BotState.board.clearMarks) BotState.board.clearMarks(); }
     });
-    setInterval(()=>{ try{ refresh(); syncCandidates(); }catch(e){} }, 700);
+    // Only syncCandidates is polled. refresh() rendered the questions rail,
+    // which was removed by request — both its container and its render target
+    // are gone, so it early-returns on every call. Polling a no-op is just
+    // cost, and /coach-rail is Stockfish-backed.
+    pollWhileCoaching(syncCandidates, 500);
   }
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();

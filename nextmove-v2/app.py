@@ -3679,7 +3679,9 @@ def coach_move_feedback():
     played_moves = data.get("played_moves", []) or []
     sf = find_stockfish()
     if not sf or not fen_before or not san_played:
-        return jsonify({"severity":"ok","commentary":"","arrows":[],"highlights":[],"silent":True})
+        if not sf: print("coach-move-feedback: no stockfish on PATH")
+        return jsonify({"severity":"unknown","commentary":"","arrows":[],"highlights":[],
+                        "silent":True,"analysis_failed":True})
     try:
         board = chess.Board(fen_before)
         move = board.parse_san(san_played)
@@ -3828,8 +3830,16 @@ def coach_move_feedback():
             "opp_best_san": opp_san,
             "opening": {"name": opening_name, "theme": opening_theme} if opening_name else None,
         })
-    except Exception:
-        return jsonify({"severity":"ok","commentary":"","arrows":[],"highlights":[],"silent":True})
+    except Exception as e:
+        # This used to answer severity "ok" and say nothing. Anything that went
+        # wrong here — Stockfish failing to spawn, a timeout, two requests
+        # contending for the engine — was therefore reported as a perfectly
+        # good move, which is why a blunder sometimes passed without a word.
+        # It is now flagged so the client can retry rather than assume the move
+        # was fine, and logged so it stops being invisible.
+        print("coach-move-feedback failed:", repr(e))
+        return jsonify({"severity":"unknown","commentary":"","arrows":[],"highlights":[],
+                        "silent":True,"analysis_failed":True}), 200
 
 @app.route("/analyze-bot-game", methods=["POST"])
 def analyze_bot_game():

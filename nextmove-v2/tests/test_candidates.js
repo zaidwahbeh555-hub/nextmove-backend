@@ -45,6 +45,10 @@ global.BotState = {
 };
 global.Chess = function(){ return {move:()=>({san:'Nf3'}), fen:()=>'x'}; };
 global.Candidates = {marked:()=>[{from:'g1',to:'f3'},{from:'f1',to:'c4'}]};
+// Polling is gated on the play screen being visible; the module calls this
+// helper, which lives outside it. Not started here — the test drives directly.
+global.pollWhileCoaching = function(){ return 0; };
+global.coachScreenLive = function(){ return true; };
 
 const PREVIEW = {candidates:[
   {move:'Nf3', reply:'Nc6', eval:0.3, gap:0,

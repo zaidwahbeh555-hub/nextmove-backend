@@ -3077,3 +3077,154 @@ body.play-locked .app-foot{display:none}
 .tb-upgrade .ic{width:15px;height:15px}
 .tb-upgrade.hidden{display:none}
 @media(max-width:900px){.tb-upgrade span{display:none}.tb-upgrade{padding:0 11px}}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PHONE
+   Everything below is inside a max-width query, so it cannot reach a desktop
+   layout at all. The play screen was 931px of content laid out in a 390px
+   window with overflow:hidden — the panel and GM Forge were simply off-screen
+   with no way to scroll to them. On a phone it becomes one column that scrolls:
+   board first, then the coach, then the rest.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+
+  /* 1 ─ Let the page scroll. The desktop play screen is deliberately fixed to
+         the viewport; on a phone that is what makes it unusable. */
+  body.play-locked{overflow:auto !important;-webkit-overflow-scrolling:touch}
+  .main-wrap{height:auto !important;min-height:0 !important;overflow:visible !important;
+    padding:14px 12px 96px !important}
+  #page-coach.page{height:auto !important;overflow:visible !important;padding:0 !important}
+
+  /* 2 ─ One column, in reading order. */
+  #page-coach .gm-layout{display:flex !important;flex-direction:column;gap:14px;
+    height:auto !important;padding:0 !important;align-items:stretch}
+  #page-coach .gm-main{grid-column:auto;width:100%;gap:10px}
+  #page-coach .gm-side,#page-coach #coach-panel{
+    grid-column:auto;width:100% !important;margin:0 !important;
+    max-height:none !important;overflow:visible !important;order:2}
+  #page-coach .forge-dock{order:3}
+
+  /* 3 ─ The board is the point: full width, square, nothing beside it. */
+  #page-coach .gm-board-wrap,
+  #page-coach .eval-strip,
+  #page-coach .gm-gamebar{width:100% !important;min-width:0 !important}
+  #page-coach .gm-board-wrap{aspect-ratio:1/1;margin:0 auto}
+  #page-coach .eval-strip{height:56px}
+  #page-coach .eval-num{width:96px;padding:8px 12px}
+  #page-coach .eval-num b{font-size:18px}
+
+  /* 4 ─ Controls wrap instead of overflowing, and are thumb-sized. */
+  #page-coach .gm-gamebar{flex-wrap:wrap;gap:8px;padding:10px}
+  #page-coach .gm-gamebar-actions{width:100%;display:grid;
+    grid-template-columns:repeat(2,1fr);gap:8px}
+  #page-coach .gm-act{width:100%;justify-content:center;padding:11px 10px;font-size:13px}
+
+  /* 5 ─ GM Forge is decorative here, so he takes a strip rather than a column. */
+  .forge-dock{flex-direction:row !important;align-items:flex-end;gap:10px;
+    width:100% !important;padding:0 !important;margin:0 !important}
+  .forge-dock #coach-big{width:76px !important;max-width:76px !important;flex:none}
+  #page-coach .forge-dock #forge-figure{width:76px !important}
+  .forge-dock .forge-say{flex:1;min-width:0}
+
+  /* 6 ─ Rails do not fold on a phone; there is nothing to fold them out of. */
+  .rail-toggle{display:none !important}
+  body.rail-right-off #page-coach .gm-side,
+  body.rail-right-off #page-coach #coach-panel{display:block !important}
+
+  /* 7 ─ Top bar: let the nav scroll sideways rather than crush the logo. */
+  .topbar{height:58px;padding:0 10px;gap:8px}
+  .topbar .logo-word{display:none}
+  .topbar .beta-pill{display:none}
+  .tb-left,.tb-right{flex:0 0 auto;gap:8px}
+  .tb-center{flex:1 1 auto;min-width:0;justify-content:flex-start}
+  .topbar .nav-links{overflow-x:auto;overflow-y:hidden;max-width:100%;
+    scrollbar-width:none;-webkit-overflow-scrolling:touch;flex-wrap:nowrap}
+  .topbar .nav-links::-webkit-scrollbar{display:none}
+  .topbar .nav-link{padding:8px 12px;font-size:13px;white-space:nowrap}
+  .topbar .nav-link .ic{display:none}
+  .main-wrap{margin-top:0 !important}
+
+  /* 8 ─ Cards and grids go single file. */
+  .kpis,.tp-grid,.shop-grid,.pro-gate-strip{grid-template-columns:1fr !important}
+  .kpi-v{font-size:34px}
+  .traj-v{font-size:38px}
+  .traj-svg{height:200px}
+  #page-training .streak-card{position:static !important;width:100% !important;
+    margin:0 0 16px !important}
+  #page-training .train-top,
+  #page-training .think-card > .think-head,
+  #page-training .think-sub,
+  #page-training .think-stats{padding-right:0 !important}
+  .train-title{font-size:30px}
+  .think-title{font-size:21px}
+
+  /* 9 ─ Overlays fit the screen instead of hanging off it. */
+  .modal,.modal.pro-gate{width:100% !important;max-height:88vh}
+  .tutorial-box{width:calc(100vw - 24px) !important;left:12px !important;right:12px !important;
+    bottom:12px !important;top:auto !important;transform:none !important}
+  .cmdk-box{width:calc(100vw - 24px)}
+  .drill-overlay,.postgame-modal{padding:12px}
+
+  /* 10 ─ Things that only make sense with a mouse. */
+  .cmdk-hint,.tb-cmdk{display:none !important}
+  .forge-point-x{width:32px;height:32px}          /* thumb-sized */
+  .gm-skin-btn span{display:inline}
+
+  /* 11 ─ Never let anything force a horizontal scroll. */
+  html,body{max-width:100%;overflow-x:hidden}
+  .page{min-width:0}
+}
+
+/* Very small phones: the board still has to stay square and legible. */
+@media (max-width: 380px) {
+  #page-coach .gm-gamebar-actions{grid-template-columns:1fr}
+  .traj-v{font-size:32px}
+  .topbar .nav-link{padding:8px 10px;font-size:12.5px}
+}
+
+/* ── Pointer and highlights: one curve, no nervous loops ────────────────────
+   The pointed square pulsed forever in cyan while the rest of the app is
+   indigo, so it both clashed and never settled. It now settles: three beats,
+   then it simply holds, in the accent colour like everything else. */
+.fb-sq--pointed{
+  box-shadow:inset 0 0 0 2px var(--accent) !important;
+  animation:pointedSettle 900ms cubic-bezier(.32,.72,0,1) 3 !important;
+  z-index:3}
+@keyframes pointedSettle{
+  0%  {box-shadow:inset 0 0 0 2px rgba(91,108,255,1)}
+  50% {box-shadow:inset 0 0 0 3px rgba(91,108,255,.45)}
+  100%{box-shadow:inset 0 0 0 2px rgba(91,108,255,1)}
+}
+/* Dimming the rest of the board is the same gesture, so it uses the same curve
+   and lands with the arm rather than a quarter-second later. */
+body.forge-focus .fb-sq:not(.fb-sq--pointed){
+  opacity:.55;transition:opacity .34s cubic-bezier(.32,.72,0,1)}
+body:not(.forge-focus) .fb-sq{transition:opacity .34s cubic-bezier(.32,.72,0,1)}
+/* The arm carries a soft glow so it reads as his, not as a stray line. */
+#forge-arm{filter:drop-shadow(0 2px 6px rgba(91,108,255,.35))}
+@media(prefers-reduced-motion:reduce){
+  .fb-sq--pointed{animation:none !important}
+  #forge-figure{animation:none !important}
+}
+
+/* ── Candidate moves: the panel worth noticing ──────────────────────────────
+   Weighing two moves and watching both played out is the most useful thing in
+   here, and it looked like a heading with a question mark. It is a bordered
+   card in the accent now, with the "?" reading as an invitation rather than
+   punctuation. */
+#coach-panel .cp-sec:has(#crail-cands),
+#coach-panel .cp-sec.cands-sec{
+  background:var(--accent-soft);border:1px solid rgba(91,108,255,.34);
+  border-radius:12px;padding:14px 15px}
+.cands-sec .cp-h{color:var(--accent-text,var(--accent));font-size:12px;margin-bottom:8px}
+.cands-sec .cp-help{width:18px;height:18px;font-size:11px;
+  border-color:var(--accent);color:var(--accent-text,var(--accent));
+  background:rgba(91,108,255,.16)}
+.cands-sec .cp-help:hover,.cands-sec .cp-help.is-open{
+  background:var(--accent);color:#0D0D14;border-color:var(--accent)}
+/* A one-line prompt under the heading, so its purpose is on screen without
+   having to press anything. */
+.cands-sec .cands-lead{font-size:12px;line-height:1.5;color:var(--text-2);margin:0 0 10px}
+.cands-sec .crail-btn{border-color:var(--accent);background:var(--accent);color:#0D0D14;
+  font-weight:700}
+.cands-sec .crail-btn:hover{filter:brightness(1.08);background:var(--accent)}
