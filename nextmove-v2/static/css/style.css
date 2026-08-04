@@ -3065,16 +3065,31 @@ body.play-locked .app-foot{display:none}
 
 /* Upgrade, in the top bar where it cannot be missed. Hidden once you are on
    Grandmaster — nothing more to sell. */
-.tb-upgrade{display:flex;align-items:center;gap:7px;padding:0 15px;height:34px;
+/* The only always-visible route to the paid plan, so it is built to be seen:
+   filled rather than outlined, slightly taller than its neighbours in the bar,
+   and carrying a slow ring so the eye catches it without it ever moving the
+   layout. Only transform and opacity animate. */
+.tb-upgrade{position:relative;display:flex;align-items:center;gap:7px;
+  padding:0 18px;height:38px;
   border-radius:999px;border:none;cursor:pointer;font-family:inherit;
-  font-size:12.5px;font-weight:700;color:#0D0D14;
+  font-size:13.5px;font-weight:700;letter-spacing:-.01em;color:#0D0D14;
   background:linear-gradient(135deg, var(--accent) 0%, #7C8BFF 100%);
-  box-shadow:0 6px 16px -8px rgba(91,108,255,.85);
+  box-shadow:0 8px 20px -8px rgba(91,108,255,.95);
   transition:filter 120ms cubic-bezier(.32,.72,0,1), transform 120ms cubic-bezier(.32,.72,0,1)}
+.tb-upgrade::after{content:'';position:absolute;inset:0;border-radius:999px;
+  border:2px solid var(--accent);opacity:0;pointer-events:none;
+  animation:tbUpgradePulse 3s cubic-bezier(.32,.72,0,1) infinite}
+@keyframes tbUpgradePulse{
+  0%{transform:scale(1);opacity:.6}
+  65%{transform:scale(1.3);opacity:0}
+  100%{transform:scale(1.3);opacity:0}}
 .tb-upgrade:hover{filter:brightness(1.08);transform:translateY(-1px)}
-.tb-upgrade .ic{width:15px;height:15px}
+.tb-upgrade:hover::after{animation:none}
+.tb-upgrade .ic{width:16px;height:16px}
 .tb-upgrade.hidden{display:none}
-@media(max-width:900px){.tb-upgrade span{display:none}.tb-upgrade{padding:0 11px}}
+@media(prefers-reduced-motion:reduce){.tb-upgrade::after{animation:none}}
+/* Keep the words as long as there is room; only the narrowest bars drop them. */
+@media(max-width:720px){.tb-upgrade span{display:none}.tb-upgrade{padding:0 12px}}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    PHONE
@@ -3226,3 +3241,12 @@ body:not(.forge-focus) .fb-sq{transition:opacity .34s cubic-bezier(.32,.72,0,1)}
 .cands-sec .crail-btn{border-color:var(--accent);background:var(--accent);color:#0D0D14;
   font-weight:700}
 .cands-sec .crail-btn:hover{filter:brightness(1.08);background:var(--accent)}
+
+/* Plan badge: shown only to Grandmaster, where the upgrade button would be. */
+.tb-plan{display:inline-flex;align-items:center;height:38px;padding:0 14px;
+  border-radius:999px;font-size:12px;font-weight:700;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--accent);
+  background:var(--accent-soft);border:1px solid rgba(91,108,255,.28);
+  user-select:none;white-space:nowrap}
+.tb-plan.hidden{display:none}
+@media(max-width:720px){.tb-plan{display:none}}

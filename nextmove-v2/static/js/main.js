@@ -1078,6 +1078,10 @@ function syncCosmeticAffordances(){
   // The one place plan state is reflected in the chrome.
   const up = document.getElementById('tb-upgrade');
   if(up) up.classList.toggle('hidden', State.plan === 'pro' || !State.loggedIn);
+  // The same slot says which plan you are on once there is nothing to sell you,
+  // so an empty corner is not the only evidence that Grandmaster is active.
+  const badge = document.getElementById('tb-plan');
+  if(badge) badge.classList.toggle('hidden', !(State.loggedIn && State.plan === 'pro'));
   const lock = document.getElementById('gm-skin-lock');
   if(lock) lock.hidden = State.plan==='pro';
   const dot = document.getElementById('nav-shop-new');
