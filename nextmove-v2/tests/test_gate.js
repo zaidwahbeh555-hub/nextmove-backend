@@ -17,7 +17,7 @@ function mk(id){
     querySelectorAll:()=>[], querySelector:()=>null};
   els[id]=e; return e;
 }
-['gate-note','gm-setup','gm-gamebar','setup-mode'].forEach(mk);
+['gate-note','gate-body','gate-title','gm-setup','gm-gamebar','setup-mode'].forEach(mk);
 els['gate-note']._c.add('hidden');
 const coachedBtn = mk('btn-coached'); coachedBtn.dataset.mode='coached';
 const freeBtn    = mk('btn-free');    freeBtn.dataset.mode='free'; 
@@ -35,6 +35,10 @@ global.document={
 global.window=global; global.State={loggedIn:true};
 global.fetch=async()=>({json:async()=>GATE});
 // Helpers init() reaches for that live outside this module.
+// setGateNote lives outside GameSetup; pull it in the same way.
+{ const s=require('fs').readFileSync('static/js/main.js','utf8');
+  const i=s.indexOf('function setGateNote(');
+  eval(s.slice(i, s.indexOf('\n}', i)+2) + ';global.setGateNote=setGateNote;'); }
 global.pollWhileCoaching=()=>0;
 global.coachScreenLive=()=>true;
 global.setBotMode=()=>{};
@@ -57,8 +61,10 @@ const tick=()=>new Promise(r=>setImmediate(()=>setImmediate(r)));
         coachedBtn._c.has('is-locked'));
   check('the reason is shown while it is struck',
         !els['gate-note']._c.has('hidden'));
-  const t = els['gate-note'].textContent;
-  check('it says what unlocks it', /on your own today/.test(t), t.slice(0,52));
+  const t = els['gate-body'].textContent;
+  check('a heading states the rule in plain words',
+        /Play one game on your own first/.test(
+          require('fs').readFileSync('templates/index.html','utf8')));
   check('it explains the training', /training drills/.test(t));
   check('Free play is the selected mode instead', freeBtn._c.has('active'));
   check('it is not dressed up as an upsell', !/grandmaster|upgrade|pro\b/i.test(t));
@@ -77,10 +83,18 @@ const tick=()=>new Promise(r=>setImmediate(()=>setImmediate(r)));
         !coachedBtn._c.has('is-locked'));
   check('and the explanation is removed with it',
         els['gate-note']._c.has('hidden'));
-  check('no leftover text', els['gate-note'].textContent === '',
-        JSON.stringify(els['gate-note'].textContent));
-  check('no "you are unlocked" message is left behind',
-        !els['gate-note']._c.has('ok'));
+  check('no leftover text', els['gate-body'].textContent === '',
+        JSON.stringify(els['gate-body'].textContent));
+  // ── it has to be loud, not fine print ────────────────────────────────────
+  {
+    const css=require('fs').readFileSync('static/css/style.css','utf8');
+    const card=(css.match(/\.gate-card\{[^}]*\}/)||[''])[0];
+    const title=(css.match(/\.gate-card-title\{[^}]*\}/)||[''])[0];
+    const size=+(/font-size:(\d+(?:\.\d+)?)px/.exec(title)||[0,0])[1];
+    check('the prompt is a card, not a one-line note', /padding:16px/.test(card), card.slice(0,40));
+    check('its heading is real heading size', size >= 15, size+'px');
+    check('the old 12px fine print is gone', !/\.gate-note\{/.test(css));
+  }
   els['setup-mode']._click({target:{closest:()=>coachedBtn}});
   check('Coached is selectable again', coachedBtn._c.has('active'));
 

@@ -3047,11 +3047,23 @@ body.play-locked .app-foot{display:none}
   font-size:11px;font-weight:500;letter-spacing:.02em;text-transform:none;color:var(--text-3)}
 
 /* The daily free-play gate, explained where the choice is made. */
-.gate-note{font-size:12px;line-height:1.55;color:var(--text-2);margin:0 0 14px;
-  padding:10px 12px;border-radius:10px;
-  background:rgba(229,167,61,.10);border:1px solid rgba(229,167,61,.28)}
-.gate-note.ok{background:rgba(59,201,168,.10);border-color:rgba(59,201,168,.26);color:var(--text-3)}
-.gate-note.hidden{display:none}
+/* The daily gate prompt.
+   It was a 12px note and got read as fine print, so people picked Coached, hit
+   the block, and had no idea why. It is the loudest thing in the panel now --
+   which is right, because it is the one thing standing between them and the
+   game they were trying to start. */
+.gate-card{margin:0 0 16px;padding:16px;border-radius:12px;
+  background:rgba(229,167,61,.11);border:1px solid rgba(229,167,61,.42);
+  box-shadow:inset 0 0 0 1px rgba(229,167,61,.08)}
+.gate-card.hidden{display:none}
+.gate-card-head{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.gate-card-ic{display:inline-flex;align-items:center;justify-content:center;
+  width:28px;height:28px;flex:0 0 28px;border-radius:999px;
+  background:rgba(229,167,61,.20);color:#E5A73D}
+.gate-card-ic .ic{width:16px;height:16px}
+.gate-card-title{font-size:15px;font-weight:700;line-height:1.3;color:#F0C87A;
+  letter-spacing:-.01em}
+.gate-card-body{margin:0;font-size:13px;line-height:1.6;color:var(--text-2)}
 /* Struck through, not just dimmed. Dimming alone read as "this is the one you
    picked" -- the option still looked selectable, so people chose Coached and
    only found out it was blocked once the game refused to start. */

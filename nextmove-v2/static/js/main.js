@@ -1073,6 +1073,15 @@ document.addEventListener('click', function(e){
   if(gate && !gate.hidden && t === gate){ closeProGate(); }
 });
 
+// The daily gate prompt. Writing straight into the container would destroy its
+// heading, so the body is addressed on its own.
+function setGateNote(msg, on){
+  const card = document.getElementById('gate-note');
+  const body = document.getElementById('gate-body');
+  if(body) body.textContent = msg || '';
+  if(card) card.classList.toggle('hidden', !on);
+}
+
 // Reflect plan on the play-screen affordance.
 function syncCosmeticAffordances(){
   // The one place plan state is reflected in the chrome.
@@ -2682,8 +2691,7 @@ function startBotGame(){
           // Not an upsell — a game played unaided unlocks it, on any plan.
           setBotMode('free');
           Coach.speak('Unaided game first — this one counts. ' + (d.why || ''));
-          const g = document.getElementById('gate-note');
-          if(g){ g.textContent = d.message || ''; g.classList.remove('hidden', 'ok'); }
+          setGateNote(d.message || d.why || '', true);
         } else if(!ok && d && d.upgrade){
           Coach.speak(d.message || 'That is your free coached game for today.');
           try{ showProGate('coached'); }catch(e){}
@@ -5154,6 +5162,10 @@ class ForgeBoard {
       }
     }
     if(!this.cells || !Object.keys(this.cells).length) this._buildSquares();
+    // What was selected, and what was standing on it. Both are needed below to
+    // decide whether the selection is still meaningful after the repaint.
+    const _prevSel = this.selected;
+    const _prevKey = _prevSel ? this._pieceKey(this.pos[_prevSel]) : null;
     // repaint only changed squares
     const files='abcdefgh';
     for(let f=0; f<8; f++) for(let r=1; r<=8; r++){
@@ -5165,7 +5177,22 @@ class ForgeBoard {
     this.el.querySelectorAll('.fb-sq.fb-last,.fb-sq.fb-check,.fb-sq.fb-selected').forEach(c=>c.classList.remove('fb-last','fb-check','fb-selected'));
     if(opts.lastMove) this.lastMove = opts.lastMove;
     if('checkSquare' in opts) this.checkSquare = opts.checkSquare;
+    // Keep the selection through a repaint the user did not cause.
+    //
+    // Every position change came through here and cleared it unconditionally,
+    // so picking a piece up to look at its moves and then having the bot reply
+    // dropped the selection and the dots -- you had to click the same piece
+    // again to carry on looking. The selection only stops meaning something if
+    // that exact piece is no longer on that square (it moved, or it was just
+    // captured) or if it has nothing to play, so those are the only cases that
+    // clear it. Targets are recomputed from the new position, so a square that
+    // just became occupied correctly shows a capture ring rather than a dot.
     this.selected = null; this._clearDots();
+    let _restore = false;
+    if(_prevSel && _prevKey && this._pieceKey(this.pos[_prevSel]) === _prevKey && this.interactive){
+      const t = this.getTargets(_prevSel);
+      _restore = !!(t && t.length);
+    }
     if(this.lastMove){ const a=this.cells[this.lastMove.from], b=this.cells[this.lastMove.to]; if(a)a.classList.add('fb-last'); if(b)b.classList.add('fb-last'); }
     if(this.checkSquare && this.cells[this.checkSquare]) this.cells[this.checkSquare].classList.add('fb-check');
     // 200ms slide (FLIP) for the piece that just moved — only that one piece animates
@@ -5181,6 +5208,7 @@ class ForgeBoard {
         }
       }
     }
+    if(_restore) this._select(_prevSel);
     if(this.overlay && this.clearUser) this.clearUser();
   }
   flip(color){ this.orientation = color; this._buildSquares(); }
@@ -5518,16 +5546,7 @@ const GameSetup = (function(){
       // the solo game is done there is no rule left to explain, so the note
       // goes away rather than turning into a "you are allowed" message nobody
       // needs to read every time they start a game.
-      if(note){
-        if(g.coached_locked){
-          note.textContent = 'Coached is locked until you finish one game on your own today. ' + g.why;
-          note.classList.remove('hidden', 'ok');
-        } else {
-          note.textContent = '';
-          note.classList.add('hidden');
-          note.classList.remove('ok');
-        }
-      }
+      if(note) setGateNote(g.why || '', !!g.coached_locked);
       if(g.coached_locked){
         mode = 'free';
         document.querySelectorAll('#setup-mode .gm-seg-btn').forEach(b2=>
